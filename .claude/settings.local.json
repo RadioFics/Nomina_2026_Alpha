@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node test-db-connection.js)",
+      "Bash(node diagnostico-conexion-bd.js)",
+      "Bash(find \"./database\" -name \"*.sql\" -exec grep -l \"GN_USUAR\\\\|CREATE TABLE\" {} \\\\;)",
+      "Bash(node validate-env.js)",
+      "Bash(timeout 5 npm start)",
+      "Bash(node get-my-ip.js)",
+      "Bash(grep -E \"\\\\.\\(js|ts\\)$\")",
+      "Bash(grep -E \"\\\\.js$|\\\\.html$|package\\\\.json|views|public\")",
+      "Bash(awk '{print $2}')",
+      "Bash(taskkill /F /IM node.exe)",
+      "Bash(node -c config/database.js)",
+      "Bash(node -c controllers/databaseController.js)",
+      "Bash(node -c routes/database.js)",
+      "Bash(node -c server.js)"
+    ]
+  }
+}
