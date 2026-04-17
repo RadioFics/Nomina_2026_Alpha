@@ -1,0 +1,41 @@
+# Configuración de Variables de Entorno
+# Copia este archivo como .env y rellena los valores
+
+# ===== SQL SERVER =====
+# Servidor SQL Server (formato: servidor\instancia o servidor,puerto)
+SERVER=CM-ITD-P-05\SQLEXPRESS
+
+# Base de datos a usar
+DATABASE=MineDax
+
+# Usuario (Autenticación de Windows: DOMINIO\usuario)
+UID=AzureAD\JuanEstebanCalle
+
+# Contraseña (si usas autenticación SQL Server, sino dejar vacío)
+PWD=
+
+# Driver ODBC (asegúrate de tener instalado)
+DRIVER=ODBC Driver 17 for SQL Server
+
+# ===== SERVIDOR =====
+# Puerto en el que se ejecutará el servidor
+PORT=3000
+
+# Ambiente (development, production, test)
+NODE_ENV=development
+
+# ===== SEGURIDAD =====
+# Nota: En producción, usar variables de entorno del servidor
+# No subir .env a control de versiones
+
+# ===== EJEMPLOS =====
+
+# Para autenticación SQL Server:
+# UID=sa
+# PWD=TuContraseña123!
+
+# Para SQL Server en otra máquina:
+# SERVER=192.168.1.100,1433
+
+# Para instancia nombrada en remote:
+# SERVER=servidor.dominio.com\SQLEXPRESS

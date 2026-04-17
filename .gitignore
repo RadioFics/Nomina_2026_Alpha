@@ -1,0 +1,179 @@
+# =============================================================================
+#  .gitignore — Interfaz Nómina (Collective Mining · Adecco)
+#  Objetivo: subir al repo sólo código fuente, documentación y configuración
+#  NO sensible. Excluir dependencias, secretos, artefactos de build, backups
+#  pesados y ruido del sistema operativo / editor.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+#  1) Dependencias y artefactos de Node
+# -----------------------------------------------------------------------------
+# node_modules se reconstruye con `npm install`; pesa ~91 MB y cambia mucho.
+node_modules/
+# Cachés y logs de npm/pnpm/yarn
+.npm/
+.pnpm-store/
+.yarn/
+yarn-error.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+# OJO: NO ignoramos package-lock.json — debe versionarse para builds
+# reproducibles. Si usas pnpm o yarn y generan sus propios locks,
+# mantenlos también.
+
+# -----------------------------------------------------------------------------
+#  2) Variables de entorno y secretos
+# -----------------------------------------------------------------------------
+# .env tiene credenciales de SQL Server y JWT → NUNCA subir.
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+# Las plantillas SÍ se suben (sirven como documentación). Se fuerza con !
+!.env.example
+!ENV_EXAMPLE
+!ENV_EXAMPLE.auth
+
+# Archivos de credenciales comunes por si aparecen
+*.pem
+*.key
+*.pfx
+*.p12
+secrets.json
+credentials.json
+
+# -----------------------------------------------------------------------------
+#  3) Logs, artefactos de ejecución y build
+# -----------------------------------------------------------------------------
+*.log
+logs/
+dist/
+build/
+out/
+coverage/
+.nyc_output/
+
+# -----------------------------------------------------------------------------
+#  4) Backups pesados y archivos temporales del proyecto
+# -----------------------------------------------------------------------------
+# ZIPs de respaldo — no aportan al código, hinchan el repo.
+*.zip
+*.rar
+*.7z
+*.tar
+*.tar.gz
+*.tgz
+# Archivos de respaldo manuales
+*.bak
+*.backup
+*.old
+*.orig
+# Exports de datos sensibles (descomentar si aplica):
+# *.csv
+# *.xlsx
+
+# -----------------------------------------------------------------------------
+#  5) Sistema operativo (Windows / macOS / Linux)
+# -----------------------------------------------------------------------------
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# -----------------------------------------------------------------------------
+#  6) OneDrive / Dropbox / sincronización en la nube
+# -----------------------------------------------------------------------------
+# El proyecto vive en OneDrive y genera archivos temporales de sincronía.
+*.tmp
+~$*
+.~lock.*
+*.partial
+*.ODTmp
+# Copias en conflicto típicas de OneDrive/Dropbox (patrones comunes)
+*-conflicted*
+*conflicted copy*
+
+# -----------------------------------------------------------------------------
+#  7) Editores e IDEs
+# -----------------------------------------------------------------------------
+# VS Code
+.vscode/
+*.code-workspace
+
+# JetBrains (WebStorm / IntelliJ / PyCharm)
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Sublime / Vim / Emacs
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*.swn
+\#*\#
+.\#*
+
+# Cursor / Claude y similares
+.cursor/
+.claude/
+
+# -----------------------------------------------------------------------------
+#  8) Python (por import_excel.py y GN_USUAR.ipynb)
+# -----------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+.venv/
+venv/
+env/
+.pytest_cache/
+# Checkpoints de Jupyter (GN_USUAR.ipynb sí se versiona; los checkpoints no)
+.ipynb_checkpoints/
+
+# -----------------------------------------------------------------------------
+#  9) Bases de datos locales / dumps
+# -----------------------------------------------------------------------------
+# Archivos de SQL Server / SQLite accidentales
+*.mdf
+*.ldf
+*.trn
+*.sqlite
+*.sqlite3
+*.db
+# Dumps de datos
+*.dump
+*.sql.gz
+
+# -----------------------------------------------------------------------------
+# 10) Reglas específicas del proyecto
+# -----------------------------------------------------------------------------
+# Snapshot histórico presente en la raíz
+filesV2_*.zip
+
+# Carpetas locales de pruebas o datos reales (por si aparecen)
+/uploads/
+/tmp/
+/_scratch/

@@ -1,0 +1,315 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                    🗺️  MAPA VISUAL DEL SISTEMA DE AUTENTICACIÓN            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+═══════════════════════════════════════════════════════════════════════════════
+📱 FRONTEND (Lo que ves en navegador)
+═══════════════════════════════════════════════════════════════════════════════
+
+  ┌────────────────────────────────────────────────────┐
+  │  LOGIN.HTML (Vista de login)                       │
+  │                                                    │
+  │  ┌──────────────────────────────────────────────┐ │
+  │  │  [Email/Cedula] ▢________________________     │ │
+  │  │  [Contraseña]   ▢________________________     │ │
+  │  │                                              │ │
+  │  │  [Iniciar Sesión]  (envía a backend)        │ │
+  │  └──────────────────────────────────────────────┘ │
+  │                                                    │
+  │  Si error:                                         │
+  │  ❌ "Requisitos de seguridad" (contraseña débil)  │
+  │  ❌ "Cédula/Email o contraseña incorrectos"       │
+  │  ❌ "Tu cuenta ha sido bloqueada"                 │
+  └────────────────────────────────────────────────────┘
+           │
+           │ fetch POST /api/auth/login
+           │ {cedula_o_email, contrasena}
+           ↓
+
+═══════════════════════════════════════════════════════════════════════════════
+⚙️  BACKEND (Lo que hace Node.js/Express)
+═══════════════════════════════════════════════════════════════════════════════
+
+  ┌────────────────────────────────────────────────────┐
+  │  SERVER.JS + AUTHCONTROLLER.JS                    │
+  │                                                    │
+  │  1. Recibe: {cedula/email, contraseña}            │
+  │  2. Valida que existan                            │
+  │  3. Busca en BD: SELECT * FROM GN_USUAR WHERE...  │
+  │  4. Compara con bcrypt:                           │
+  │     bcrypt.compare(texto_plano, hash_en_bd)      │
+  │  5. Si correcto:                                  │
+  │     - Genera JWT token                            │
+  │     - Registra sesión en GN_SESION                │
+  │     - Registra log exitoso en GN_LOG_ACCESO       │
+  │     - Retorna token al frontend                   │
+  │  6. Si incorrecto:                                │
+  │     - Registra intento fallido                    │
+  │     - Si > 5 intentos, bloquea usuario            │
+  │     - Retorna error                               │
+  └────────────────────────────────────────────────────┘
+           │
+           │ Consultas SQL
+           ↓
+
+═══════════════════════════════════════════════════════════════════════════════
+🗄️  BASE DE DATOS (SQL Server - MineDax)
+═══════════════════════════════════════════════════════════════════════════════
+
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │ GN_USUAR (TABLA PRINCIPAL - Donde se guardan usuarios)             │
+  ├─────────────────────────────────────────────────────────────────────┤
+  │ ID_USUAR (GUID)                 | ABC-123-DEF (ID único)           │
+  │ CEDULA ⭐                         | hernandezjuan (usuario)          │
+  │ NOMBRE_USUAR                    | Hernández Juan Felipe            │
+  │ EMAIL ⭐                          | hernandezjuanfelipe964@...      │
+  │ PASSW_HASH ⭐⭐⭐                  | $2b$12$XXXX... (60 caracteres)  │
+  │ NIVEL_USUAR                     | 1 = Empleado                     │
+  │ ESTA_ACTIVO                     | 1 = Sí                           │
+  │ ESTA_BLOQUEADO                  | 0 = No                           │
+  │ INTENTOS_FALL                   | 0 intentos fallidos              │
+  │ FECH_PROX_CAMBIO                | 2026-07-14 (debe cambiar pass)   │
+  │ FECH_CREACION                   | 2026-04-14                       │
+  └─────────────────────────────────────────────────────────────────────┘
+                      │
+        ┌─────────────┼─────────────┬─────────────┐
+        ↓             ↓             ↓             ↓
+
+  ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐
+  │ GN_SESION        │ │ GN_LOG_ACCESO    │ │ GN_ROL_USUAR     │
+  ├──────────────────┤ ├──────────────────┤ ├──────────────────┤
+  │ ID_SESION        │ │ ID_LOG           │ │ ID_ROL_USUAR     │
+  │ ID_USUAR ───┐   │ │ ID_USUAR ───┐   │ │ ID_USUAR ───┐   │
+  │ CEDULA      │   │ │ CEDULA      │   │ │ CEDULA      │   │
+  │ FECH_INICIO │   │ │ TIPO_EVENTO │   │ │ COD_ROL     │   │
+  │ IP_DIREC    │   │ │ ESTADO      │   │ │ NOM_ROL     │   │
+  │ USER_AGENT  │   │ │ MENSAJE     │   │ │ DESC_ROL    │   │
+  │ ESTA_ACTIVA │   │ │ IP_DIREC    │   │ │ ESTA_ACTIVO │   │
+  │             │   │ │ FECH_EVENTO │   │ │             │   │
+  │ Quién       │   │ │ Qué         │   │ │ Permiso     │   │
+  │ ingresó y   │   │ │ intentó y   │   │ │ de acceso   │   │
+  │ cuándo      │   │ │ qué pasó    │   │ │             │   │
+  └──────────────────┘ └──────────────────┘ └──────────────────┘
+        ↑                      ↑                      ↑
+   Auditoria           Auditoría completa      Control de permisos
+
+═══════════════════════════════════════════════════════════════════════════════
+🔄 FLUJO COMPLETO DE LOGIN (Desde usuario hasta BD)
+═══════════════════════════════════════════════════════════════════════════════
+
+  Usuario abre login.html
+         │
+         ├─ Ingresa email: hernandezjuanfelipe964@gmail.com
+         └─ Ingresa pass: ContrasenaSegura123!
+                   │
+                   ↓ (texto plano)
+
+  Frontend valida requisitos:
+         ├─ ✅ 8+ caracteres
+         ├─ ✅ Mayúscula
+         ├─ ✅ Minúscula
+         ├─ ✅ Número
+         └─ ✅ Símbolo
+                   │
+                   ↓
+
+  Envía a backend:
+  POST /api/auth/login {
+    cedula_o_email: "hernandezjuanfelipe964@gmail.com",
+    contrasena: "ContrasenaSegura123!"
+  }
+                   │
+                   ↓
+
+  Backend (authController.js):
+
+  1. Busca en BD:
+     SELECT * FROM GN_USUAR
+     WHERE EMAIL = "hernandezjuanfelipe964@gmail.com"
+                   │
+                   ↓
+  2. Encontró usuario:
+     {
+       CEDULA: "hernandezjuan",
+       PASSW_HASH: "$2b$12$XXXX...",
+       ESTA_ACTIVO: 1,
+       ESTA_BLOQUEADO: 0,
+       ...
+     }
+                   │
+                   ↓
+  3. Compara contraseña:
+     bcrypt.compare(
+       "ContrasenaSegura123!",
+       "$2b$12$XXXX..."
+     )
+                   │
+        ┌──────────┴──────────┐
+        ↓                      ↓
+     ✅ VÁLIDA              ❌ INVÁLIDA
+        │                      │
+        │                      ↓
+        │            Registra intento fallido:
+        │            INSERT INTO GN_LOG_ACCESO
+        │            {ESTADO: 'FALLIDO'}
+        │                      │
+        │                      ├─ Si 5+ intentos:
+        │                      │  UPDATE GN_USUAR
+        │                      │  SET ESTA_BLOQUEADO = 1
+        │                      │
+        │                      ↓
+        │            Retorna error al frontend
+        │            "Cédula/Email o contraseña..."
+        │
+        ↓
+  Genera JWT token:
+  eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZF91c3VhciI6IkFCQy...
+        │
+        ├─ Registra sesión:
+        │  INSERT INTO GN_SESION {...}
+        │
+        ├─ Registra log exitoso:
+        │  INSERT INTO GN_LOG_ACCESO
+        │  {ESTADO: 'EXITOSO', MENSAJE: 'Login exitoso'}
+        │
+        └─ Retorna token al frontend
+                      │
+                      ↓
+  Frontend recibe token:
+  {
+    status: 'success',
+    token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+    usuario: {
+      id: 'ABC-123',
+      cedula: 'hernandezjuan',
+      nombre: 'Hernández Juan Felipe'
+    }
+  }
+                      │
+                      ├─ Guarda token:
+                      │  localStorage.setItem('token', token)
+                      │
+                      └─ Redirige a:
+                         /index.html (dashboard)
+
+═══════════════════════════════════════════════════════════════════════════════
+🔑 ¿DÓNDE ESTÁ ALMACENADA TU INFORMACIÓN?
+═══════════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                        INFORMACIÓN DE USUARIO                       │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  Ubicación en BD: Tabla GN_USUAR, Columna PASSW_HASH               │
+│  Formato: Hash bcrypt ($2b$12$XXXXXXX...)                          │
+│  Longitud: 60 caracteres (SIEMPRE)                                 │
+│  Recuperable: ❌ NO (es un hash, no se puede deshacer)            │
+│  Cambio: node script-gestionar-usuarios.js cambiar [cedula] [pass] │
+│  Auditoría: Tabla GN_LOG_ACCESO (TODOS los intentos)              │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                      INFORMACIÓN DE SESIÓN                          │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  Ubicación en BD: Tabla GN_SESION                                   │
+│  Qué se guarda:                                                     │
+│    - ID del usuario (referencia a GN_USUAR)                        │
+│    - Cuándo ingresó (FECH_INICIO)                                  │
+│    - IP de conexión                                                │
+│    - Navegador/dispositivo (USER_AGENT)                            │
+│    - Última actividad (FECH_ULTIMA_ACT)                            │
+│    - Cuándo cerró sesión (FECH_CIERRE)                             │
+│  Ver sesiones activas: SELECT * FROM GN_SESION WHERE ESTA_ACTIVA=1 │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                      AUDITORÍA DE INTENTOS                          │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  Ubicación en BD: Tabla GN_LOG_ACCESO                               │
+│  Qué se registra:                                                   │
+│    - Todos los intentos de login (exitosos Y fallidos)             │
+│    - Quién intentó (CEDULA)                                        │
+│    - Desde dónde (IP_DIRECCION)                                    │
+│    - Qué pasó (ESTADO: EXITOSO/FALLIDO)                            │
+│    - Cuándo (FECH_EVENTO)                                          │
+│    - Por qué falló (MENSAJE)                                       │
+│  Ver todos: SELECT * FROM GN_LOG_ACCESO ORDER BY FECH_EVENTO DESC  │
+│  Ver usuario específico: ... WHERE CEDULA = 'hernandezjuan'        │
+│                                                                     │
+│  IMPORTANTE: Estos datos son para AUDITORÍA y SEGURIDAD            │
+│              No se pueden eliminar (para compliance)                │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+⚠️  EL PROBLEMA QUE TIENES AHORA
+═══════════════════════════════════════════════════════════════════════════════
+
+Usuario: hernandezjuanfelipe964@gmail.com
+Intentas ingresar con: $2b$10$XXXX (UN HASH)
+
+┌─────────────────────────────────────────┐
+│  Usuario intenta login                  │
+│  Email: hernandezjuanfelipe964@...      │
+│  Contraseña: $2b$10$XXXX                │ ❌ PROBLEMA: Estás usando HASH
+│                                         │    en lugar de contraseña
+│  Frontend valida requisitos:            │    en TEXTO PLANO
+│  - 8+ caracteres ✅                      │
+│  - Mayúscula      ✅                      │
+│  - Minúscula      ❌ (no hay)            │
+│  - Número         ✅                      │
+│  - Símbolo        ✅                      │
+│                                         │
+│  RESULTADO: "Requisitos de seguridad"  │
+└─────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+✅ LA SOLUCIÓN
+═══════════════════════════════════════════════════════════════════════════════
+
+Paso 1: Generar nuevo hash (en terminal)
+  node generate-bcrypt-hash.js "ContrasenaSegura123!"
+  Output: $2b$12$abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234
+
+Paso 2: Actualizar en BD (SSMS)
+  UPDATE GN_USUAR
+  SET PASSW_HASH = '$2b$12$abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234'
+  WHERE EMAIL = 'hernandezjuanfelipe964@gmail.com';
+
+Paso 3: Intentar login CORRECTAMENTE
+  Email:       hernandezjuanfelipe964@gmail.com
+  Contraseña:  ContrasenaSegura123!  ← EN TEXTO PLANO, NO el hash
+
+  ✅ Funciona
+
+═══════════════════════════════════════════════════════════════════════════════
+📊 RESUMEN: ¿DÓNDE ESTÁ TODO?
+═══════════════════════════════════════════════════════════════════════════════
+
+┌────────────────────────────────┬─────────────────────────────────────────┐
+│ QUÉ                            │ DÓNDE                                   │
+├────────────────────────────────┼─────────────────────────────────────────┤
+│ Usuarios y contraseñas         │ SQL Server → MineDax → GN_USUAR         │
+│ Historial de sesiones          │ SQL Server → MineDax → GN_SESION        │
+│ Auditoría de intentos          │ SQL Server → MineDax → GN_LOG_ACCESO    │
+│ Roles y permisos               │ SQL Server → MineDax → GN_PERMISOS      │
+│ Token JWT                      │ Frontend → localStorage                 │
+│ Scripts de gestión             │ Node.js → script-gestionar-usuarios.js  │
+│ Documentación                  │ Archivos .md en proyecto                │
+└────────────────────────────────┴─────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+🎯 PRÓXIMOS PASOS
+═══════════════════════════════════════════════════════════════════════════════
+
+1. ✅ Resuelve el login actual (sigue la solución arriba)
+2. 📖 Lee: README_AUTENTICACION.md
+3. 🔑 Lee: GUIA_USUARIOS_Y_CREDENCIALES.md para entender TODO
+4. 🛠️  Usa: script-gestionar-usuarios.js para manejar usuarios
+5. 📊 Verifica: GN_LOG_ACCESO para auditoría
+
+═══════════════════════════════════════════════════════════════════════════════

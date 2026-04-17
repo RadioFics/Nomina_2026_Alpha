@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configuración BD - Collective Mining Nómina</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Syne:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --coal: #0E0E0E;
+      --gold: #C9A84C;
+      --gold-light: #E8CC8A;
+      --dark: #161616;
+      --surface: #1E1E1E;
+      --surface2: #252525;
+      --border: rgba(201, 168, 76, 0.18);
+      --text: #F0EDE8;
+      --muted: #8A857A;
+      --error: #E53E3E;
+      --success: #48BB78;
+      --warning: #ECC94B;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--coal);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── TOPBAR ── */
+    .topbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .topbar-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .topbar-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--gold);
+    }
+
+    .topbar-subtitle {
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    .topbar-nav {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .topbar-user {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    /* ── MAIN LAYOUT ── */
+    .page-layout {
+      display: flex;
+      min-height: calc(100vh - 65px);
+    }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      width: 260px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 24px 0;
+      flex-shrink: 0;
+    }
+
+    .sidebar-section {
+      padding: 0 16px;
+      margin-bottom: 8px;
+    }
+
+    .sidebar-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--muted);
+      padding: 8px 12px 6px;
+    }
+
+    .sidebar-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      color: var(--muted);
+      text-decoration: none;
+      transition: all 0.15s ease;
+      border: 1px solid transparent;
+    }
+
+    .sidebar-item:hover {
+      background: rgba(201, 168, 76, 0.05);
+      color: var(--text);
+      border-color: var(--border);
+    }
+
+    .sidebar-item.active {
+      background: rgba(201, 168, 76, 0.08);
+      color: var(--gold);
+      border-color: var(--border);
+    }
+
+    /* ── MAIN CONTENT ── */
+    .main-content {
+      flex: 1;
+      padding: 32px;
+      overflow-y: auto;
+    }
+
+    .page-header {
+      margin-bottom: 32px;
+    }
+
+    .page-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--gold);
+      margin-bottom: 6px;
+    }
+
+    .page-description {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* ── STATUS CARD ── */
+    .status-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+      margin-bottom: 24px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .status-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--muted);
+      transition: background 0.4s ease;
+    }
+
+    .status-card.connected::before { background: var(--success); }
+    .status-card.disconnected::before { background: var(--error); }
+    .status-card.checking::before {
+      background: linear-gradient(90deg, var(--gold) 0%, transparent 60%);
+      animation: shimmer 1.2s linear infinite;
+    }
+
+    @keyframes shimmer {
+      from { background-position: -200% 0; }
+      to { background-position: 200% 0; }
+    }
+
+    .status-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+
+    .status-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text);
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .status-badge.connected {
+      background: rgba(72, 187, 120, 0.12);
+      color: var(--success);
+      border: 1px solid rgba(72, 187, 120, 0.3);
+    }
+
+    .status-badge.disconnected {
+      background: rgba(229, 62, 62, 0.12);
+      color: var(--error);
+      border: 1px solid rgba(229, 62, 62, 0.3);
+    }
+
+    .status-badge.checking {
+      background: rgba(201, 168, 76, 0.12);
+      color: var(--gold);
+      border: 1px solid var(--border);
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .status-dot.pulse {
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.8); }
+    }
+
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+
+    .status-item {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+    }
+
+    .status-item-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .status-item-value {
+      font-size: 14px;
+      color: var(--text);
+      font-weight: 500;
+      word-break: break-all;
+    }
+
+    .status-item-value.latency-good { color: var(--success); }
+    .status-item-value.latency-ok { color: var(--warning); }
+    .status-item-value.latency-bad { color: var(--error); }
+
+    .refresh-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .refresh-btn:hover {
+      color: var(--gold);
+      border-color: var(--gold);
+    }
+
+    /* ── FORM CARD ── */
+    .form-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 28px;
+      margin-bottom: 24px;
+    }
+
+    .card-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .card-description {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 24px;
+      line-height: 1.5;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .form-group.full-width {
+      grid-column: 1 / -1;
+    }
+
+    label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    input[type="text"],
+    input[type="password"] {
+      width: 100%;
+      padding: 11px 14px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      transition: all 0.2s ease;
+    }
+
+    input::placeholder { color: var(--muted); }
+
+    input:focus {
+      outline: none;
+      border-color: var(--gold);
+      box-shadow: 0 0 0 3px rgba(201, 168, 76, 0.1);
+    }
+
+    .field-hint {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 5px;
+      line-height: 1.4;
+    }
+
+    /* ── PASSWORD TOGGLE ── */
+    .password-wrapper {
+      position: relative;
+    }
+
+    .password-wrapper input {
+      padding-right: 42px;
+    }
+
+    .toggle-pwd {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 16px;
+      padding: 2px;
+      transition: color 0.15s ease;
+    }
+
+    .toggle-pwd:hover { color: var(--gold); }
+
+    /* ── BUTTONS ── */
+    .actions {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    button {
+      padding: 11px 22px;
+      border: none;
+      border-radius: 6px;
+      font-family: 'Syne', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background: var(--gold);
+      color: var(--coal);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--gold-light);
+      transform: translateY(-1px);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--gold);
+      border: 1px solid var(--gold);
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: rgba(201, 168, 76, 0.08);
+    }
+
+    .btn-secondary:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    /* ── STATUS MESSAGE ── */
+    .status-message {
+      padding: 12px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      display: none;
+      margin-top: 16px;
+      animation: slideIn 0.25s ease-out;
+      line-height: 1.5;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .status-message.show { display: block; }
+    .status-message.error { background: rgba(229, 62, 62, 0.1); color: var(--error); border: 1px solid rgba(229, 62, 62, 0.3); }
+    .status-message.success { background: rgba(72, 187, 120, 0.1); color: var(--success); border: 1px solid rgba(72, 187, 120, 0.3); }
+    .status-message.info { background: rgba(201, 168, 76, 0.1); color: var(--gold); border: 1px solid var(--border); }
+    .status-message.warning { background: rgba(236, 201, 75, 0.1); color: var(--warning); border: 1px solid rgba(236, 201, 75, 0.3); }
+
+    /* ── TEST RESULT ── */
+    .test-result {
+      display: none;
+      margin-top: 16px;
+      padding: 14px 16px;
+      border-radius: 8px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+    }
+
+    .test-result.show { display: block; }
+
+    .test-result-title {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .test-result-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+    }
+
+    .test-icon { font-size: 18px; }
+
+    .test-message { flex: 1; color: var(--text); }
+
+    .test-latency {
+      font-size: 12px;
+      color: var(--muted);
+      font-family: monospace;
+    }
+
+    /* ── SPINNER ── */
+    .spinner {
+      display: inline-block;
+      width: 13px;
+      height: 13px;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-top-color: currentColor;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── DANGER ZONE ── */
+    .danger-zone {
+      background: rgba(229, 62, 62, 0.04);
+      border: 1px solid rgba(229, 62, 62, 0.2);
+      border-radius: 10px;
+      padding: 20px 24px;
+    }
+
+    .danger-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--error);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+
+    .danger-text {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 900px) {
+      .sidebar { display: none; }
+      .form-grid { grid-template-columns: 1fr; }
+      .main-content { padding: 20px; }
+    }
+
+    @media (max-width: 600px) {
+      .topbar { padding: 14px 16px; }
+      .actions { flex-direction: column; align-items: stretch; }
+      .actions button { justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="topbar-brand">
+      <span style="font-size: 22px;">🏭</span>
+      <div>
+        <div class="topbar-title">Collective Mining</div>
+        <div class="topbar-subtitle">Sistema de Nómina</div>
+      </div>
+    </div>
+    <div class="topbar-nav">
+      <span class="topbar-user" id="topbarUser">Cargando...</span>
+      <button class="refresh-btn" onclick="AuthUtil.logout()">Cerrar sesión</button>
+    </div>
+  </div>
+
+  <div class="page-layout">
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-label">Navegación</div>
+        <a href="/index_novedades.html" class="sidebar-item">
+          <span>📋</span> Novedades
+        </a>
+        <a href="#" class="sidebar-item active">
+          <span>🗄️</span> Base de Datos
+        </a>
+      </div>
+      <div class="sidebar-section" style="margin-top: 16px;">
+        <div class="sidebar-label">Administración</div>
+        <a href="#" class="sidebar-item">
+          <span>👥</span> Usuarios
+        </a>
+      </div>
+    </div>
+
+    <!-- MAIN -->
+    <div class="main-content">
+      <div class="page-header">
+        <h1 class="page-title">Configuración de Base de Datos</h1>
+        <p class="page-description">
+          Gestiona la conexión a SQL Server. Los cambios se aplican inmediatamente sin reiniciar el servidor.
+        </p>
+      </div>
+
+      <!-- TARJETA DE ESTADO ACTUAL -->
+      <div class="status-card checking" id="statusCard">
+        <div class="status-header">
+          <span class="status-title">Estado de Conexión Actual</span>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span class="status-badge checking" id="statusBadge">
+              <span class="status-dot pulse"></span>
+              Verificando...
+            </span>
+            <button class="refresh-btn" onclick="cargarEstado()" title="Actualizar estado">
+              ↻ Actualizar
+            </button>
+          </div>
+        </div>
+
+        <div class="status-grid" id="statusGrid">
+          <div class="status-item">
+            <div class="status-item-label">Servidor</div>
+            <div class="status-item-value" id="infoServer">—</div>
+          </div>
+          <div class="status-item">
+            <div class="status-item-label">Base de Datos</div>
+            <div class="status-item-value" id="infoDatabase">—</div>
+          </div>
+          <div class="status-item">
+            <div class="status-item-label">Usuario SQL</div>
+            <div class="status-item-value" id="infoUser">—</div>
+          </div>
+          <div class="status-item">
+            <div class="status-item-label">Latencia</div>
+            <div class="status-item-value" id="infoLatency">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FORMULARIO DE NUEVA CONFIGURACIÓN -->
+      <div class="form-card">
+        <div class="card-title">Nueva Configuración</div>
+        <p class="card-description">
+          Ingresa los datos del servidor SQL Server. Usa "Probar Conexión" para validar antes de guardar.
+        </p>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="inputServer">Servidor</label>
+            <input type="text" id="inputServer" placeholder="ej: DESKTOP-ABC123\SQLEXPRESS">
+            <span class="field-hint">Hostname o IP del servidor. Para instancias nombradas usa SERVIDOR\INSTANCIA.</span>
+          </div>
+
+          <div class="form-group">
+            <label for="inputDatabase">Base de Datos</label>
+            <input type="text" id="inputDatabase" placeholder="ej: MineDax">
+            <span class="field-hint">Nombre exacto de la base de datos.</span>
+          </div>
+
+          <div class="form-group">
+            <label for="inputUid">Usuario SQL</label>
+            <input type="text" id="inputUid" placeholder="ej: app_nomina">
+            <span class="field-hint">Usuario de autenticación SQL Server (no Windows).</span>
+          </div>
+
+          <div class="form-group">
+            <label for="inputPwd">Contraseña</label>
+            <div class="password-wrapper">
+              <input type="password" id="inputPwd" placeholder="••••••••••••">
+              <button class="toggle-pwd" onclick="togglePwd()" type="button" title="Mostrar/ocultar">👁</button>
+            </div>
+            <span class="field-hint">Contraseña del usuario SQL. Se guardará en .env del servidor.</span>
+          </div>
+        </div>
+
+        <!-- Resultado del test -->
+        <div class="test-result" id="testResult">
+          <div class="test-result-title">Resultado de prueba</div>
+          <div class="test-result-row">
+            <span class="test-icon" id="testIcon">—</span>
+            <span class="test-message" id="testMessage">—</span>
+            <span class="test-latency" id="testLatency"></span>
+          </div>
+        </div>
+
+        <!-- Mensaje de operación -->
+        <div id="opStatusMessage" class="status-message"></div>
+
+        <div class="actions" style="margin-top: 20px;">
+          <button class="btn-secondary" id="btnTest" onclick="probarConexion()">
+            <span>🔌</span> Probar Conexión
+          </button>
+          <button class="btn-primary" id="btnSave" onclick="guardarConfig()" disabled>
+            <span>💾</span> Guardar y Aplicar
+          </button>
+        </div>
+      </div>
+
+      <!-- ZONA DE PELIGRO -->
+      <div class="danger-zone">
+        <div class="danger-title">⚠ Zona de advertencia</div>
+        <p class="danger-text">
+          Al guardar una nueva configuración, <strong>todos los usuarios conectados</strong> verán sus próximas
+          consultas redirigidas a la nueva base de datos inmediatamente. Las consultas en curso se completan
+          con la conexión anterior. Esta acción queda registrada en consola del servidor con tu usuario.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/auth.js"></script>
+  <script>
+    // ──────────────────────────────────────────
+    // Estado del panel
+    // ──────────────────────────────────────────
+    let testPassed = false;
+    let lastTestedConfig = null;
+
+    // ──────────────────────────────────────────
+    // Al cargar la página
+    // ──────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+      // Proteger: solo admins
+      if (!AuthUtil.estaAutenticado()) {
+        window.location.href = '/login.html';
+        return;
+      }
+
+      // Verificar que sea admin
+      const nivelUsuario = Number(AuthUtil.getNivelUsuario());
+      if (nivelUsuario < 3) {
+        mostrarOpStatus('Acceso denegado. Se requiere nivel administrador.', 'error');
+        document.getElementById('inputServer').disabled = true;
+        document.getElementById('inputDatabase').disabled = true;
+        document.getElementById('inputUid').disabled = true;
+        document.getElementById('inputPwd').disabled = true;
+        document.getElementById('btnTest').disabled = true;
+        document.getElementById('btnSave').disabled = true;
+        return;
+      }
+
+      // Mostrar nombre del usuario
+      const usuario = AuthUtil.getUsuario();
+      if (usuario) {
+        document.getElementById('topbarUser').textContent =
+          (usuario.nombre || usuario.email || 'Admin') + ' (Admin)';
+      }
+
+      cargarEstado();
+      preCargarFormulario();
+    });
+
+    // ──────────────────────────────────────────
+    // Cargar estado actual de conexión
+    // ──────────────────────────────────────────
+    async function cargarEstado() {
+      const card = document.getElementById('statusCard');
+      const badge = document.getElementById('statusBadge');
+      card.className = 'status-card checking';
+      badge.className = 'status-badge checking';
+      badge.innerHTML = '<span class="status-dot pulse"></span> Verificando...';
+
+      try {
+        const response = await AuthUtil.fetchAuth('/database/status');
+        const data = await response.json();
+
+        if (data.status === 'success') {
+          const info = data.data;
+
+          document.getElementById('infoServer').textContent = info.server || '—';
+          document.getElementById('infoDatabase').textContent = info.database || '—';
+          document.getElementById('infoUser').textContent = info.user || '—';
+
+          const latEl = document.getElementById('infoLatency');
+          if (info.latencyMs !== null && info.latencyMs >= 0) {
+            const ms = info.latencyMs;
+            latEl.textContent = ms + ' ms';
+            latEl.className = 'status-item-value ' +
+              (ms < 50 ? 'latency-good' : ms < 200 ? 'latency-ok' : 'latency-bad');
+          } else if (info.latencyMs === -1) {
+            latEl.textContent = 'Error en query';
+            latEl.className = 'status-item-value latency-bad';
+          } else {
+            latEl.textContent = 'No conectado';
+            latEl.className = 'status-item-value';
+          }
+
+          if (info.connected) {
+            card.className = 'status-card connected';
+            badge.className = 'status-badge connected';
+            badge.innerHTML = '<span class="status-dot"></span> Conectado';
+          } else {
+            card.className = 'status-card disconnected';
+            badge.className = 'status-badge disconnected';
+            badge.innerHTML = '<span class="status-dot"></span> Desconectado';
+          }
+        } else {
+          card.className = 'status-card disconnected';
+          badge.className = 'status-badge disconnected';
+          badge.innerHTML = '<span class="status-dot"></span> Error';
+        }
+      } catch (err) {
+        card.className = 'status-card disconnected';
+        badge.className = 'status-badge disconnected';
+        badge.innerHTML = '<span class="status-dot"></span> Sin respuesta';
+        console.error('Error cargando estado:', err);
+      }
+    }
+
+    // ──────────────────────────────────────────
+    // Pre-llenar formulario con valores actuales
+    // ──────────────────────────────────────────
+    async function preCargarFormulario() {
+      try {
+        const response = await AuthUtil.fetchAuth('/database/status');
+        const data = await response.json();
+        if (data.status === 'success') {
+          const info = data.data;
+          if (info.server) document.getElementById('inputServer').value = info.server;
+          if (info.database) document.getElementById('inputDatabase').value = info.database;
+          if (info.user) document.getElementById('inputUid').value = info.user;
+        }
+      } catch (_) {}
+    }
+
+    // ──────────────────────────────────────────
+    // Probar conexión
+    // ──────────────────────────────────────────
+    async function probarConexion() {
+      const server = document.getElementById('inputServer').value.trim();
+      const database = document.getElementById('inputDatabase').value.trim();
+      const uid = document.getElementById('inputUid').value.trim();
+      const pwd = document.getElementById('inputPwd').value;
+
+      if (!server || !database || !uid || !pwd) {
+        mostrarOpStatus('Completa todos los campos antes de probar.', 'error');
+        return;
+      }
+
+      const btn = document.getElementById('btnTest');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Probando...';
+      document.getElementById('btnSave').disabled = true;
+      testPassed = false;
+      ocultarTestResult();
+
+      try {
+        const response = await AuthUtil.fetchAuth('/database/test', {
+          method: 'POST',
+          body: { server, database, uid, pwd }
+        });
+        const data = await response.json();
+
+        mostrarTestResult(data);
+
+        if (data.status === 'success') {
+          testPassed = true;
+          lastTestedConfig = { server, database, uid, pwd };
+          document.getElementById('btnSave').disabled = false;
+          mostrarOpStatus('Conexión exitosa. Puedes guardar la configuración.', 'success');
+        } else {
+          mostrarOpStatus(data.message || 'La conexión falló. Verifica los datos.', 'error');
+        }
+      } catch (err) {
+        mostrarOpStatus('Error de red al probar conexión: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span>🔌</span> Probar Conexión';
+      }
+    }
+
+    // ──────────────────────────────────────────
+    // Guardar y aplicar configuración
+    // ──────────────────────────────────────────
+    async function guardarConfig() {
+      const server = document.getElementById('inputServer').value.trim();
+      const database = document.getElementById('inputDatabase').value.trim();
+      const uid = document.getElementById('inputUid').value.trim();
+      const pwd = document.getElementById('inputPwd').value;
+
+      if (!testPassed || !lastTestedConfig) {
+        mostrarOpStatus('Debes probar la conexión exitosamente antes de guardar.', 'warning');
+        return;
+      }
+
+      if (
+        lastTestedConfig.server !== server ||
+        lastTestedConfig.database !== database ||
+        lastTestedConfig.uid !== uid ||
+        lastTestedConfig.pwd !== pwd
+      ) {
+        testPassed = false;
+        document.getElementById('btnSave').disabled = true;
+        mostrarOpStatus('Los datos cambiaron después del test. Vuelve a probar la conexión.', 'warning');
+        return;
+      }
+
+      const btn = document.getElementById('btnSave');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Aplicando...';
+
+      try {
+        const response = await AuthUtil.fetchAuth('/database/configure', {
+          method: 'POST',
+          body: { server, database, uid, pwd }
+        });
+        const data = await response.json();
+
+        if (data.status === 'success') {
+          mostrarOpStatus(
+            'Configuración guardada y aplicada. El servidor ya está conectado a la nueva base de datos.',
+            'success'
+          );
+          testPassed = false;
+          lastTestedConfig = null;
+          setTimeout(cargarEstado, 1500);
+        } else {
+          mostrarOpStatus(data.message || 'Error al aplicar configuración.', 'error');
+          btn.disabled = false;
+          btn.innerHTML = '<span>💾</span> Guardar y Aplicar';
+        }
+      } catch (err) {
+        mostrarOpStatus('Error de red al guardar: ' + err.message, 'error');
+        btn.disabled = false;
+        btn.innerHTML = '<span>💾</span> Guardar y Aplicar';
+      }
+    }
+
+    // ──────────────────────────────────────────
+    // Helpers de UI
+    // ──────────────────────────────────────────
+    function mostrarTestResult(data) {
+      const container = document.getElementById('testResult');
+      const icon = document.getElementById('testIcon');
+      const msg = document.getElementById('testMessage');
+      const lat = document.getElementById('testLatency');
+
+      container.classList.add('show');
+      icon.textContent = data.status === 'success' ? '✅' : '❌';
+      msg.textContent = data.message || '';
+      lat.textContent = data.data?.latencyMs != null ? `${data.data.latencyMs}ms` : '';
+    }
+
+    function ocultarTestResult() {
+      document.getElementById('testResult').classList.remove('show');
+    }
+
+    function mostrarOpStatus(mensaje, tipo = 'info') {
+      const el = document.getElementById('opStatusMessage');
+      el.textContent = mensaje;
+      el.className = `status-message show ${tipo}`;
+    }
+
+    function togglePwd() {
+      const input = document.getElementById('inputPwd');
+      input.type = input.type === 'password' ? 'text' : 'password';
+    }
+
+    // Deshabilitar "Guardar" si el usuario modifica cualquier campo después del test
+    ['inputServer', 'inputDatabase', 'inputUid', 'inputPwd'].forEach(id => {
+      document.getElementById(id).addEventListener('input', () => {
+        if (testPassed) {
+          testPassed = false;
+          lastTestedConfig = null;
+          document.getElementById('btnSave').disabled = true;
+          ocultarTestResult();
+          const msgEl = document.getElementById('opStatusMessage');
+          if (msgEl.classList.contains('show')) {
+            mostrarOpStatus('Datos modificados. Prueba la conexión de nuevo.', 'info');
+          }
+        }
+      });
+    });
+  </script>
+</body>
+</html>

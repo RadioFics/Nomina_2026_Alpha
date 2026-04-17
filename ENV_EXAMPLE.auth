@@ -1,0 +1,50 @@
+# ============================================================================
+# EJEMPLO DE VARIABLES DE ENTORNO PARA AUTENTICACIÓN
+# Copiar este archivo a .env y rellenar los valores
+# ============================================================================
+
+# ============================================================================
+# CONEXIÓN A SQL SERVER
+# ============================================================================
+SERVER=tu-servidor-sql.local
+DATABASE=MineDax
+UID=usuario_sql
+PWD=contraseña_sql
+
+# ============================================================================
+# AUTENTICACIÓN JWT
+# ============================================================================
+# IMPORTANTE: En producción, usar una cadena aleatoria y segura
+# Mínimo 32 caracteres, contener mayúsculas, números y caracteres especiales
+JWT_SECRET=tu-clave-secreta-super-segura-cambiar-en-produccion
+
+# Tiempo de expiración del token (en formato de string de jsonwebtoken)
+# Ejemplos: '8h', '24h', '7d', '30d'
+JWT_EXPIRES_IN=8h
+
+# ============================================================================
+# SERVIDOR
+# ============================================================================
+PORT=3000
+NODE_ENV=development
+
+# ============================================================================
+# NOTAS DE SEGURIDAD
+# ============================================================================
+# 1. JWT_SECRET debe ser DIFERENTE en cada ambiente:
+#    - Desarrollo: puedes usar uno simple
+#    - Producción: USAR ALGO SUPER SEGURO
+#    - Staging: USAR ALGO MÁS SEGURO QUE DESARROLLO
+#
+# 2. Para generar un JWT_SECRET seguro en PowerShell:
+#    [guid]::NewGuid().Guid + (Get-Random -Maximum 999999999)
+#
+# 3. Para generar en Linux/Mac:
+#    openssl rand -hex 32
+#
+# 4. Nunca guardar .env en Git
+#    El archivo .gitignore ya lo ignora
+#
+# 5. Cambiar contraseñas regularmente
+#
+# 6. Usar HTTPS en producción (no HTTP)

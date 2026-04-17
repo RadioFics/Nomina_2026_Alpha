@@ -1,0 +1,3027 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Novedades Nómina · Collective Mining</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold: #C9A84C;
+    --gold-light: #E8CC8A;
+    --coal: #0E0E0E;
+    --dark: #161616;
+    --surface: #1E1E1E;
+    --surface2: #252525;
+    --border: rgba(201,168,76,0.18);
+    --text: #F0EDE8;
+    --muted: #8A857A;
+    --danger: #E05555;
+    --success: #4CAF82;
+    --info: #5B9BD5;
+    --radius: 10px;
+    --tab-active: var(--gold);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--coal);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+  }
+
+  /* ─── HEADER ─── */
+  header {
+    background: linear-gradient(135deg, #0E0E0E 0%, #1a1610 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    height: 64px;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .logo-mark {
+    width: 36px; height: 36px;
+    background: var(--gold);
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Syne', sans-serif; font-weight: 800; font-size: 13px; color: #000;
+    flex-shrink: 0;
+  }
+  .logo-text { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.04em; }
+  .logo-text span { color: var(--gold); }
+  .header-sub { color: var(--muted); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
+  .header-right { margin-left: auto; display: flex; align-items: center; gap: 16px; }
+  .period-badge {
+    background: rgba(201,168,76,0.1); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 14px; font-size: 12px;
+    color: var(--gold-light); font-family: 'Syne', sans-serif; font-weight: 600;
+  }
+  .btn-export {
+    background: var(--gold); color: #000; border: none; border-radius: 7px;
+    padding: 8px 18px; font-family: 'Syne', sans-serif; font-weight: 700; font-size: 12px;
+    letter-spacing: 0.05em; cursor: pointer; transition: all .2s;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .btn-export:hover { background: var(--gold-light); transform: translateY(-1px); }
+
+  /* ─── LAYOUT ─── */
+  .layout { display: flex; height: calc(100vh - 64px); }
+
+  /* ─── SIDEBAR ─── */
+  aside {
+    width: 220px; flex-shrink: 0;
+    background: var(--dark); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; padding: 20px 0;
+    overflow-y: auto;
+  }
+  .aside-section { padding: 0 16px 8px; margin-bottom: 4px; }
+  .aside-label { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); padding: 0 12px 8px; font-family: 'Syne', sans-serif; }
+  .nav-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 16px; border-radius: 8px; cursor: pointer;
+    transition: all .15s; color: var(--muted); font-size: 13.5px;
+    margin: 0 8px 2px; border: 1px solid transparent;
+  }
+  .nav-item:hover { background: rgba(255,255,255,0.04); color: var(--text); }
+  .nav-item.active {
+    background: rgba(201,168,76,0.12); color: var(--gold);
+    border-color: rgba(201,168,76,0.25);
+  }
+  .nav-icon { font-size: 16px; width: 18px; text-align: center; }
+  .nav-badge {
+    margin-left: auto; background: var(--gold); color: #000;
+    font-size: 10px; font-weight: 700; border-radius: 10px;
+    padding: 1px 7px; font-family: 'Syne', sans-serif;
+  }
+  .nav-divider { height: 1px; background: var(--border); margin: 10px 16px; }
+
+  /* ─── MAIN ─── */
+  main { flex: 1; overflow-y: auto; padding: 28px 32px; }
+  .page { display: none; }
+  .page.active { display: block; }
+
+  .page-title {
+    font-family: 'Syne', sans-serif; font-weight: 800; font-size: 24px;
+    margin-bottom: 4px; letter-spacing: -0.02em;
+  }
+  .page-title span { color: var(--gold); }
+  .page-desc { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+
+  /* ─── STATS ROW ─── */
+  .stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 28px; }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 18px 20px;
+    position: relative; overflow: hidden;
+  }
+  .stat-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: var(--accent, var(--gold));
+  }
+  .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 8px; }
+  .stat-value { font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 800; color: var(--text); }
+  .stat-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  /* ─── FORM SECTION ─── */
+  .form-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px;
+    margin-bottom: 20px;
+  }
+  .form-card-title {
+    font-family: 'Syne', sans-serif; font-weight: 700; font-size: 14px;
+    margin-bottom: 18px; color: var(--gold-light);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .form-card-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  .form-grid { display: grid; gap: 14px; }
+  .form-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+  .form-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .form-grid.cols-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+  label .req { color: var(--gold); margin-left: 2px; }
+
+  input[type=text], input[type=date], input[type=number], input[type=email],
+  select, textarea {
+    background: var(--surface2); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 7px; padding: 10px 13px; color: var(--text);
+    font-family: 'DM Sans', sans-serif; font-size: 13.5px;
+    transition: border-color .2s, box-shadow .2s;
+    width: 100%;
+  }
+  input:focus, select:focus, textarea:focus {
+    outline: none; border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(201,168,76,0.12);
+  }
+  select option { background: var(--surface2); }
+  textarea { resize: vertical; min-height: 72px; }
+
+  /* ─── AUTOCOMPLETE DROPDOWN ─── */
+  .form-group-autocomplete { position: relative; }
+  .autocomplete-dropdown {
+    position: absolute; top: 100%; left: 0; right: 0;
+    background: var(--surface2); border: 1px solid var(--gold);
+    border-top: none; border-radius: 0 0 7px 7px;
+    max-height: 200px; overflow-y: auto; z-index: 1000;
+    display: none;
+  }
+  .autocomplete-dropdown.show { display: block; }
+  .autocomplete-item {
+    padding: 10px 13px; cursor: pointer; transition: background .15s;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    display: flex; flex-direction: column; gap: 3px;
+  }
+  .autocomplete-item:last-child { border-bottom: none; }
+  .autocomplete-item:hover { background: rgba(201,168,76,0.15); }
+  .autocomplete-item-cedula { font-size: 12px; color: var(--gold); font-weight: 600; }
+  .autocomplete-item-nombre { font-size: 13px; color: var(--text); }
+  .autocomplete-item-info { font-size: 11px; color: var(--muted); }
+
+  .form-actions {
+    display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px;
+    padding-top: 20px; border-top: 1px solid var(--border);
+  }
+
+  .btn {
+    padding: 10px 22px; border-radius: 7px; border: none; cursor: pointer;
+    font-family: 'Syne', sans-serif; font-weight: 700; font-size: 13px;
+    letter-spacing: 0.04em; transition: all .2s; display: flex; align-items: center; gap: 8px;
+  }
+  .btn-primary { background: var(--gold); color: #000; }
+  .btn-primary:hover { background: var(--gold-light); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(201,168,76,0.3); }
+  .btn-secondary { background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { background: rgba(255,255,255,0.1); }
+  .btn-danger { background: rgba(224,85,85,0.15); color: var(--danger); border: 1px solid rgba(224,85,85,0.3); }
+  .btn-danger:hover { background: rgba(224,85,85,0.25); }
+
+  /* ─── TABLE ─── */
+  .table-wrap {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden;
+  }
+  .table-header {
+    padding: 16px 20px; display: flex; align-items: center; gap: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .table-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 14px; }
+  .table-search {
+    margin-left: auto; background: var(--surface2); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 7px; padding: 8px 13px; color: var(--text);
+    font-family: 'DM Sans', sans-serif; font-size: 13px; width: 220px;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    text-align: left; padding: 11px 16px; font-size: 10px;
+    text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted);
+    background: rgba(255,255,255,0.02); font-family: 'Syne', sans-serif; font-weight: 600;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.04);
+    font-size: 13px; vertical-align: middle;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .badge {
+    display: inline-flex; align-items: center;
+    padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 500;
+  }
+  .badge-dev { background: rgba(76,175,130,0.15); color: var(--success); }
+  .badge-ded { background: rgba(224,85,85,0.15); color: var(--danger); }
+  .badge-aus { background: rgba(91,155,213,0.15); color: var(--info); }
+  .badge-cam { background: rgba(201,168,76,0.15); color: var(--gold); }
+  .td-actions { display: flex; gap: 6px; }
+  .btn-sm {
+    padding: 5px 10px; border-radius: 5px; border: none; cursor: pointer;
+    font-size: 11px; font-family: 'Syne', sans-serif; font-weight: 700; transition: all .15s;
+  }
+  .btn-sm-edit { background: rgba(201,168,76,0.1); color: var(--gold); }
+  .btn-sm-edit:hover { background: rgba(201,168,76,0.2); }
+  .btn-sm-del { background: rgba(224,85,85,0.1); color: var(--danger); }
+  .btn-sm-del:hover { background: rgba(224,85,85,0.2); }
+
+  /* ─── ALERT ─── */
+  .alert {
+    display: none; padding: 14px 18px; border-radius: 8px; margin-bottom: 16px;
+    font-size: 13px; align-items: center; gap: 12px;
+  }
+  .alert.show { display: flex; }
+  .alert-success { background: rgba(76,175,130,0.12); border: 1px solid rgba(76,175,130,0.3); color: var(--success); }
+  .alert-error { background: rgba(224,85,85,0.12); border: 1px solid rgba(224,85,85,0.3); color: var(--danger); }
+
+  /* ─── SQL EXPORT ─── */
+  .sql-output {
+    background: #0a0a0a; border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 20px; font-family: 'Courier New', monospace; font-size: 12px;
+    color: #b5cea8; line-height: 1.7; max-height: 500px; overflow-y: auto;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .sql-keyword { color: #569CD6; font-weight: bold; }
+  .sql-string { color: #CE9178; }
+  .sql-comment { color: #6A9955; }
+  .sql-number { color: #B5CEA8; }
+
+  /* ─── TABS ─── */
+  .tabs { display: flex; gap: 4px; margin-bottom: 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 5px; width: fit-content; }
+  .tab {
+    padding: 8px 18px; border-radius: 6px; cursor: pointer;
+    font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700;
+    color: var(--muted); letter-spacing: 0.04em; transition: all .2s; border: none; background: none;
+  }
+  .tab.active { background: var(--gold); color: #000; }
+
+  /* ─── UPLOAD ZONE ─── */
+  .upload-zone {
+    border: 2px dashed rgba(201,168,76,0.3); border-radius: var(--radius);
+    padding: 40px; text-align: center; cursor: pointer;
+    transition: all .2s; background: rgba(201,168,76,0.03);
+    margin-bottom: 20px;
+  }
+  .upload-zone:hover { border-color: var(--gold); background: rgba(201,168,76,0.07); }
+  .upload-icon { font-size: 36px; margin-bottom: 12px; }
+  .upload-label { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; margin-bottom: 6px; }
+  .upload-sub { color: var(--muted); font-size: 12px; }
+  #fileInput { display: none; }
+
+  /* ─── CONN FORM ─── */
+  .conn-status { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .dot.connected { background: var(--success); box-shadow: 0 0 6px var(--success); }
+  .dot.error { background: var(--danger); }
+
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .page.active { animation: fadeIn .25s ease; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-mark">CM</div>
+  <div>
+    <div class="logo-text"><span>Novedades</span> Nómina</div>
+    <div class="header-sub">Collective Mining · Adecco</div>
+  </div>
+  <div class="header-right">
+    <div style="display:flex; flex-direction:column; gap:4px; margin-right:auto; color:var(--muted); font-size:12px;">
+      <div id="welcomeMessage" style="color:var(--gold-light); font-weight:600;">Bienvenido</div>
+      <div id="userNameDisplay" style="font-size:11px;">—</div>
+    </div>
+    <div class="period-badge" id="periodoBadge">Período: —</div>
+    <button class="btn-export" onclick="generarSQLCompleto()">⬇ Exportar SQL</button>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- SIDEBAR -->
+  <aside>
+    <div class="aside-label">Módulos</div>
+    <div class="nav-item active" onclick="navigate('dashboard')">
+      <span class="nav-icon">⬡</span> Dashboard
+    </div>
+    <div class="nav-divider"></div>
+    <div class="aside-label">Novedades</div>
+    <div class="nav-item" onclick="navigate('ocasionales')">
+      <span class="nav-icon">◈</span> Ocasionales
+      <span class="nav-badge" id="badgeOcas">0</span>
+    </div>
+    <div class="nav-item" onclick="navigate('fijas')">
+      <span class="nav-icon">◉</span> Fijas
+      <span class="nav-badge" id="badgeFijas">0</span>
+    </div>
+    <div class="nav-item" onclick="navigate('ausentismos')">
+      <span class="nav-icon">◷</span> Ausentismos
+      <span class="nav-badge" id="badgeAus">0</span>
+    </div>
+    <div class="nav-item" onclick="navigate('cambiosIngresos')">
+      <span class="nav-icon">◨</span> Cambios e Ingresos
+      <span class="nav-badge" id="badgeCIngresos">0</span>
+    </div>
+    <div class="nav-divider"></div>
+    <div class="aside-label">Maestro</div>
+    <div class="nav-item" onclick="navigate('maestroOriginal')">
+      <span class="nav-icon">◫</span> Maestro Original
+      <span class="nav-badge" id="badgeMaestro">0</span>
+    </div>
+    <div class="nav-item" onclick="navigate('cambiosMaestro')">
+      <span class="nav-icon">◧</span> Cambios Maestro
+      <span class="nav-badge" id="badgeCMaestro">0</span>
+    </div>
+    <div class="nav-divider"></div>
+    <div class="aside-label">Configuración</div>
+    <div class="nav-item" onclick="navigate('importar')">
+      <span class="nav-icon">↑</span> Importar Excel
+    </div>
+    <div class="nav-item" onclick="navigate('conexion')">
+      <span class="nav-icon">⊟</span> Conexión BD
+    </div>
+    <div class="nav-item" onclick="navigate('sql')">
+      <span class="nav-icon">⟨/⟩</span> SQL Generado
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main>
+
+    <!-- ===== DASHBOARD ===== -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-title">Dashboard <span>·</span> Resumen</div>
+      <div class="page-desc">Estado actual de novedades registradas para el período</div>
+
+      <div class="stats">
+        <div class="stat-card" style="--accent:#C9A84C">
+          <div class="stat-label">Ocasionales</div>
+          <div class="stat-value" id="statOcas">0</div>
+          <div class="stat-sub">registros pendientes</div>
+        </div>
+        <div class="stat-card" style="--accent:#4CAF82">
+          <div class="stat-label">Fijas</div>
+          <div class="stat-value" id="statFijas">0</div>
+          <div class="stat-sub">novedades activas</div>
+        </div>
+        <div class="stat-card" style="--accent:#5B9BD5">
+          <div class="stat-label">Ausentismos</div>
+          <div class="stat-value" id="statAus">0</div>
+          <div class="stat-sub">incap. / vac. / lic.</div>
+        </div>
+        <div class="stat-card" style="--accent:#9B5BD5">
+          <div class="stat-label">Cambios Maestro</div>
+          <div class="stat-value" id="statCam">0</div>
+          <div class="stat-sub">modificaciones datos</div>
+        </div>
+      </div>
+
+      <div class="form-card">
+        <div class="form-card-title">Período de Nómina</div>
+        <div class="form-grid cols-3">
+          <div class="form-group">
+            <label>Empresa <span class="req">*</span></label>
+            <input type="text" id="cfgEmpresa" value="COLLECTIVE MINING" placeholder="Nombre empresa">
+          </div>
+          <div class="form-group">
+            <label>Período <span class="req">*</span></label>
+            <input type="text" id="cfgPeriodo" placeholder="Ej: 2025-03-01 / 2025-03-15" oninput="actualizarBadge()">
+          </div>
+          <div class="form-group">
+            <label>Usuario Registrador</label>
+            <input type="text" id="cfgUsuario" placeholder="Nombre usuario">
+          </div>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-header">
+          <div class="table-title">Actividad reciente</div>
+        </div>
+        <table>
+          <thead><tr>
+            <th>Módulo</th><th>Empleado</th><th>Tipo</th><th>Fecha Registro</th><th>Estado</th>
+          </tr></thead>
+          <tbody id="tbActivity">
+            <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px">Sin registros aún</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== OCASIONALES ===== -->
+    <div class="page" id="page-ocasionales">
+      <div class="page-title">Novedades <span>Ocasionales</span></div>
+      <div class="page-desc">Horas extra, bonificaciones, préstamos y otros conceptos no periódicos</div>
+      <div class="alert alert-success" id="alertOcas">✓ Registro guardado correctamente</div>
+
+      <div class="form-card">
+        <div class="form-card-title">Nuevo Registro</div>
+        <div class="form-grid cols-2">
+          <div class="form-group form-group-autocomplete">
+            <label>Identificación <span class="req">*</span></label>
+            <input type="text" id="oc_id" placeholder="Número de cédula" oninput="buscarCedulasAutocomplete('oc_id', 'oc_dropdown')">
+            <div id="oc_dropdown" class="autocomplete-dropdown"></div>
+          </div>
+          <div class="form-group">
+            <label>Nombre Empleado <span class="req">*</span></label>
+            <input type="text" id="oc_nombre" placeholder="Nombre completo" readonly>
+          </div>
+        </div>
+        <div class="form-grid cols-3" style="margin-top:14px">
+          <div class="form-group">
+            <label>Novedad (Código) <span class="req">*</span></label>
+            <select id="oc_novedad" onchange="actualizarTipoNovedad()">
+              <option value="">— Seleccionar —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Tipo de Novedad</label>
+            <select id="oc_tipo">
+              <option value="DEVENGO">DEVENGO</option>
+              <option value="DEDUCCION">DEDUCCIÓN</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Cantidad</label>
+            <input type="number" id="oc_cantidad" placeholder="0" step="0.01">
+          </div>
+        </div>
+        <div class="form-grid cols-2" style="margin-top:14px">
+          <div class="form-group">
+            <label>Valor <span class="req">*</span></label>
+            <input type="number" id="oc_valor" placeholder="0.00" step="0.01">
+          </div>
+          <div class="form-group">
+            <label>Observaciones</label>
+            <input type="text" id="oc_obs" placeholder="Notas adicionales">
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-secondary" onclick="limpiarForm('oc')">Limpiar</button>
+          <button class="btn btn-primary" onclick="guardarOcasional()">⊕ Guardar Registro</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-header">
+          <div class="table-title">Registros del período</div>
+          <input class="table-search" placeholder="🔍 Buscar empleado..." oninput="filtrarTabla('tbOcasionales', this.value)">
+        </div>
+        <table>
+          <thead><tr>
+            <th>Cédula</th><th>Nombre</th><th>Código</th><th>Tipo</th><th>Cantidad</th><th>Valor</th><th>Observaciones</th><th>Acciones</th>
+          </tr></thead>
+          <tbody id="tbOcasionales">
+            <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== FIJAS ===== -->
+    <div class="page" id="page-fijas">
+      <div class="page-title">Novedades <span>Fijas</span></div>
+      <div class="page-desc">Deducciones y devengos periódicos: AFC, APV, embargos y más</div>
+      <div class="alert alert-success" id="alertFijas">✓ Registro guardado correctamente</div>
+
+      <div class="form-card">
+        <div class="form-card-title">Nuevo Registro</div>
+        <div class="form-grid cols-2">
+          <div class="form-group form-group-autocomplete">
+            <label>Identificación <span class="req">*</span></label>
+            <input type="text" id="fj_id" placeholder="Número de cédula" oninput="buscarCedulasAutocomplete('fj_id', 'fj_dropdown', 'fj_nombre')">
+            <div id="fj_dropdown" class="autocomplete-dropdown"></div>
+          </div>
+          <div class="form-group">
+            <label>Nombre Empleado <span class="req">*</span></label>
+            <input type="text" id="fj_nombre" placeholder="Nombre completo" readonly>
+          </div>
+        </div>
+        <div class="form-grid cols-3" style="margin-top:14px">
+          <div class="form-group">
+            <label>Novedad (Código) <span class="req">*</span></label>
+            <select id="fj_novedad" onchange="actualizarTipoNovedadFija()">
+              <option value="">— Seleccionar —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Tipo de Novedad</label>
+            <select id="fj_tipo">
+              <option value="DEDUCCION">DEDUCCIÓN</option>
+              <option value="DEVENGO">DEVENGO</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Aplicación</label>
+            <select id="fj_aplicacion">
+              <option value="Normal">Normal</option>
+              <option value="Retroactivo">Retroactivo</option>
+              <option value="1ra Quincena">1ra Quincena</option>
+              <option value="2da Quincena">2da Quincena</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-grid cols-4" style="margin-top:14px">
+          <div class="form-group">
+            <label>Cantidad</label>
+            <input type="number" id="fj_cantidad" placeholder="0" step="0.01">
+          </div>
+          <div class="form-group">
+            <label>Valor <span class="req">*</span></label>
+            <input type="number" id="fj_valor" placeholder="0.00" step="0.01">
+          </div>
+          <div class="form-group">
+            <label>Fecha Inicial</label>
+            <input type="date" id="fj_finicial">
+          </div>
+          <div class="form-group">
+            <label>Fecha Final</label>
+            <input type="date" id="fj_ffinal">
+          </div>
+        </div>
+        <div class="form-grid cols-3" style="margin-top:14px">
+          <div class="form-group">
+            <label>Cuotas</label>
+            <input type="number" id="fj_cuotas" placeholder="0" min="0">
+          </div>
+          <div class="form-group">
+            <label>Cuenta</label>
+            <input type="text" id="fj_cuenta" placeholder="Número de cuenta">
+          </div>
+          <div class="form-group">
+            <label>Observaciones</label>
+            <input type="text" id="fj_obs" placeholder="Notas adicionales">
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-secondary" onclick="limpiarForm('fj')">Limpiar</button>
+          <button class="btn btn-primary" onclick="guardarFija()">⊕ Guardar Registro</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-header">
+          <div class="table-title">Registros del período</div>
+          <input class="table-search" placeholder="🔍 Buscar empleado..." oninput="filtrarTabla('tbFijas', this.value)">
+        </div>
+        <table>
+          <thead><tr>
+            <th>Cédula</th><th>Nombre</th><th>Código</th><th>Tipo</th><th>Valor</th><th>F. Inicial</th><th>F. Final</th><th>Cuotas</th><th>Acciones</th>
+          </tr></thead>
+          <tbody id="tbFijas">
+            <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== AUSENTISMOS ===== -->
+    <div class="page" id="page-ausentismos">
+      <div class="page-title">Ausentismos <span>& Vacaciones</span></div>
+      <div class="page-desc">Incapacidades, vacaciones disfrutadas, licencias de maternidad/paternidad y más</div>
+      <div class="alert alert-success" id="alertAus">✓ Registro guardado correctamente</div>
+
+      <div class="form-card">
+        <div class="form-card-title">Nuevo Registro</div>
+        <div class="form-grid cols-2">
+          <div class="form-group form-group-autocomplete">
+            <label>Identificación <span class="req">*</span></label>
+            <input type="text" id="aus_id" placeholder="Digita para buscar cédula..." autocomplete="off" oninput="buscarCedulasAutocomplete('aus_id', 'aus_dropdown', 'aus_nombre')">
+            <div id="aus_dropdown" class="autocomplete-dropdown"></div>
+          </div>
+          <div class="form-group">
+            <label>Nombre Empleado <span class="req">*</span></label>
+            <input type="text" id="aus_nombre" placeholder="Se llenará automáticamente" readonly style="background:rgba(255,255,255,0.03)">
+          </div>
+        </div>
+        <div class="form-grid cols-2" style="margin-top:14px">
+          <div class="form-group">
+            <label>Tipo de Ausentismo <span class="req">*</span></label>
+            <select id="aus_tipo">
+              <option value="">— Cargando conceptos —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Diagnóstico (CIE-10)</label>
+            <input type="text" id="aus_diag" placeholder="Ej: J00, M54.5">
+          </div>
+        </div>
+        <div class="form-grid cols-4" style="margin-top:14px">
+          <div class="form-group">
+            <label>Fecha Inicial <span class="req">*</span></label>
+            <input type="date" id="aus_finicial" oninput="calcDias()">
+          </div>
+          <div class="form-group">
+            <label>Fecha Final <span class="req">*</span></label>
+            <input type="date" id="aus_ffinal" oninput="calcDias()">
+          </div>
+          <div class="form-group">
+            <label>Días Totales</label>
+            <input type="number" id="aus_dias" placeholder="Auto" readonly style="background:rgba(255,255,255,0.03)">
+          </div>
+          <div class="form-group">
+            <label>Prórroga</label>
+            <input type="date" id="aus_prorroga">
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:14px">
+          <label>Observaciones</label>
+          <textarea id="aus_obs" placeholder="Información adicional, número de radicado, etc."></textarea>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-secondary" onclick="limpiarForm('aus')">Limpiar</button>
+          <button class="btn btn-primary" onclick="guardarAusentismo()">⊕ Guardar Registro</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-header">
+          <div class="table-title">Registros del período</div>
+          <input class="table-search" placeholder="🔍 Buscar empleado..." oninput="filtrarTabla('tbAusentismos', this.value)">
+        </div>
+        <table>
+          <thead><tr>
+            <th>Cédula</th><th>Nombre</th><th>Tipo</th><th>F. Inicial</th><th>F. Final</th><th>Días</th><th>Diagnóstico</th><th>Prórroga</th><th>Acciones</th>
+          </tr></thead>
+          <tbody id="tbAusentismos">
+            <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== MAESTRO ORIGINAL ===== -->
+    <div class="page" id="page-maestroOriginal">
+      <div class="page-title">Maestro <span>Original</span></div>
+      <div class="page-desc">Registro y consulta de empleados — 155 empleados activos en el archivo fuente</div>
+      <div class="alert alert-success" id="alertMaestro">✓ Empleado guardado correctamente</div>
+
+      <div class="form-card">
+        <div class="form-card-title">Identificación y Datos Personales</div>
+        <div class="form-grid cols-4">
+          <div class="form-group">
+            <label>Código</label>
+            <input type="text" id="mo_codigo" placeholder="Ej: 1007808313">
+          </div>
+          <div class="form-group">
+            <label>Código Alterno</label>
+            <input type="text" id="mo_codigoalt" placeholder="Ej: 085">
+          </div>
+          <div class="form-group">
+            <label>Cédula <span class="req">*</span></label>
+            <input type="text" id="mo_cedula" placeholder="Número de cédula">
+          </div>
+          <div class="form-group">
+            <label>Tipo Documento</label>
+            <select id="mo_tipdoc">
+              <option value="CC">CC - Cédula</option>
+              <option value="CE">CE - Extranjería</option>
+              <option value="PA">PA - Pasaporte</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-grid cols-3" style="margin-top:14px">
+          <div class="form-group" style="grid-column:span 2">
+            <label>Nombre Completo <span class="req">*</span></label>
+            <input type="text" id="mo_nombre" placeholder="Apellidos y nombres">
+          </div>
+          <div class="form-group">
+            <label>Sexo</label>
+            <select id="mo_sexo">
+              <option value="M">M - Masculino</option>
+              <option value="F">F - Femenino</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-grid cols-4" style="margin-top:14px">
+          <div class="form-group">
+            <label>Grupo Sanguíneo</label>
+            <select id="mo_gsang">
+              <option value="">—</option>
+              <option value="A">A</option><option value="B">B</option>
+              <option value="AB">AB</option><option value="O">O</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Factor RH</label>
+            <select id="mo_rh">
+              <option value="+">+</option><option value="-">-</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Estado Civil</label>
+            <select id="mo_estcivil">
+              <option value="SOLTERO">Soltero</option>
+              <option value="CASADO">Casado</option>
+              <option value="UNION LIBRE">Unión Libre</option>
+              <option value="DIVORCIADO">Divorciado</option>
+              <option value="VIUDO">Viudo</option>
+              <option value="DESCONOCIDO">Desconocido</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Hijos</label>
+            <input type="number" id="mo_hijos" value="0" min="0">
+          </div>
+        </div>
+        <div class="form-grid cols-3" style="margin-top:14px">
+          <div class="form-group">
+            <label>Fecha Nacimiento</label>
+            <input type="date" id="mo_fnac">
+          </div>
+          <div class="form-group">
+            <label>Ciudad Expedición Doc.</label>
+            <input type="text" id="mo_ciudadexp" placeholder="Ciudad">
+          </div>
+          <div class="form-group">
+            <label>Ciudad de Residencia</label>
+            <input type="text" id="mo_ciudad" placeholder="Ciudad">
+          </div>
+        </div>
+        <div class="form-grid cols-3" style="margin-top:14px">
+          <div class="form-group">
+            <label>Teléfono 1</label>
+            <input type="text" id="mo_tel1" placeholder="Número fijo o celular">
+          </div>
+          <div class="form-group">
+            <label>Teléfono 2</label>
+            <input type="text" id="mo_tel2" placeholder="Número alternativo">
+          </div>
+          <div class="form-group">
+            <label>Correo Electrónico</label>
+            <input type="email" id="mo_correo" placeholder="correo@dominio.com">
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:14px">
+          <label>Dirección</label>
+          <input type="text" id="mo_dir" placeholder="Dirección completa de residencia">
+        </div>
+      </div>
+
+      <div class="form-card">
+        <div class="form-card-title">Cargo y Liquidación</div>
+        <div class="form-grid cols-3">
+          <div class="form-group" style="grid-column:span 2">
+            <label>Cargo <span class="req">*</span></label>
+            <input type="text" id="mo_cargo" placeholder="Nombre del cargo">
+          </div>
+          <div class="form-group">
+            <label>Porcentaje (%)</label>
+            <input type="number" id="mo_pct" placeholder="91.666666" step="0.000001">
+          </div>
+        </div>
+        <div class="form-grid cols-4" style="margin-top:14px">
+          <div class="form-group">
+            <label>Salario</label>
+            <input type="number" id="mo_salario" placeholder="0.00" step="0.01">
+          </div>
+          <div class="form-group">
+            <label>Valor Hora</label>
+            <input type="number" id="mo_valorh" placeholder="0.00" step="0.01">
+          </div>
+          <div class="form-group">
+            <label>Horas Mes</label>
+            <input type="number" id="mo_hmes" value="220">
+          </div>
+          <div class="form-group">
+            <label>Días Vacaciones</label>
+            <input type="number" id="mo_dvac" value="15">
+          </div>
+        </div>
+        <div class="form-grid cols-4" style="margin-top:14px">
+          <div class="form-group">
+            <label>Régimen</label>
+            <select id="mo_regimen">
+              <option value="LEY 50">LEY 50</option>
+              <option value="LEY 1278">LEY 1278</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Clase Salario</label>
+            <select id="mo_classal">
+              <option value="Normal">Normal</option>
+              <option value="Integral">Integral</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Modo Liquidación</label>
+            <select id="mo_modoliq">
+              <option value="Quincenal">Quincenal</option>
+              <option value="Mensual">Mensual</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Tipo Liquidación</label>
+            <select id="mo_tipoliq">
+              <option value="Normal">Normal</option>
+              <option value="Retroactivo">Retroactivo</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-grid cols-4" style="margin-top:14px">
+          <div class="form-group">
+            <label>Trabaja Sábado</label>
+            <select id="mo_sabado">
+              <option value="No">No</option><option value="Si">Sí</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Pensionado</label>
+            <select id="mo_pension">
+              <option value="No">No</option><option value="Si">Sí</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Aplica Ley 1393</label>
+            <select id="mo_ley1393">
+              <option value="Si">Sí</option><option value="No">No</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Declara Renta</label>
+            <select id="mo_renta">
+              <option value="No">No</option><option value="Si">Sí</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-card">
+        <div class="form-card-title">Cuenta Bancaria y Centro de Costos</div>
+        <div class="form-grid cols-3">
+          <div class="form-group">
+            <label>Tipo de Cuenta</label>
+            <select id="mo_tipcta">
+              <option value="CONSIG. CTA AHORROS">Cta. Ahorros</option>
+              <option value="CONSIG. CTA CORRIENTE">Cta. Corriente</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Banco</label>
+            <input type="text" id="mo_banco" placeholder="Nombre del banco">
+          </div>
+          <div class="form-group">
+            <label>Número de Cuenta</label>
+            <input type="text" id="mo_numcta" placeholder="Número de cuenta">
+          </div>
+        </div>
+        <div class="form-grid cols-4" style="margin-top:14px">
+          <div class="form-group">
+            <label>Sucursal</label>
+            <input type="text" id="mo_sucursal" placeholder="Sucursal">
+          </div>
+          <div class="form-group">
+            <label>Centro Costo</label>
+            <input type="text" id="mo_cc" placeholder="Código">
+          </div>
+          <div class="form-group">
+            <label>Centro Costos (Desc.)</label>
+            <input type="text" id="mo_ccdesc" placeholder="Descripción">
+          </div>
+          <div class="form-group">
+            <label>Cód. Compañía</label>
+            <input type="text" id="mo_codcia" placeholder="01">
+          </div>
+        </div>
+      </div>
+
+      <div class="form-card">
+        <div class="form-card-title">Seguridad Social</div>
+        <div class="form-grid cols-3">
+          <div class="form-group">
+            <label>EPS <span class="req">*</span></label>
+            <input type="text" id="mo_eps" placeholder="Nombre de la EPS">
+          </div>
+          <div class="form-group">
+            <label>AFP (Pensiones)</label>
+            <input type="text" id="mo_afp" placeholder="Nombre del fondo">
+          </div>
+          <div class="form-group">
+            <label>Caja de Compensación</label>
+            <input type="text" id="mo_caja" placeholder="Nombre de la CCF">
+          </div>
+        </div>
+        <div class="form-grid cols-4" style="margin-top:14px">
+          <div class="form-group">
+            <label>ARP / Riesgos</label>
+            <input type="text" id="mo_arp" placeholder="Nombre de la ARP">
+          </div>
+          <div class="form-group">
+            <label>Fondo Cesantías</label>
+            <input type="text" id="mo_cesantias" placeholder="Fondo de cesantías">
+          </div>
+          <div class="form-group">
+            <label>Nivel de Riesgo</label>
+            <input type="number" id="mo_riesgo" placeholder="0.00" step="0.001">
+          </div>
+          <div class="form-group">
+            <label>Promedio Salud</label>
+            <input type="number" id="mo_promsalud" placeholder="0.00" step="0.01">
+          </div>
+        </div>
+      </div>
+
+      <div class="form-card">
+        <div class="form-card-title">Fechas y Retención</div>
+        <div class="form-grid cols-4">
+          <div class="form-group">
+            <label>Fecha Ingreso <span class="req">*</span></label>
+            <input type="date" id="mo_fingreso">
+          </div>
+          <div class="form-group">
+            <label>Fecha Retiro</label>
+            <input type="date" id="mo_fretiro">
+          </div>
+          <div class="form-group">
+            <label>Causa Retiro</label>
+            <input type="text" id="mo_causaret" placeholder="NO APLICA">
+          </div>
+          <div class="form-group">
+            <label>Tipo Contrato</label>
+            <select id="mo_tipcontrato">
+              <option value="01">01 - Término Indefinido</option>
+              <option value="02">02 - Término Fijo</option>
+              <option value="03">03 - Obra o Labor</option>
+              <option value="04">04 - Aprendizaje</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-grid cols-4" style="margin-top:14px">
+          <div class="form-group">
+            <label>% Retención Fte.</label>
+            <input type="number" id="mo_rete" placeholder="0.000" step="0.001">
+          </div>
+          <div class="form-group">
+            <label>Deducción Vivienda</label>
+            <input type="number" id="mo_dedviv" placeholder="0.00" step="0.01">
+          </div>
+          <div class="form-group">
+            <label>Deducción Salud</label>
+            <input type="number" id="mo_dedsalud" placeholder="0.00" step="0.01">
+          </div>
+          <div class="form-group">
+            <label>Deducción Dependientes</label>
+            <input type="number" id="mo_deddep" placeholder="0.00" step="0.01">
+          </div>
+        </div>
+      </div>
+
+      <div class="form-card">
+        <div class="form-card-title">Clasificadores Internos</div>
+        <div class="form-grid cols-4">
+          <div class="form-group">
+            <label>Clasificador 1</label>
+            <input type="text" id="mo_clas1" placeholder="Código">
+          </div>
+          <div class="form-group">
+            <label>Clasificador 1 Nombre</label>
+            <input type="text" id="mo_clas1nom" placeholder="Descripción">
+          </div>
+          <div class="form-group">
+            <label>Sub Área</label>
+            <input type="text" id="mo_subarea" placeholder="Código sub área">
+          </div>
+          <div class="form-group">
+            <label>Sub Área (Nombre)</label>
+            <input type="text" id="mo_subareanov" placeholder="Nombre sub área">
+          </div>
+        </div>
+        <div class="form-grid cols-4" style="margin-top:14px">
+          <div class="form-group">
+            <label>Nivel Cargo</label>
+            <input type="text" id="mo_nivcargo" placeholder="Código nivel">
+          </div>
+          <div class="form-group">
+            <label>Driver Variable</label>
+            <input type="text" id="mo_driver" placeholder="Código driver">
+          </div>
+          <div class="form-group">
+            <label>Clasificador 7</label>
+            <input type="text" id="mo_clas7" placeholder="Código">
+          </div>
+          <div class="form-group">
+            <label>Clasificador 7 Nombre</label>
+            <input type="text" id="mo_clas7nom" placeholder="Descripción">
+          </div>
+        </div>
+        <div class="form-grid cols-3" style="margin-top:14px">
+          <div class="form-group">
+            <label>Pago X Días</label>
+            <select id="mo_pagodias">
+              <option value="No">No</option><option value="Si">Sí</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Relación Sindical</label>
+            <input type="text" id="mo_sindical" placeholder="No Aplica">
+          </div>
+          <div class="form-group">
+            <label>Extranjero</label>
+            <select id="mo_extran">
+              <option value="NO">No</option><option value="SI">Sí</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-secondary" onclick="limpiarForm('mo')">Limpiar</button>
+          <button class="btn btn-primary" onclick="guardarMaestro()">⊕ Guardar Empleado</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-header">
+          <div class="table-title">Empleados registrados</div>
+          <input class="table-search" placeholder="🔍 Buscar por nombre o cédula..." oninput="filtrarTabla('tbMaestro', this.value)">
+        </div>
+        <table>
+          <thead><tr>
+            <th>Cédula</th><th>Nombre</th><th>Cargo</th><th>EPS</th><th>AFP</th>
+            <th>F. Ingreso</th><th>Centro Costo</th><th>Salario</th><th>Acciones</th>
+          </tr></thead>
+          <tbody id="tbMaestro">
+            <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== CAMBIOS MAESTRO ===== -->
+    <div class="page" id="page-cambiosMaestro">
+      <div class="page-title">Cambios <span>Maestro</span></div>
+      <div class="page-desc">Actualización de datos personales del empleado</div>
+      <div class="alert alert-success" id="alertCM">✓ Registro guardado correctamente</div>
+
+      <div class="form-card">
+        <div class="form-card-title">Nuevo Cambio</div>
+        <div class="form-grid cols-2">
+          <div class="form-group">
+            <label>Cédula <span class="req">*</span></label>
+            <input type="text" id="cm_cedula" placeholder="Número de cédula">
+          </div>
+          <div class="form-group">
+            <label>Nombre <span class="req">*</span></label>
+            <input type="text" id="cm_nombre" placeholder="Nombre completo">
+          </div>
+        </div>
+        <div class="form-grid cols-4" style="margin-top:14px">
+          <div class="form-group">
+            <label>Tipo Documento</label>
+            <select id="cm_tipdoc">
+              <option value="CC">CC - Cédula</option>
+              <option value="CE">CE - Extranjería</option>
+              <option value="PA">PA - Pasaporte</option>
+              <option value="NIT">NIT</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Ciudad Expedición</label>
+            <input type="text" id="cm_ciudad_exp" placeholder="Ciudad">
+          </div>
+          <div class="form-group">
+            <label>Estado Civil</label>
+            <select id="cm_estado">
+              <option value="">— Sin cambio —</option>
+              <option value="SOLTERO">Soltero</option>
+              <option value="CASADO">Casado</option>
+              <option value="UNION LIBRE">Unión Libre</option>
+              <option value="DIVORCIADO">Divorciado</option>
+              <option value="VIUDO">Viudo</option>
+              <option value="DESCONOCIDO">Desconocido</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Fecha Nacimiento</label>
+            <input type="date" id="cm_fnac">
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:14px">
+          <label>Ciudad de Residencia</label>
+          <input type="text" id="cm_ciudad_res" placeholder="Ciudad de residencia">
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-secondary" onclick="limpiarForm('cm')">Limpiar</button>
+          <button class="btn btn-primary" onclick="guardarCambioMaestro()">⊕ Guardar Cambio</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-header"><div class="table-title">Cambios registrados</div></div>
+        <table>
+          <thead><tr>
+            <th>Cédula</th><th>Nombre</th><th>Tip. Doc</th><th>Ciudad Exp.</th><th>Estado Civil</th><th>F. Nacimiento</th><th>Ciudad Res.</th><th>Acciones</th>
+          </tr></thead>
+          <tbody id="tbCMaestro">
+            <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== CAMBIOS E INGRESOS ===== -->
+    <div class="page" id="page-cambiosIngresos">
+      <div class="page-title">Cambios <span>e Ingresos</span></div>
+      <div class="page-desc">Cambios de cargo, salario, sucursal y nuevos ingresos</div>
+      <div class="alert alert-success" id="alertCI">✓ Registro guardado correctamente</div>
+
+      <div class="form-card">
+        <div class="form-card-title">Nuevo Registro</div>
+        <div class="form-grid cols-2">
+          <div class="form-group form-group-autocomplete">
+            <label>Identificación <span class="req">*</span></label>
+            <input type="text" id="ci_id" placeholder="Digita para buscar cédula..." autocomplete="off" oninput="buscarCedulasAutocomplete('ci_id', 'ci_dropdown', 'ci_nombre')">
+            <div id="ci_dropdown" class="autocomplete-dropdown"></div>
+          </div>
+          <div class="form-group">
+            <label>Nombre Empleado <span class="req">*</span></label>
+            <input type="text" id="ci_nombre" placeholder="Se llenará automáticamente" readonly style="background:rgba(255,255,255,0.03)">
+          </div>
+        </div>
+        <div class="form-grid cols-3" style="margin-top:14px">
+          <div class="form-group">
+            <label>Tipo de Cambio <span class="req">*</span></label>
+            <select id="ci_cambio">
+              <option value="">— Cargando conceptos —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Fecha Inicial <span class="req">*</span></label>
+            <input type="date" id="ci_finicial">
+          </div>
+          <div class="form-group">
+            <label>Cambio a (nuevo valor)</label>
+            <input type="text" id="ci_cambioa" placeholder="Nuevo valor o descripción">
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:14px">
+          <label>Observaciones</label>
+          <textarea id="ci_obs" placeholder="Detalles del cambio o ingreso"></textarea>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-secondary" onclick="limpiarForm('ci')">Limpiar</button>
+          <button class="btn btn-primary" onclick="guardarCambioIngreso()">⊕ Guardar Registro</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-header"><div class="table-title">Cambios registrados</div></div>
+        <table>
+          <thead><tr>
+            <th>Cédula</th><th>Nombre</th><th>Tipo Cambio</th><th>Fecha Inicial</th><th>Cambio A</th><th>Observaciones</th><th>Acciones</th>
+          </tr></thead>
+          <tbody id="tbCIngresos">
+            <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== IMPORTAR EXCEL ===== -->
+    <div class="page" id="page-importar">
+      <div class="page-title">Importar <span>Excel</span></div>
+      <div class="page-desc">Carga el formato NOVEDADES_SIN_CLAVE.xlsx para importar registros automáticamente</div>
+
+      <div class="upload-zone" onclick="document.getElementById('fileInput').click()" id="dropZone">
+        <div class="upload-icon">📊</div>
+        <div class="upload-label">Arrastra el archivo aquí o haz clic</div>
+        <div class="upload-sub">Formatos soportados: .xlsx · Tamaño máximo: 50 MB</div>
+        <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="handleFileUpload(event)">
+      </div>
+
+      <div id="importResult" style="display:none">
+        <div class="form-card">
+          <div class="form-card-title">Resultado de importación</div>
+          <div id="importSummary" style="color:var(--muted);font-size:13px;line-height:1.8"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== CONEXIÓN BD ===== -->
+    <div class="page" id="page-conexion">
+      <div class="page-title">Conexión <span>SQL Server</span></div>
+      <div class="page-desc">Configure la cadena de conexión para Microsoft SQL Server 2022/2025</div>
+
+      <div class="form-card">
+        <div class="form-card-title">Parámetros de Conexión</div>
+        <div class="form-grid cols-2">
+          <div class="form-group">
+            <label>Servidor <span class="req">*</span></label>
+            <input type="text" id="conn_server" value="localhost" placeholder="IP o nombre del servidor">
+          </div>
+          <div class="form-group">
+            <label>Puerto</label>
+            <input type="text" id="conn_port" value="1433" placeholder="1433">
+          </div>
+        </div>
+        <div class="form-grid cols-2" style="margin-top:14px">
+          <div class="form-group">
+            <label>Base de Datos</label>
+            <input type="text" id="conn_db" value="NovedadesNomina" placeholder="Nombre de la BD">
+          </div>
+          <div class="form-group">
+            <label>Autenticación</label>
+            <select id="conn_auth" onchange="toggleAuth()">
+              <option value="windows">Windows Authentication</option>
+              <option value="sql">SQL Server Authentication</option>
+            </select>
+          </div>
+        </div>
+        <div id="sqlAuthFields" style="display:none">
+          <div class="form-grid cols-2" style="margin-top:14px">
+            <div class="form-group">
+              <label>Usuario</label>
+              <input type="text" id="conn_user" placeholder="sa">
+            </div>
+            <div class="form-group">
+              <label>Contraseña</label>
+              <input type="password" id="conn_pass" placeholder="••••••••">
+            </div>
+          </div>
+        </div>
+        <div class="form-actions">
+          <div class="conn-status">
+            <div class="dot" id="connDot"></div>
+            <span id="connText" style="font-size:12px;color:var(--muted)">Sin configurar</span>
+          </div>
+          <button class="btn btn-secondary" onclick="generarConnectionString()">📋 Copiar Connection String</button>
+          <button class="btn btn-primary" onclick="guardarConexion()">Guardar Config</button>
+        </div>
+      </div>
+
+      <div class="form-card">
+        <div class="form-card-title">Connection String generada</div>
+        <div class="sql-output" id="connStringOutput" style="max-height:80px;font-size:13px">— Configure los parámetros arriba —</div>
+      </div>
+
+      <div class="form-card">
+        <div class="form-card-title">Instrucciones de instalación</div>
+        <div style="color:var(--muted);font-size:13px;line-height:2">
+          <strong style="color:var(--gold-light)">1.</strong> Descargar script SQL: <code style="background:rgba(255,255,255,0.06);padding:2px 8px;border-radius:4px">schema_novedades.sql</code><br>
+          <strong style="color:var(--gold-light)">2.</strong> Ejecutar en SQL Server Management Studio o Azure Data Studio<br>
+          <strong style="color:var(--gold-light)">3.</strong> Configurar connection string en el archivo <code style="background:rgba(255,255,255,0.06);padding:2px 8px;border-radius:4px">appsettings.json</code><br>
+          <strong style="color:var(--gold-light)">4.</strong> Instalar dependencia: <code style="background:rgba(255,255,255,0.06);padding:2px 8px;border-radius:4px">npm install mssql</code><br>
+          <strong style="color:var(--gold-light)">5.</strong> Usar el botón "Exportar SQL" para generar los INSERTs del período
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SQL GENERADO ===== -->
+    <div class="page" id="page-sql">
+      <div class="page-title">SQL <span>Generado</span></div>
+      <div class="page-desc">Script INSERT listo para ejecutar en SQL Server</div>
+
+      <div style="display:flex;gap:12px;margin-bottom:20px">
+        <button class="btn btn-primary" onclick="generarSQLCompleto()">⟳ Regenerar SQL</button>
+        <button class="btn btn-secondary" onclick="copiarSQL()">📋 Copiar al portapapeles</button>
+        <button class="btn btn-secondary" onclick="descargarSQL()">⬇ Descargar .sql</button>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-header">
+          <div class="table-title">Script T-SQL</div>
+          <span id="sqlStats" style="font-size:12px;color:var(--muted)">0 statements</span>
+        </div>
+        <div class="sql-output" id="sqlOutput">-- Agregue registros y haga clic en "Regenerar SQL"</div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ===== MODAL EDITAR FIJA ===== -->
+<div id="modalEditarFija" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px;width:520px;max-width:95vw;max-height:90vh;overflow-y:auto;">
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:17px;margin-bottom:18px;color:var(--gold-light)">Editar Novedad Fija</div>
+    <div class="form-grid cols-2">
+      <div class="form-group form-group-autocomplete">
+        <label>Identificación <span class="req">*</span></label>
+        <input type="text" id="ef_id" autocomplete="off" oninput="buscarCedulasAutocomplete('ef_id','ef_dropdown','ef_nombre')">
+        <div id="ef_dropdown" class="autocomplete-dropdown"></div>
+      </div>
+      <div class="form-group">
+        <label>Nombre Empleado</label>
+        <input type="text" id="ef_nombre" readonly style="background:rgba(255,255,255,0.03)">
+      </div>
+    </div>
+    <div class="form-grid cols-2" style="margin-top:14px">
+      <div class="form-group">
+        <label>Novedad (Código) <span class="req">*</span></label>
+        <select id="ef_novedad"></select>
+      </div>
+      <div class="form-group">
+        <label>Aplicación</label>
+        <select id="ef_aplicacion">
+          <option value="Normal">Normal</option>
+          <option value="Retroactivo">Retroactivo</option>
+          <option value="1ra Quincena">1ra Quincena</option>
+          <option value="2da Quincena">2da Quincena</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-grid cols-2" style="margin-top:14px">
+      <div class="form-group">
+        <label>Cantidad</label>
+        <input type="number" id="ef_cantidad" step="0.01">
+      </div>
+      <div class="form-group">
+        <label>Valor <span class="req">*</span></label>
+        <input type="number" id="ef_valor" step="0.01">
+      </div>
+    </div>
+    <div class="form-grid cols-2" style="margin-top:14px">
+      <div class="form-group">
+        <label>Fecha Inicial</label>
+        <input type="date" id="ef_finicial">
+      </div>
+      <div class="form-group">
+        <label>Fecha Final</label>
+        <input type="date" id="ef_ffinal">
+      </div>
+    </div>
+    <div class="form-grid cols-2" style="margin-top:14px">
+      <div class="form-group">
+        <label>Cuotas</label>
+        <input type="number" id="ef_cuotas" min="0">
+      </div>
+      <div class="form-group">
+        <label>Cuenta</label>
+        <input type="text" id="ef_cuenta">
+      </div>
+    </div>
+    <div class="form-group" style="margin-top:14px">
+      <label>Observaciones</label>
+      <input type="text" id="ef_obs">
+    </div>
+    <input type="hidden" id="ef_codNoved">
+    <div class="form-actions">
+      <button class="btn btn-secondary" onclick="cerrarModal('modalEditarFija')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarEdicionFija()">✔ Guardar Cambios</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL EDITAR AUSENTISMO ===== -->
+<div id="modalEditarAus" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px;width:520px;max-width:95vw;max-height:90vh;overflow-y:auto;">
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:17px;margin-bottom:18px;color:var(--gold-light)">Editar Ausentismo</div>
+    <div class="form-grid cols-2">
+      <div class="form-group form-group-autocomplete">
+        <label>Identificación <span class="req">*</span></label>
+        <input type="text" id="ea_id" autocomplete="off" oninput="buscarCedulasAutocomplete('ea_id','ea_dropdown','ea_nombre')">
+        <div id="ea_dropdown" class="autocomplete-dropdown"></div>
+      </div>
+      <div class="form-group">
+        <label>Nombre Empleado</label>
+        <input type="text" id="ea_nombre" readonly style="background:rgba(255,255,255,0.03)">
+      </div>
+    </div>
+    <div class="form-grid cols-2" style="margin-top:14px">
+      <div class="form-group">
+        <label>Tipo de Ausentismo <span class="req">*</span></label>
+        <select id="ea_tipo"></select>
+      </div>
+      <div class="form-group">
+        <label>Diagnóstico (CIE-10)</label>
+        <input type="text" id="ea_diag" placeholder="Ej: J00, M54.5">
+      </div>
+    </div>
+    <div class="form-grid cols-2" style="margin-top:14px">
+      <div class="form-group">
+        <label>Fecha Inicial <span class="req">*</span></label>
+        <input type="date" id="ea_finicial" oninput="calcDiasEdit()">
+      </div>
+      <div class="form-group">
+        <label>Fecha Final <span class="req">*</span></label>
+        <input type="date" id="ea_ffinal" oninput="calcDiasEdit()">
+      </div>
+    </div>
+    <div class="form-grid cols-2" style="margin-top:14px">
+      <div class="form-group">
+        <label>Días Totales</label>
+        <input type="number" id="ea_dias" readonly style="background:rgba(255,255,255,0.03)">
+      </div>
+      <div class="form-group">
+        <label>Prórroga</label>
+        <input type="date" id="ea_prorroga">
+      </div>
+    </div>
+    <div class="form-group" style="margin-top:14px">
+      <label>Observaciones</label>
+      <textarea id="ea_obs"></textarea>
+    </div>
+    <input type="hidden" id="ea_codNoved">
+    <div class="form-actions">
+      <button class="btn btn-secondary" onclick="cerrarModal('modalEditarAus')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarEdicionAusentismo()">✔ Guardar Cambios</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL EDITAR CAMBIO E INGRESO ===== -->
+<div id="modalEditarCambio" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px;width:520px;max-width:95vw;max-height:90vh;overflow-y:auto;">
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:17px;margin-bottom:18px;color:var(--gold-light)">Editar Cambio e Ingreso</div>
+    <div class="form-grid cols-2">
+      <div class="form-group form-group-autocomplete">
+        <label>Identificación <span class="req">*</span></label>
+        <input type="text" id="ec_id" autocomplete="off" oninput="buscarCedulasAutocomplete('ec_id','ec_dropdown','ec_nombre')">
+        <div id="ec_dropdown" class="autocomplete-dropdown"></div>
+      </div>
+      <div class="form-group">
+        <label>Nombre Empleado</label>
+        <input type="text" id="ec_nombre" readonly style="background:rgba(255,255,255,0.03)">
+      </div>
+    </div>
+    <div class="form-grid cols-2" style="margin-top:14px">
+      <div class="form-group">
+        <label>Tipo de Cambio <span class="req">*</span></label>
+        <select id="ec_cambio"></select>
+      </div>
+      <div class="form-group">
+        <label>Fecha Inicial <span class="req">*</span></label>
+        <input type="date" id="ec_finicial">
+      </div>
+    </div>
+    <div class="form-group" style="margin-top:14px">
+      <label>Cambio a (nuevo valor)</label>
+      <input type="text" id="ec_cambioa" placeholder="Nuevo valor o descripción">
+    </div>
+    <div class="form-group" style="margin-top:14px">
+      <label>Observaciones</label>
+      <textarea id="ec_obs"></textarea>
+    </div>
+    <input type="hidden" id="ec_codNoved">
+    <div class="form-actions">
+      <button class="btn btn-secondary" onclick="cerrarModal('modalEditarCambio')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarEdicionCambio()">✔ Guardar Cambios</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────────────────────────
+const state = {
+  maestroOriginal: [],
+  ocasionales: [],
+  fijas: [],
+  ausentismos: [],
+  cambiosMaestro: [],
+  cambiosIngresos: [],
+};
+
+// ─── NAVIGATION ──────────────────────────────────────────────────────────────
+function navigate(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  const items = document.querySelectorAll('.nav-item');
+  items.forEach(i => { if (i.textContent.trim().toLowerCase().includes(page.toLowerCase().substring(0,5))) i.classList.add('active'); });
+  if (page === 'sql') generarSQLCompleto();
+  if (page === 'ocasionales') { cargarOcasionalesDelPeriodo(); }
+  if (page === 'fijas')       { cargarFijasDelPeriodo(); }
+  if (page === 'ausentismos') { cargarAusentismosDelPeriodo(); }
+  if (page === 'cambios')     { cargarCambiosDelPeriodo(); }
+}
+
+function actualizarBadge() {
+  const p = document.getElementById('cfgPeriodo').value;
+  document.getElementById('periodoBadge').textContent = 'Período: ' + (p || '—');
+}
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+function showAlert(id) {
+  const el = document.getElementById(id);
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+function limpiarForm(prefix) {
+  document.querySelectorAll(`[id^="${prefix}_"]`).forEach(el => { el.value = ''; });
+}
+
+function updateBadges() {
+  document.getElementById('badgeMaestro').textContent = state.maestroOriginal.length;
+  document.getElementById('badgeOcas').textContent = state.ocasionales.length;
+  document.getElementById('badgeFijas').textContent = state.fijas.length;
+  document.getElementById('badgeAus').textContent = state.ausentismos.length;
+  document.getElementById('badgeCMaestro').textContent = state.cambiosMaestro.length;
+  document.getElementById('badgeCIngresos').textContent = state.cambiosIngresos.length;
+  document.getElementById('statOcas').textContent = state.ocasionales.length;
+  document.getElementById('statFijas').textContent = state.fijas.length;
+  document.getElementById('statAus').textContent = state.ausentismos.length;
+  document.getElementById('statCam').textContent = state.cambiosMaestro.length + state.cambiosIngresos.length;
+}
+
+function addActivity(modulo, empleado, tipo) {
+  const tb = document.getElementById('tbActivity');
+  if (tb.querySelector('td[colspan]')) tb.innerHTML = '';
+  const row = document.createElement('tr');
+  const now = new Date().toLocaleString('es-CO');
+  const colors = { Ocasional:'badge-dev', Fija:'badge-ded', Ausentismo:'badge-aus', Cambio:'badge-cam' };
+  row.innerHTML = `<td><span class="badge ${colors[tipo]||'badge-cam'}">${modulo}</span></td><td>${empleado}</td><td>${tipo}</td><td>${now}</td><td><span style="color:var(--success)">✓</span></td>`;
+  tb.insertBefore(row, tb.firstChild);
+}
+
+// ─── MODALES ─────────────────────────────────────────────────────────────────
+function abrirModal(id) {
+  const m = document.getElementById(id);
+  if (m) { m.style.display = 'flex'; document.body.style.overflow = 'hidden'; }
+}
+function cerrarModal(id) {
+  const m = document.getElementById(id);
+  if (m) { m.style.display = 'none'; document.body.style.overflow = ''; }
+}
+// Cerrar modal al hacer click fuera del contenido
+document.addEventListener('click', function(e) {
+  ['modalEditarFija','modalEditarAus','modalEditarCambio'].forEach(id => {
+    const m = document.getElementById(id);
+    if (m && e.target === m) cerrarModal(id);
+  });
+});
+
+function filtrarTabla(tbId, query) {
+  const rows = document.querySelectorAll(`#${tbId} tr`);
+  rows.forEach(r => {
+    r.style.display = r.textContent.toLowerCase().includes(query.toLowerCase()) ? '' : 'none';
+  });
+}
+
+function calcDias() {
+  const fi = document.getElementById('aus_finicial').value;
+  const ff = document.getElementById('aus_ffinal').value;
+  if (fi && ff) {
+    const diff = Math.round((new Date(ff) - new Date(fi)) / 86400000) + 1;
+    document.getElementById('aus_dias').value = diff > 0 ? diff : '';
+  }
+}
+
+function sq(v) { return v ? `N'${String(v).replace(/'/g, "''")}'` : 'NULL'; }
+function sdate(v) { return v ? `'${v}'` : 'NULL'; }
+function snum(v) { return v !== '' && v !== undefined && v !== null ? v : 'NULL'; }
+
+const usuario = () => document.getElementById('cfgUsuario').value || 'SISTEMA';
+const periodo = () => document.getElementById('cfgPeriodo').value || '';
+
+// ─── FUNCIÓN PARA CALCULAR QUINCENA ACTUAL ─────────────────────────────────
+function calcularQuincenaActual() {
+  const hoy = new Date();
+  const dia = hoy.getDate();
+  const mes = hoy.toLocaleString('es-CO', { month: 'long' });
+  const año = hoy.getFullYear();
+
+  let quincena, rango;
+  if (dia <= 15) {
+    quincena = '1era quincena de ' + mes;
+    rango = `${año}-${String(hoy.getMonth() + 1).padStart(2, '0')}-01 / ${año}-${String(hoy.getMonth() + 1).padStart(2, '0')}-15`;
+  } else {
+    quincena = '2da quincena de ' + mes;
+    const ultimoDia = new Date(año, hoy.getMonth() + 1, 0).getDate();
+    rango = `${año}-${String(hoy.getMonth() + 1).padStart(2, '0')}-16 / ${año}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${ultimoDia}`;
+  }
+
+  return { quincena, rango };
+}
+
+// ─── FUNCIÓN PARA MOSTRAR BIENVENIDA Y PERÍODO ──────────────────────────────
+function inicializarInterfaz() {
+  try {
+    // Obtener nombre del usuario autenticado desde AuthUtil
+    let nombreCompleto = null;
+
+    if (typeof AuthUtil !== 'undefined' && AuthUtil.getNombre) {
+      nombreCompleto = AuthUtil.getNombre();
+      console.log('Nombre obtenido de AuthUtil:', nombreCompleto);
+    } else {
+      console.warn('AuthUtil no disponible, intentando localStorage');
+      // Fallback: intentar obtener del localStorage directamente
+      const usuarioJson = localStorage.getItem('usuario');
+      if (usuarioJson) {
+        const usuario = JSON.parse(usuarioJson);
+        nombreCompleto = usuario.nombre;
+        console.log('Nombre obtenido de localStorage:', nombreCompleto);
+      }
+    }
+
+    // Mostrar bienvenida personalizada
+    if (nombreCompleto) {
+      const primerNombre = nombreCompleto.split(' ')[0];
+      document.getElementById('welcomeMessage').textContent = `¡Bienvenido, ${primerNombre}!`;
+      document.getElementById('userNameDisplay').textContent = nombreCompleto;
+    } else {
+      document.getElementById('welcomeMessage').textContent = '¡Bienvenido!';
+      document.getElementById('userNameDisplay').textContent = 'Usuario';
+      console.warn('No se pudo obtener el nombre del usuario');
+    }
+
+    // Calcular y establecer quincena actual
+    const { quincena, rango } = calcularQuincenaActual();
+    document.getElementById('cfgPeriodo').value = rango;
+
+    // Mostrar la quincena en el usuario si está disponible
+    if (nombreCompleto) {
+      document.getElementById('cfgUsuario').value = nombreCompleto.split(' ')[0];
+    }
+
+    actualizarBadge();
+  } catch (error) {
+    console.error('Error inicializando interfaz:', error);
+  }
+}
+
+// ─── MAESTRO ORIGINAL ────────────────────────────────────────────────────────
+function guardarMaestro() {
+  const cedula = document.getElementById('mo_cedula').value.trim();
+  const nombre = document.getElementById('mo_nombre').value.trim();
+  if (!cedula || !nombre) { alert('Cédula y Nombre son obligatorios.'); return; }
+  const rec = {
+    cedula, nombre,
+    codigo:       document.getElementById('mo_codigo').value,
+    codigoalt:    document.getElementById('mo_codigoalt').value,
+    tipdoc:       document.getElementById('mo_tipdoc').value,
+    sexo:         document.getElementById('mo_sexo').value,
+    gsang:        document.getElementById('mo_gsang').value,
+    rh:           document.getElementById('mo_rh').value,
+    estcivil:     document.getElementById('mo_estcivil').value,
+    hijos:        document.getElementById('mo_hijos').value,
+    fnac:         document.getElementById('mo_fnac').value,
+    ciudadexp:    document.getElementById('mo_ciudadexp').value,
+    ciudad:       document.getElementById('mo_ciudad').value,
+    tel1:         document.getElementById('mo_tel1').value,
+    tel2:         document.getElementById('mo_tel2').value,
+    correo:       document.getElementById('mo_correo').value,
+    dir:          document.getElementById('mo_dir').value,
+    cargo:        document.getElementById('mo_cargo').value,
+    pct:          document.getElementById('mo_pct').value,
+    salario:      document.getElementById('mo_salario').value,
+    valorh:       document.getElementById('mo_valorh').value,
+    hmes:         document.getElementById('mo_hmes').value,
+    dvac:         document.getElementById('mo_dvac').value,
+    regimen:      document.getElementById('mo_regimen').value,
+    classal:      document.getElementById('mo_classal').value,
+    modoliq:      document.getElementById('mo_modoliq').value,
+    tipoliq:      document.getElementById('mo_tipoliq').value,
+    sabado:       document.getElementById('mo_sabado').value,
+    pension:      document.getElementById('mo_pension').value,
+    ley1393:      document.getElementById('mo_ley1393').value,
+    renta:        document.getElementById('mo_renta').value,
+    tipcta:       document.getElementById('mo_tipcta').value,
+    banco:        document.getElementById('mo_banco').value,
+    numcta:       document.getElementById('mo_numcta').value,
+    sucursal:     document.getElementById('mo_sucursal').value,
+    cc:           document.getElementById('mo_cc').value,
+    ccdesc:       document.getElementById('mo_ccdesc').value,
+    codcia:       document.getElementById('mo_codcia').value,
+    eps:          document.getElementById('mo_eps').value,
+    afp:          document.getElementById('mo_afp').value,
+    caja:         document.getElementById('mo_caja').value,
+    arp:          document.getElementById('mo_arp').value,
+    cesantias:    document.getElementById('mo_cesantias').value,
+    riesgo:       document.getElementById('mo_riesgo').value,
+    promsalud:    document.getElementById('mo_promsalud').value,
+    fingreso:     document.getElementById('mo_fingreso').value,
+    fretiro:      document.getElementById('mo_fretiro').value,
+    causaret:     document.getElementById('mo_causaret').value,
+    tipcontrato:  document.getElementById('mo_tipcontrato').value,
+    rete:         document.getElementById('mo_rete').value,
+    dedviv:       document.getElementById('mo_dedviv').value,
+    dedsalud:     document.getElementById('mo_dedsalud').value,
+    deddep:       document.getElementById('mo_deddep').value,
+    clas1:        document.getElementById('mo_clas1').value,
+    clas1nom:     document.getElementById('mo_clas1nom').value,
+    subarea:      document.getElementById('mo_subarea').value,
+    subareanov:   document.getElementById('mo_subareanov').value,
+    nivcargo:     document.getElementById('mo_nivcargo').value,
+    driver:       document.getElementById('mo_driver').value,
+    clas7:        document.getElementById('mo_clas7').value,
+    clas7nom:     document.getElementById('mo_clas7nom').value,
+    pagodias:     document.getElementById('mo_pagodias').value,
+    sindical:     document.getElementById('mo_sindical').value,
+    extran:       document.getElementById('mo_extran').value,
+  };
+  // Replace if same cedula, otherwise push
+  const idx = state.maestroOriginal.findIndex(e => e.cedula === cedula);
+  if (idx >= 0) state.maestroOriginal[idx] = rec;
+  else state.maestroOriginal.push(rec);
+  renderMaestro();
+  limpiarForm('mo');
+  showAlert('alertMaestro');
+  addActivity('Maestro', nombre, 'Cambio');
+  updateBadges();
+}
+
+function renderMaestro() {
+  const tb = document.getElementById('tbMaestro');
+  if (!state.maestroOriginal.length) {
+    tb.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>';
+    return;
+  }
+  tb.innerHTML = state.maestroOriginal.map((r, i) => `
+    <tr>
+      <td><strong>${r.cedula}</strong></td>
+      <td>${r.nombre}</td>
+      <td style="font-size:12px;color:var(--muted)">${r.cargo||'—'}</td>
+      <td style="font-size:12px">${r.eps||'—'}</td>
+      <td style="font-size:12px">${r.afp||'—'}</td>
+      <td>${r.fingreso||'—'}</td>
+      <td style="font-size:12px">${r.cc||'—'}</td>
+      <td style="color:var(--gold-light)">${r.salario ? Number(r.salario).toLocaleString('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}) : '—'}</td>
+      <td><button class="btn-sm btn-sm-del" onclick="eliminar('maestroOriginal',${i})">✕</button></td>
+    </tr>`).join('');
+}
+
+// ─── OCASIONALES (persistencia vs NO_NOVED + NO_OCASI) ──────────────────────
+// Estado local del período activo y la última lista cargada del backend.
+let _periodoActualOcas = null;   // { codPeriod, etiqueta, ... }
+
+async function cargarPeriodoActualOcas() {
+  try {
+    const r = await fetch('/api/ocasionales/periodo-actual');
+    if (!r.ok) { _periodoActualOcas = null; return null; }
+    _periodoActualOcas = await r.json();
+    // Actualiza el badge superior si existe
+    const badge = document.getElementById('periodoBadge');
+    if (badge && _periodoActualOcas.etiqueta) badge.textContent = 'Período: ' + _periodoActualOcas.etiqueta;
+    return _periodoActualOcas;
+  } catch (e) { console.error('periodo-actual:', e); _periodoActualOcas = null; return null; }
+}
+
+async function cargarOcasionalesDelPeriodo() {
+  try {
+    if (!_periodoActualOcas) await cargarPeriodoActualOcas();
+    const url = _periodoActualOcas && _periodoActualOcas.codPeriod
+      ? `/api/ocasionales?codPeriod=${_periodoActualOcas.codPeriod}`
+      : `/api/ocasionales`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    // Adapta filas BD -> modelo interno
+    state.ocasionales = (data.registros || []).map(row => ({
+      codNoved: row.COD_NOVED,
+      codEmpr:  row.COD_EMPR,
+      id:       row.CEDULA != null ? String(row.CEDULA) : '',
+      nombre:   row.NOMBRE || '',
+      novedad:  String(row.COD_CONC),
+      nomConc:  row.NOM_CONC || '',
+      tipo:     row.TIP_CONC || '',
+      cantidad: row.CANTIDAD,
+      valor:    row.VALOR,
+      obs:      row.OBS_NOVED || '',
+      ts:       row.ACT_HORA
+    }));
+    renderOcasionales();
+    updateBadges();
+  } catch (e) {
+    console.error('cargarOcasionalesDelPeriodo:', e);
+  }
+}
+
+async function guardarOcasional() {
+  const idInput = document.getElementById('oc_id');
+  const cedula = idInput.value.trim();
+  const nombre = document.getElementById('oc_nombre').value.trim();
+  const codConc = document.getElementById('oc_novedad').value;
+  const cantidad = document.getElementById('oc_cantidad').value;
+  const valor = document.getElementById('oc_valor').value;
+  const obs = document.getElementById('oc_obs').value;
+
+  if (!cedula || !nombre) { alert('Identificación y Nombre son obligatorios.'); return; }
+  if (!codConc)           { alert('Debes seleccionar una Novedad (código).'); return; }
+
+  // Reglas según el concepto:
+  //   - Conceptos horarios (OPC_VALU = 'No Aplica'): solo CANTIDAD, VALOR opcional.
+  //   - Conceptos monetarios (OPC_VALU = 'Obligatorio'): VALOR obligatorio.
+  // Para no depender de un flag por fila, aceptamos cualquier combinación siempre
+  // que al menos uno (cantidad o valor) venga con dato.
+  const cantNum  = (cantidad !== '' && cantidad != null) ? Number(cantidad) : null;
+  const valorNum = (valor    !== '' && valor    != null) ? Number(valor)    : null;
+  if (cantNum == null && valorNum == null) {
+    alert('Debes indicar Cantidad o Valor (al menos uno).');
+    return;
+  }
+
+  try {
+    const resp = await fetch('/api/ocasionales', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cedula,
+        codConc: Number(codConc),
+        cantidad: cantNum,
+        valor: valorNum,
+        observaciones: obs || null
+      })
+    });
+    const data = await resp.json();
+    if (!resp.ok) { alert('No se pudo guardar: ' + (data.error || resp.status) + (data.details ? '\n'+data.details : '')); return; }
+
+    showAlert('alertOcas');
+    addActivity('Ocasional', nombre, 'Ocasional');
+    limpiarForm('oc');
+    await cargarOcasionalesDelPeriodo();
+  } catch (err) {
+    console.error('guardarOcasional:', err);
+    alert('Error de red al guardar: ' + err.message);
+  }
+}
+
+function renderOcasionales() {
+  const tb = document.getElementById('tbOcasionales');
+  if (!state.ocasionales.length) {
+    tb.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>';
+    return;
+  }
+  tb.innerHTML = state.ocasionales.map(r => `
+    <tr data-cod-noved="${r.codNoved}">
+      <td>${r.id}</td><td>${r.nombre}</td>
+      <td><span class="badge badge-dev">${r.novedad}${r.nomConc ? ' · ' + r.nomConc.replace(/"/g,'&quot;') : ''}</span></td>
+      <td><span class="badge ${r.tipo==='DEVENGO'?'badge-dev':'badge-ded'}">${r.tipo||'—'}</span></td>
+      <td>${r.cantidad != null ? r.cantidad : '—'}</td>
+      <td style="color:var(--gold-light)">${r.valor != null ? Number(r.valor).toLocaleString('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}) : '—'}</td>
+      <td style="color:var(--muted);font-size:12px">${r.obs || '—'}</td>
+      <td><div class="td-actions">
+        <button class="btn-sm" title="Editar" onclick="editarOcasional(${r.codNoved})">✎</button>
+        <button class="btn-sm btn-sm-del" title="Anular" onclick="anularOcasional(${r.codNoved})">✕</button>
+      </div></td>
+    </tr>`).join('');
+}
+
+// ─── EDICIÓN COMPLETA vía modal ───────────────────────────────────────────────
+// Abre el modal de edición con TODOS los campos precargados (cédula, concepto,
+// cantidad, valor, observaciones). COD_PERIOD NO se edita aquí por política.
+async function editarOcasional(codNoved) {
+  const rec = state.ocasionales.find(x => x.codNoved === codNoved);
+  if (!rec) return;
+
+  // Clonar opciones del select principal de conceptos al select del modal
+  const srcSel = document.getElementById('oc_novedad');
+  const dstSel = document.getElementById('ed_cod_conc');
+  if (srcSel && dstSel) {
+    dstSel.innerHTML = srcSel.innerHTML;
+    // Seleccionar el concepto actual
+    dstSel.value = String(rec.novedad || '');
+  }
+
+  document.getElementById('ed_cod_noved').value = codNoved;
+  const edCedula = document.getElementById('ed_cedula');
+  edCedula.value = rec.id || '';
+  edCedula.style.borderColor = '';                 // limpia estado rojo de validación previa
+  document.getElementById('ed_nombre').value   = rec.nombre || '';
+  document.getElementById('ed_cantidad').value = rec.cantidad != null ? rec.cantidad : '';
+  document.getElementById('ed_valor').value    = rec.valor    != null ? rec.valor    : '';
+  document.getElementById('ed_obs').value      = rec.obs || '';
+
+  // Asegurar dropdown cerrado al abrir
+  const drp = document.getElementById('ed_dropdown');
+  if (drp) drp.classList.remove('show');
+
+  document.getElementById('modalEditOcas').style.display = 'flex';
+}
+
+function cerrarModalEditOcas() {
+  document.getElementById('modalEditOcas').style.display = 'none';
+}
+
+async function guardarEdicionOcasional() {
+  const codNoved  = Number(document.getElementById('ed_cod_noved').value);
+  const cedula    = document.getElementById('ed_cedula').value.trim();
+  const codConc   = document.getElementById('ed_cod_conc').value;
+  const cantidad  = document.getElementById('ed_cantidad').value;
+  const valor     = document.getElementById('ed_valor').value;
+  const obs       = document.getElementById('ed_obs').value;
+
+  if (!codNoved) { alert('codNoved inválido.'); return; }
+  if (!cedula)   { alert('La cédula no puede quedar vacía.'); return; }
+  if (!codConc)  { alert('Debes seleccionar un concepto.'); return; }
+
+  // Validar al menos uno de cantidad/valor con dato (coherente con creación)
+  const cantNum  = (cantidad !== '' && cantidad != null) ? Number(cantidad) : null;
+  const valorNum = (valor    !== '' && valor    != null) ? Number(valor)    : null;
+  if (cantNum == null && valorNum == null) {
+    alert('Debes indicar Cantidad o Valor (al menos uno).');
+    return;
+  }
+
+  // Enviamos SIEMPRE los campos editables; el backend hace COALESCE para
+  // no pisar con null si vino algo distinto.
+  const body = {
+    cedula: cedula,
+    codConc: Number(codConc),
+    cantidad: cantNum,           // puede ser null si no aplica
+    valor:    valorNum,          // puede ser null si no aplica
+    observaciones: obs           // '' = limpia obs; backend usa COALESCE → si quieres vaciar, OK
+  };
+
+  try {
+    const resp = await fetch(`/api/ocasionales/${codNoved}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      alert('No se pudo actualizar: ' + (data.error || resp.status) + (data.details ? '\n' + data.details : ''));
+      return;
+    }
+    cerrarModalEditOcas();
+    await cargarOcasionalesDelPeriodo();
+  } catch (err) {
+    alert('Error de red: ' + err.message);
+  }
+}
+
+// Cerrar modal haciendo click fuera del diálogo
+document.addEventListener('click', (e) => {
+  const modal = document.getElementById('modalEditOcas');
+  if (modal && e.target === modal) cerrarModalEditOcas();
+});
+// Cerrar con Escape
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    const modal = document.getElementById('modalEditOcas');
+    if (modal && modal.style.display !== 'none') cerrarModalEditOcas();
+  }
+});
+
+async function anularOcasional(codNoved) {
+  if (!confirm('¿Anular este registro? (queda inactivo pero se conserva para trazabilidad)')) return;
+  try {
+    const resp = await fetch(`/api/ocasionales/${codNoved}`, { method: 'DELETE' });
+    const data = await resp.json();
+    if (!resp.ok) { alert('No se pudo anular: ' + (data.error || resp.status)); return; }
+    await cargarOcasionalesDelPeriodo();
+  } catch (err) { alert('Error de red: ' + err.message); }
+}
+
+// ─── CARGAR CONCEPTOS OCASIONALES ─────────────────────────────────────────────
+async function cargarConceptosOcasionales() {
+  try {
+    console.log('🔄 Iniciando carga de conceptos ocasionales...');
+    const response = await fetch('/api/maestros/conceptos-ocasionales');
+
+    console.log('📡 Respuesta del servidor - Status:', response.status);
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('❌ Error del servidor:', errorData);
+      throw new Error(`HTTP ${response.status}: ${errorData.error}`);
+    }
+
+    const conceptos = await response.json();
+    console.log('✓ Datos recibidos del servidor:', conceptos);
+
+    const select = document.getElementById('oc_novedad');
+
+    // Limpiar opciones excepto la primera (— Seleccionar —)
+    while (select.options.length > 1) {
+      select.remove(1);
+    }
+
+    // Agregar opciones dinámicamente
+    conceptos.forEach(c => {
+      const option = document.createElement('option');
+      option.value = c.codigo;
+      option.textContent = `${c.codigo} · ${c.nombre}`;
+      option.dataset.tipo = c.tipo;
+      select.appendChild(option);
+    });
+
+    console.log('✓ Conceptos ocasionales cargados exitosamente:', conceptos.length, 'registros');
+  } catch (err) {
+    console.error('❌ Error cargando conceptos:', err.message);
+    console.error('   Stack:', err.stack);
+  }
+}
+
+function actualizarTipoNovedad() {
+  const select = document.getElementById('oc_novedad');
+  const selectedOption = select.options[select.selectedIndex];
+  const tipoSelect = document.getElementById('oc_tipo');
+
+  if (selectedOption && selectedOption.dataset.tipo) {
+    const tipoConcepto = selectedOption.dataset.tipo.toUpperCase();
+    tipoSelect.value = tipoConcepto === 'DEVENGO' ? 'DEVENGO' : 'DEDUCCION';
+  }
+}
+
+// ─── DEBOUNCE TIMER PARA AUTOCOMPLETE ────────────────────────────────────────
+let autocompleteTimeouts = {};
+
+// ─── BUSCAR CÉDULAS CON AUTOCOMPLETE ────────────────────────────────────────
+// nombreInputId es opcional: por defecto llena 'oc_nombre' (formulario
+// principal). Se pasa explícitamente cuando el autocomplete se usa en el
+// modal de edición, p. ej. 'ed_nombre'.
+async function buscarCedulasAutocomplete(cedulaInputId, dropdownId, nombreInputId = 'oc_nombre') {
+  const cedulaInput = document.getElementById(cedulaInputId);
+  const dropdown = document.getElementById(dropdownId);
+
+  // Logging detallado del valor capturado
+  console.log('=== CAPTURA DE VALOR ===');
+  console.log('Input ID:', cedulaInputId);
+  console.log('Input element:', cedulaInput);
+  console.log('Input.value (sin trim):', cedulaInput.value);
+  console.log('Input.value.length:', cedulaInput.value.length);
+
+  const cedula = cedulaInput.value.trim();
+  console.log('Cedula (después de trim):', cedula);
+  console.log('Cedula.length:', cedula.length);
+  console.log('========================');
+
+  // Cancelar búsqueda anterior si existe
+  if (autocompleteTimeouts[cedulaInputId]) {
+    clearTimeout(autocompleteTimeouts[cedulaInputId]);
+  }
+
+  if (!cedula || cedula.length < 1) {
+    dropdown.classList.remove('show');
+    cedulaInput.style.borderColor = '';
+    return;
+  }
+
+  // Debounce: esperar 300ms antes de hacer la búsqueda
+  autocompleteTimeouts[cedulaInputId] = setTimeout(async () => {
+    try {
+      const url = `/api/maestros/buscar-cedulas?q=${encodeURIComponent(cedula)}`;
+      console.log('🔍 Enviando búsqueda a:', url);
+      console.log('📝 Cédula escrita:', cedula);
+      console.log('📝 Caracteres:', cedula.split('').map((c, i) => `[${i}]=${c}`).join(', '));
+
+      const response = await fetch(url);
+
+      console.log('📡 Respuesta del servidor - Status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('❌ Error en respuesta:', errorData);
+        dropdown.classList.remove('show');
+        cedulaInput.style.borderColor = '#E05555';
+        return;
+      }
+
+      const empleados = await response.json();
+      console.log(`✓ Se encontraron ${empleados.length} coincidencias`);
+      console.log('📊 Primeros empleados:', empleados.slice(0, 2));
+
+      if (empleados.length === 0) {
+        dropdown.classList.remove('show');
+        cedulaInput.style.borderColor = '#E05555';
+        return;
+      }
+
+      // Limpiar estilo de error
+      cedulaInput.style.borderColor = '';
+
+      // Renderizar opciones en el dropdown
+      dropdown.innerHTML = empleados.map(emp => `
+        <div class="autocomplete-item" onclick="seleccionarEmpleado('${emp.cedula}', '${emp.nombre}', '${emp.codigo}', '${cedulaInputId}', '${nombreInputId}', '${dropdownId}')">
+          <div class="autocomplete-item-cedula">${emp.cedula}</div>
+          <div class="autocomplete-item-nombre">${emp.nombre}</div>
+        </div>
+      `).join('');
+
+      dropdown.classList.add('show');
+    } catch (err) {
+      console.error('❌ Error en autocomplete:', err.message);
+      dropdown.classList.remove('show');
+      cedulaInput.style.borderColor = '#E05555';
+    }
+  }, 300); // Esperar 300ms después de que el usuario deja de escribir
+}
+
+// ─── SELECCIONAR EMPLEADO DEL DROPDOWN ──────────────────────────────────────
+function seleccionarEmpleado(cedula, nombre, codigo, cedulaInputId, nombreInputId, dropdownId) {
+  const cedulaInput = document.getElementById(cedulaInputId);
+  const nombreInput = document.getElementById(nombreInputId);
+  const dropdown = document.getElementById(dropdownId);
+
+  // Llenar campos
+  cedulaInput.value = cedula;
+  nombreInput.value = nombre;
+  cedulaInput.dataset.codigoFunc = codigo;
+
+  // Esconder dropdown
+  dropdown.classList.remove('show');
+
+  // Limpiar estilos
+  cedulaInput.style.borderColor = '';
+
+  console.log('✓ Empleado seleccionado - Cédula:', cedula, 'Nombre:', nombre, 'Código:', codigo);
+}
+
+// ============================================================================
+// ─── FIJAS (BD: NO_NOVED + NO_FIJAS) ─────────────────────────────────────────
+// ============================================================================
+let _periodoActualFijas = null;
+
+async function cargarPeriodoActualFijas() {
+  try {
+    const r = await fetch('/api/fijas/periodo-actual');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    _periodoActualFijas = await r.json();
+    return _periodoActualFijas;
+  } catch (e) { console.error('periodo-actual fijas:', e); _periodoActualFijas = null; return null; }
+}
+
+async function cargarConceptosFijas() {
+  try {
+    const resp = await fetch('/api/fijas/conceptos');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const conceptos = await resp.json();
+    const select = document.getElementById('fj_novedad');
+    select.innerHTML = '<option value="">— Seleccionar —</option>';
+    conceptos.forEach(c => {
+      const option = document.createElement('option');
+      option.value = c.codigo;
+      option.textContent = `${c.codigo} · ${c.nombre}`;
+      option.dataset.tipo = c.tipo;
+      select.appendChild(option);
+    });
+    console.log('✓ Conceptos FIJAS cargados:', conceptos.length);
+  } catch (err) { console.error('cargarConceptosFijas:', err); }
+}
+
+function actualizarTipoNovedadFija() {
+  const select = document.getElementById('fj_novedad');
+  const selectedOption = select.options[select.selectedIndex];
+  const tipoSelect = document.getElementById('fj_tipo');
+  if (selectedOption && selectedOption.dataset.tipo) {
+    const tipoConcepto = selectedOption.dataset.tipo.toUpperCase();
+    tipoSelect.value = tipoConcepto === 'DEVENGO' ? 'DEVENGO' : 'DEDUCCION';
+  }
+}
+
+async function cargarFijasDelPeriodo() {
+  try {
+    if (!_periodoActualFijas) await cargarPeriodoActualFijas();
+    const url = _periodoActualFijas && _periodoActualFijas.codPeriod
+      ? `/api/fijas?codPeriod=${_periodoActualFijas.codPeriod}`
+      : `/api/fijas`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    state.fijas = (data.registros || []).map(row => ({
+      codNoved: row.COD_NOVED,
+      codEmpr:  row.COD_EMPR,
+      id:       row.CEDULA != null ? String(row.CEDULA) : '',
+      nombre:   row.NOMBRE || '',
+      novedad:  String(row.COD_CONC),
+      nomConc:  row.NOM_CONC || '',
+      tipo:     row.TIP_CONC || '',
+      cantidad: row.CANTIDAD,
+      valor:    row.VALOR,
+      finicial: row.FEC_INI_FIJA || row.FEC_INI || null,
+      ffinal:   row.FEC_FIN_FIJA || row.FEC_FIN || null,
+      aplicacion: row.APLICACION || '',
+      cuotas:   row.NUM_CUOTAS,
+      cuenta:   row.NUM_CUENTA || '',
+      obs:      row.OBS_NOVED || '',
+    }));
+    renderFijas();
+    updateBadges();
+  } catch (e) { console.error('cargarFijasDelPeriodo:', e); }
+}
+
+async function guardarFija() {
+  const cedula = document.getElementById('fj_id').value.trim();
+  const nombre = document.getElementById('fj_nombre').value.trim();
+  const codConc = document.getElementById('fj_novedad').value;
+  const aplicacion = document.getElementById('fj_aplicacion').value;
+  const cantidad = document.getElementById('fj_cantidad').value;
+  const valor    = document.getElementById('fj_valor').value;
+  const fecIni   = document.getElementById('fj_finicial').value;
+  const fecFin   = document.getElementById('fj_ffinal').value;
+  const cuotas   = document.getElementById('fj_cuotas').value;
+  const cuenta   = document.getElementById('fj_cuenta').value;
+  const obs      = document.getElementById('fj_obs').value;
+
+  if (!cedula || !nombre) { alert('Identificación y Nombre son obligatorios.'); return; }
+  if (!codConc)           { alert('Debes seleccionar una Novedad (concepto).'); return; }
+
+  const cantNum  = (cantidad !== '' && cantidad != null) ? Number(cantidad) : null;
+  const valorNum = (valor    !== '' && valor    != null) ? Number(valor)    : null;
+  const cuotasNum = (cuotas  !== '' && cuotas   != null) ? Number(cuotas)   : null;
+
+  try {
+    const resp = await fetch('/api/fijas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cedula,
+        codConc: Number(codConc),
+        cantidad: cantNum,
+        valor: valorNum,
+        fecIni: fecIni || null,
+        fecFin: fecFin || null,
+        aplicacion: aplicacion || null,
+        numCuotas: cuotasNum,
+        numCuenta: cuenta || null,
+        observaciones: obs || null
+      })
+    });
+    const data = await resp.json();
+    if (!resp.ok) { alert('No se pudo guardar: ' + (data.error || resp.status) + (data.details ? '\n'+data.details : '')); return; }
+
+    showAlert('alertFijas');
+    addActivity('Fija', nombre, 'Fija');
+    limpiarForm('fj');
+    await cargarFijasDelPeriodo();
+  } catch (err) {
+    console.error('guardarFija:', err);
+    alert('Error de red al guardar: ' + err.message);
+  }
+}
+
+function renderFijas() {
+  const tb = document.getElementById('tbFijas');
+  if (!state.fijas.length) {
+    tb.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>';
+    return;
+  }
+  tb.innerHTML = state.fijas.map(r => `
+    <tr data-cod-noved="${r.codNoved}">
+      <td>${r.id}</td><td>${r.nombre}</td>
+      <td><span class="badge badge-ded">${r.novedad}${r.nomConc ? ' · ' + r.nomConc.replace(/"/g,'&quot;') : ''}</span></td>
+      <td><span class="badge ${r.tipo==='DEVENGO'?'badge-dev':'badge-ded'}">${r.tipo||'—'}</span></td>
+      <td style="color:var(--gold-light)">${r.valor != null ? Number(r.valor).toLocaleString('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}) : '—'}</td>
+      <td>${r.finicial ? new Date(r.finicial).toISOString().slice(0,10) : '—'}</td>
+      <td>${r.ffinal   ? new Date(r.ffinal).toISOString().slice(0,10)   : '—'}</td>
+      <td>${r.cuotas != null ? r.cuotas : '—'}</td>
+      <td><div class="td-actions">
+        <button class="btn-sm" title="Editar" onclick="editarFija(${r.codNoved})">✎</button>
+        <button class="btn-sm btn-sm-del" title="Anular" onclick="anularFija(${r.codNoved})">✕</button>
+      </div></td>
+    </tr>`).join('');
+}
+
+function editarFija(codNoved) {
+  const rec = state.fijas.find(x => x.codNoved === codNoved);
+  if (!rec) return;
+
+  // Poblar select de conceptos FIJA en el modal
+  const selOrigen = document.getElementById('fj_novedad');
+  const selModal  = document.getElementById('ef_novedad');
+  selModal.innerHTML = selOrigen.innerHTML;
+
+  // Precargar datos
+  document.getElementById('ef_codNoved').value  = codNoved;
+  document.getElementById('ef_id').value         = rec.id || '';
+  document.getElementById('ef_nombre').value     = rec.nombre || '';
+  document.getElementById('ef_novedad').value    = rec.novedad || '';
+  document.getElementById('ef_aplicacion').value = rec.aplicacion || 'Normal';
+  document.getElementById('ef_cantidad').value   = rec.cantidad != null ? rec.cantidad : '';
+  document.getElementById('ef_valor').value      = rec.valor    != null ? rec.valor    : '';
+  document.getElementById('ef_finicial').value   = rec.finicial ? new Date(rec.finicial).toISOString().slice(0,10) : '';
+  document.getElementById('ef_ffinal').value     = rec.ffinal   ? new Date(rec.ffinal).toISOString().slice(0,10)   : '';
+  document.getElementById('ef_cuotas').value     = rec.cuotas  != null ? rec.cuotas  : '';
+  document.getElementById('ef_cuenta').value     = rec.cuenta  || '';
+  document.getElementById('ef_obs').value        = rec.obs     || '';
+
+  abrirModal('modalEditarFija');
+}
+
+async function guardarEdicionFija() {
+  const codNoved  = Number(document.getElementById('ef_codNoved').value);
+  const cedula    = document.getElementById('ef_id').value.trim();
+  const codConc   = document.getElementById('ef_novedad').value;
+  const aplicacion = document.getElementById('ef_aplicacion').value;
+  const cantidad  = document.getElementById('ef_cantidad').value;
+  const valor     = document.getElementById('ef_valor').value;
+  const fecIni    = document.getElementById('ef_finicial').value;
+  const fecFin    = document.getElementById('ef_ffinal').value;
+  const cuotas    = document.getElementById('ef_cuotas').value;
+  const cuenta    = document.getElementById('ef_cuenta').value;
+  const obs       = document.getElementById('ef_obs').value;
+
+  if (!cedula) { alert('La identificación es obligatoria.'); return; }
+  if (!codConc) { alert('Debes seleccionar una Novedad.'); return; }
+
+  try {
+    const resp = await fetch(`/api/fijas/${codNoved}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cedula,
+        codConc: Number(codConc),
+        cantidad:  cantidad  !== '' ? Number(cantidad)  : null,
+        valor:     valor     !== '' ? Number(valor)     : null,
+        fecIni:    fecIni    || null,
+        fecFin:    fecFin    || null,
+        aplicacion: aplicacion || null,
+        numCuotas: cuotas !== '' ? Number(cuotas) : null,
+        numCuenta: cuenta || null,
+        observaciones: obs || null
+      })
+    });
+    const data = await resp.json();
+    if (!resp.ok) { alert('No se pudo actualizar: ' + (data.error || resp.status) + (data.details ? '\n' + data.details : '')); return; }
+    cerrarModal('modalEditarFija');
+    await cargarFijasDelPeriodo();
+  } catch (err) { alert('Error de red: ' + err.message); }
+}
+
+async function anularFija(codNoved) {
+  if (!confirm('¿Anular esta novedad fija? (queda inactiva pero se conserva)')) return;
+  try {
+    const resp = await fetch(`/api/fijas/${codNoved}`, { method: 'DELETE' });
+    const data = await resp.json();
+    if (!resp.ok) { alert('No se pudo anular: ' + (data.error || resp.status)); return; }
+    await cargarFijasDelPeriodo();
+  } catch (err) { alert('Error de red: ' + err.message); }
+}
+
+// ============================================================================
+// ─── AUSENTISMOS (BD: NO_NOVED + NO_AUSEN) ───────────────────────────────────
+// ============================================================================
+let _periodoActualAus = null;
+
+async function cargarPeriodoActualAus() {
+  try {
+    const r = await fetch('/api/ausentismos/periodo-actual');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    _periodoActualAus = await r.json();
+    return _periodoActualAus;
+  } catch (e) { console.error('periodo-actual aus:', e); _periodoActualAus = null; return null; }
+}
+
+async function cargarConceptosAusentismos() {
+  try {
+    const resp = await fetch('/api/ausentismos/conceptos');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const conceptos = await resp.json();
+    const select = document.getElementById('aus_tipo');
+    select.innerHTML = '<option value="">— Seleccionar —</option>';
+    conceptos.forEach(c => {
+      const option = document.createElement('option');
+      option.value = c.codigo;
+      option.textContent = `${c.codigo} · ${c.nombre}`;
+      option.dataset.tipo = c.tipo;
+      select.appendChild(option);
+    });
+    console.log('✓ Conceptos AUSENTISMOS cargados:', conceptos.length);
+  } catch (err) { console.error('cargarConceptosAusentismos:', err); }
+}
+
+async function cargarAusentismosDelPeriodo() {
+  try {
+    if (!_periodoActualAus) await cargarPeriodoActualAus();
+    const url = _periodoActualAus && _periodoActualAus.codPeriod
+      ? `/api/ausentismos?codPeriod=${_periodoActualAus.codPeriod}`
+      : `/api/ausentismos`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    state.ausentismos = (data.registros || []).map(row => ({
+      codNoved: row.COD_NOVED,
+      codEmpr:  row.COD_EMPR,
+      id:       row.CEDULA != null ? String(row.CEDULA) : '',
+      nombre:   row.NOMBRE || '',
+      tipo:     String(row.COD_CONC),
+      nomConc:  row.NOM_CONC || '',
+      finicial: row.FEC_INI_AUS || row.FEC_INI || null,
+      ffinal:   row.FEC_FIN_AUS || row.FEC_FIN || null,
+      dias:     row.DIAS_TOTAL,
+      diag:     row.DIAGNOSTICO || '',
+      prorroga: row.FEC_PRORRG || null,
+      obs:      row.OBS_NOVED || '',
+    }));
+    renderAusentismos();
+    updateBadges();
+  } catch (e) { console.error('cargarAusentismosDelPeriodo:', e); }
+}
+
+async function guardarAusentismo() {
+  const cedula = document.getElementById('aus_id').value.trim();
+  const nombre = document.getElementById('aus_nombre').value.trim();
+  const codConc = document.getElementById('aus_tipo').value;
+  const fecIni = document.getElementById('aus_finicial').value;
+  const fecFin = document.getElementById('aus_ffinal').value;
+  const dias   = document.getElementById('aus_dias').value;
+  const diag   = document.getElementById('aus_diag').value;
+  const prorroga = document.getElementById('aus_prorroga').value;
+  const obs    = document.getElementById('aus_obs').value;
+
+  if (!cedula || !nombre) { alert('Identificación y Nombre son obligatorios.'); return; }
+  if (!codConc)           { alert('Debes seleccionar el Tipo de Ausentismo.'); return; }
+  if (!fecIni || !fecFin) { alert('Fecha Inicial y Fecha Final son obligatorias.'); return; }
+
+  try {
+    const resp = await fetch('/api/ausentismos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cedula,
+        codConc: Number(codConc),
+        fecIni, fecFin,
+        diasTotal: dias !== '' ? Number(dias) : null,
+        diagnostico: diag || null,
+        fecProrroga: prorroga || null,
+        observaciones: obs || null
+      })
+    });
+    const data = await resp.json();
+    if (!resp.ok) { alert('No se pudo guardar: ' + (data.error || resp.status) + (data.details ? '\n'+data.details : '')); return; }
+
+    showAlert('alertAus');
+    addActivity('Ausentismo', nombre, 'Ausentismo');
+    limpiarForm('aus');
+    await cargarAusentismosDelPeriodo();
+  } catch (err) {
+    console.error('guardarAusentismo:', err);
+    alert('Error de red al guardar: ' + err.message);
+  }
+}
+
+function renderAusentismos() {
+  const tb = document.getElementById('tbAusentismos');
+  if (!state.ausentismos.length) {
+    tb.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>';
+    return;
+  }
+  tb.innerHTML = state.ausentismos.map(r => `
+    <tr data-cod-noved="${r.codNoved}">
+      <td>${r.id}</td><td>${r.nombre}</td>
+      <td><span class="badge badge-aus">${r.tipo}${r.nomConc ? ' · ' + r.nomConc.replace(/"/g,'&quot;') : ''}</span></td>
+      <td>${r.finicial ? new Date(r.finicial).toISOString().slice(0,10) : '—'}</td>
+      <td>${r.ffinal   ? new Date(r.ffinal).toISOString().slice(0,10)   : '—'}</td>
+      <td><strong>${r.dias != null ? r.dias : '—'}</strong></td>
+      <td style="color:var(--muted);font-size:12px">${r.diag||'—'}</td>
+      <td>${r.prorroga ? new Date(r.prorroga).toISOString().slice(0,10) : '—'}</td>
+      <td><div class="td-actions">
+        <button class="btn-sm" title="Editar" onclick="editarAusentismo(${r.codNoved})">✎</button>
+        <button class="btn-sm btn-sm-del" title="Anular" onclick="anularAusentismo(${r.codNoved})">✕</button>
+      </div></td>
+    </tr>`).join('');
+}
+
+function editarAusentismo(codNoved) {
+  const rec = state.ausentismos.find(x => x.codNoved === codNoved);
+  if (!rec) return;
+
+  // Poblar select de conceptos AUSENTISMO en el modal
+  const selOrigen = document.getElementById('aus_tipo');
+  const selModal  = document.getElementById('ea_tipo');
+  selModal.innerHTML = selOrigen.innerHTML;
+
+  document.getElementById('ea_codNoved').value  = codNoved;
+  document.getElementById('ea_id').value         = rec.id || '';
+  document.getElementById('ea_nombre').value     = rec.nombre || '';
+  document.getElementById('ea_tipo').value       = rec.tipo || '';
+  document.getElementById('ea_diag').value       = rec.diag || '';
+  document.getElementById('ea_finicial').value   = rec.finicial ? new Date(rec.finicial).toISOString().slice(0,10) : '';
+  document.getElementById('ea_ffinal').value     = rec.ffinal   ? new Date(rec.ffinal).toISOString().slice(0,10)   : '';
+  document.getElementById('ea_dias').value       = rec.dias != null ? rec.dias : '';
+  document.getElementById('ea_prorroga').value   = rec.prorroga ? new Date(rec.prorroga).toISOString().slice(0,10) : '';
+  document.getElementById('ea_obs').value        = rec.obs || '';
+
+  abrirModal('modalEditarAus');
+}
+
+function calcDiasEdit() {
+  const fi = document.getElementById('ea_finicial').value;
+  const ff = document.getElementById('ea_ffinal').value;
+  if (fi && ff) {
+    const d1 = new Date(fi), d2 = new Date(ff);
+    if (d2 >= d1) document.getElementById('ea_dias').value = Math.round((d2 - d1) / 86400000) + 1;
+  }
+}
+
+async function guardarEdicionAusentismo() {
+  const codNoved  = Number(document.getElementById('ea_codNoved').value);
+  const cedula    = document.getElementById('ea_id').value.trim();
+  const codConc   = document.getElementById('ea_tipo').value;
+  const fecIni    = document.getElementById('ea_finicial').value;
+  const fecFin    = document.getElementById('ea_ffinal').value;
+  const dias      = document.getElementById('ea_dias').value;
+  const diag      = document.getElementById('ea_diag').value;
+  const prorroga  = document.getElementById('ea_prorroga').value;
+  const obs       = document.getElementById('ea_obs').value;
+
+  if (!cedula) { alert('La identificación es obligatoria.'); return; }
+  if (!codConc) { alert('Debes seleccionar el Tipo de Ausentismo.'); return; }
+  if (!fecIni || !fecFin) { alert('Fecha Inicial y Fecha Final son obligatorias.'); return; }
+
+  try {
+    const resp = await fetch(`/api/ausentismos/${codNoved}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cedula,
+        codConc: Number(codConc),
+        fecIni, fecFin,
+        diasTotal: dias !== '' ? Number(dias) : null,
+        diagnostico: diag || null,
+        fecProrroga: prorroga || null,
+        observaciones: obs || null
+      })
+    });
+    const data = await resp.json();
+    if (!resp.ok) { alert('No se pudo actualizar: ' + (data.error || resp.status) + (data.details ? '\n' + data.details : '')); return; }
+    cerrarModal('modalEditarAus');
+    await cargarAusentismosDelPeriodo();
+  } catch (err) { alert('Error de red: ' + err.message); }
+}
+
+async function anularAusentismo(codNoved) {
+  if (!confirm('¿Anular este ausentismo? (queda inactivo pero se conserva)')) return;
+  try {
+    const resp = await fetch(`/api/ausentismos/${codNoved}`, { method: 'DELETE' });
+    const data = await resp.json();
+    if (!resp.ok) { alert('No se pudo anular: ' + (data.error || resp.status)); return; }
+    await cargarAusentismosDelPeriodo();
+  } catch (err) { alert('Error de red: ' + err.message); }
+}
+
+// ─── CAMBIOS MAESTRO ──────────────────────────────────────────────────────────
+function guardarCambioMaestro() {
+  const cedula = document.getElementById('cm_cedula').value.trim();
+  const nombre = document.getElementById('cm_nombre').value.trim();
+  if (!cedula || !nombre) { alert('Cédula y Nombre son obligatorios.'); return; }
+  const rec = {
+    cedula, nombre,
+    tipdoc: document.getElementById('cm_tipdoc').value,
+    ciudad_exp: document.getElementById('cm_ciudad_exp').value,
+    estado: document.getElementById('cm_estado').value,
+    fnac: document.getElementById('cm_fnac').value,
+    ciudad_res: document.getElementById('cm_ciudad_res').value,
+  };
+  state.cambiosMaestro.push(rec);
+  renderCMaestro();
+  limpiarForm('cm');
+  showAlert('alertCM');
+  addActivity('Cambio Maestro', nombre, 'Cambio');
+  updateBadges();
+}
+
+function renderCMaestro() {
+  const tb = document.getElementById('tbCMaestro');
+  if (!state.cambiosMaestro.length) { tb.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>'; return; }
+  tb.innerHTML = state.cambiosMaestro.map((r, i) => `
+    <tr>
+      <td>${r.cedula}</td><td>${r.nombre}</td><td>${r.tipdoc}</td>
+      <td>${r.ciudad_exp||'—'}</td><td>${r.estado||'—'}</td>
+      <td>${r.fnac||'—'}</td><td>${r.ciudad_res||'—'}</td>
+      <td><button class="btn-sm btn-sm-del" onclick="eliminar('cambiosMaestro',${i})">✕</button></td>
+    </tr>`).join('');
+}
+
+// ============================================================================
+// ─── CAMBIOS E INGRESOS (BD: NO_NOVED + NO_CAMBI) ────────────────────────────
+// ============================================================================
+let _periodoActualCam = null;
+
+async function cargarPeriodoActualCam() {
+  try {
+    const r = await fetch('/api/cambios/periodo-actual');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    _periodoActualCam = await r.json();
+    return _periodoActualCam;
+  } catch (e) { console.error('periodo-actual cambios:', e); _periodoActualCam = null; return null; }
+}
+
+async function cargarConceptosCambios() {
+  try {
+    const resp = await fetch('/api/cambios/conceptos');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const conceptos = await resp.json();
+    const select = document.getElementById('ci_cambio');
+    select.innerHTML = '<option value="">— Seleccionar —</option>';
+    conceptos.forEach(c => {
+      const option = document.createElement('option');
+      option.value = c.codigo;
+      option.textContent = `${c.codigo} · ${c.nombre}`;
+      option.dataset.tipo = c.tipo;
+      select.appendChild(option);
+    });
+    console.log('✓ Conceptos CAMBIOS cargados:', conceptos.length);
+  } catch (err) { console.error('cargarConceptosCambios:', err); }
+}
+
+async function cargarCambiosDelPeriodo() {
+  try {
+    if (!_periodoActualCam) await cargarPeriodoActualCam();
+    const url = _periodoActualCam && _periodoActualCam.codPeriod
+      ? `/api/cambios?codPeriod=${_periodoActualCam.codPeriod}`
+      : `/api/cambios`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    state.cambiosIngresos = (data.registros || []).map(row => ({
+      codNoved: row.COD_NOVED,
+      codEmpr:  row.COD_EMPR,
+      id:       row.CEDULA != null ? String(row.CEDULA) : '',
+      nombre:   row.NOMBRE || '',
+      cambio:   String(row.COD_CONC),
+      nomConc:  row.NOM_CONC || '',
+      finicial: row.FEC_INI_CAM || row.FEC_INI || null,
+      cambioa:  row.VALOR_NUEVO || '',
+      valorAnte: row.VALOR_ANTE || '',
+      obs:      row.OBS_NOVED || '',
+    }));
+    renderCIngresos();
+    updateBadges();
+  } catch (e) { console.error('cargarCambiosDelPeriodo:', e); }
+}
+
+async function guardarCambioIngreso() {
+  const cedula = document.getElementById('ci_id').value.trim();
+  const nombre = document.getElementById('ci_nombre').value.trim();
+  const codConc = document.getElementById('ci_cambio').value;
+  const fecIni = document.getElementById('ci_finicial').value;
+  const cambioa = document.getElementById('ci_cambioa').value;
+  const obs = document.getElementById('ci_obs').value;
+
+  if (!cedula || !nombre) { alert('Identificación y Nombre son obligatorios.'); return; }
+  if (!codConc)           { alert('Debes seleccionar el Tipo de Cambio.'); return; }
+  if (!fecIni)            { alert('La Fecha Inicial es obligatoria.'); return; }
+
+  try {
+    const resp = await fetch('/api/cambios', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cedula,
+        codConc: Number(codConc),
+        fecIni,
+        valorNuevo: cambioa || null,
+        valorAnte: null,
+        observaciones: obs || null
+      })
+    });
+    const data = await resp.json();
+    if (!resp.ok) { alert('No se pudo guardar: ' + (data.error || resp.status) + (data.details ? '\n'+data.details : '')); return; }
+
+    showAlert('alertCI');
+    addActivity('Cambio/Ingreso', nombre, 'Cambio');
+    limpiarForm('ci');
+    await cargarCambiosDelPeriodo();
+  } catch (err) {
+    console.error('guardarCambioIngreso:', err);
+    alert('Error de red al guardar: ' + err.message);
+  }
+}
+
+function renderCIngresos() {
+  const tb = document.getElementById('tbCIngresos');
+  if (!state.cambiosIngresos.length) {
+    tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>';
+    return;
+  }
+  tb.innerHTML = state.cambiosIngresos.map(r => `
+    <tr data-cod-noved="${r.codNoved}">
+      <td>${r.id}</td><td>${r.nombre}</td>
+      <td><span class="badge badge-cam">${r.cambio}${r.nomConc ? ' · ' + r.nomConc.replace(/"/g,'&quot;') : ''}</span></td>
+      <td>${r.finicial ? new Date(r.finicial).toISOString().slice(0,10) : '—'}</td>
+      <td><strong>${r.cambioa||'—'}</strong></td>
+      <td style="color:var(--muted);font-size:12px">${r.obs||'—'}</td>
+      <td><div class="td-actions">
+        <button class="btn-sm" title="Editar" onclick="editarCambio(${r.codNoved})">✎</button>
+        <button class="btn-sm btn-sm-del" title="Anular" onclick="anularCambio(${r.codNoved})">✕</button>
+      </div></td>
+    </tr>`).join('');
+}
+
+function editarCambio(codNoved) {
+  const rec = state.cambiosIngresos.find(x => x.codNoved === codNoved);
+  if (!rec) return;
+
+  // Poblar select de conceptos CAMBIO en el modal
+  const selOrigen = document.getElementById('ci_cambio');
+  const selModal  = document.getElementById('ec_cambio');
+  selModal.innerHTML = selOrigen.innerHTML;
+
+  document.getElementById('ec_codNoved').value  = codNoved;
+  document.getElementById('ec_id').value         = rec.id || '';
+  document.getElementById('ec_nombre').value     = rec.nombre || '';
+  document.getElementById('ec_cambio').value     = rec.cambio || '';
+  document.getElementById('ec_finicial').value   = rec.finicial ? new Date(rec.finicial).toISOString().slice(0,10) : '';
+  document.getElementById('ec_cambioa').value    = rec.cambioa || '';
+  document.getElementById('ec_obs').value        = rec.obs || '';
+
+  abrirModal('modalEditarCambio');
+}
+
+async function guardarEdicionCambio() {
+  const codNoved  = Number(document.getElementById('ec_codNoved').value);
+  const cedula    = document.getElementById('ec_id').value.trim();
+  const codConc   = document.getElementById('ec_cambio').value;
+  const fecIni    = document.getElementById('ec_finicial').value;
+  const cambioa   = document.getElementById('ec_cambioa').value;
+  const obs       = document.getElementById('ec_obs').value;
+
+  if (!cedula) { alert('La identificación es obligatoria.'); return; }
+  if (!codConc) { alert('Debes seleccionar el Tipo de Cambio.'); return; }
+  if (!fecIni) { alert('La Fecha Inicial es obligatoria.'); return; }
+
+  try {
+    const resp = await fetch(`/api/cambios/${codNoved}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cedula,
+        codConc: Number(codConc),
+        fecIni,
+        valorNuevo: cambioa || null,
+        observaciones: obs || null
+      })
+    });
+    const data = await resp.json();
+    if (!resp.ok) { alert('No se pudo actualizar: ' + (data.error || resp.status) + (data.details ? '\n' + data.details : '')); return; }
+    cerrarModal('modalEditarCambio');
+    await cargarCambiosDelPeriodo();
+  } catch (err) { alert('Error de red: ' + err.message); }
+}
+
+async function anularCambio(codNoved) {
+  if (!confirm('¿Anular este cambio? (queda inactivo pero se conserva)')) return;
+  try {
+    const resp = await fetch(`/api/cambios/${codNoved}`, { method: 'DELETE' });
+    const data = await resp.json();
+    if (!resp.ok) { alert('No se pudo anular: ' + (data.error || resp.status)); return; }
+    await cargarCambiosDelPeriodo();
+  } catch (err) { alert('Error de red: ' + err.message); }
+}
+
+function eliminar(coleccion, idx) {
+  // Colecciones persistidas en BD → usar los botones Anular (soft-delete) de la tabla.
+  const coleccionesBD = ['ocasionales', 'fijas', 'ausentismos', 'cambiosIngresos'];
+  if (coleccionesBD.includes(coleccion)) {
+    alert('Usa el botón ✕ de la tabla para anular (soft-delete contra la base de datos).');
+    return;
+  }
+  if (!confirm('¿Eliminar este registro?')) return;
+  state[coleccion].splice(idx, 1);
+  if (coleccion === 'cambiosMaestro') renderCMaestro();
+  updateBadges();
+}
+
+// ─── SQL GENERATOR ───────────────────────────────────────────────────────────
+function generarSQLCompleto() {
+  const emp = document.getElementById('cfgEmpresa').value || 'Collective Mining';
+  const per = periodo();
+  const usr = usuario();
+  let sql = `-- ================================================================\n-- NOVEDADES NÓMINA · ${emp}\n-- Período: ${per}\n-- Generado: ${new Date().toLocaleString('es-CO')}\n-- ================================================================\n\nUSE NovedadesNomina;\nGO\n\n`;
+
+  let count = 0;
+
+  if (state.maestroOriginal.length) {
+    sql += `-- ── Maestro Original (Empleados) ────────────────────────────\n`;
+    state.maestroOriginal.forEach(r => {
+      sql += `MERGE dbo.Empleados AS tgt USING (SELECT ${sq(r.cedula)} AS Cedula) AS src ON tgt.Cedula=src.Cedula\n`;
+      sql += `WHEN MATCHED THEN UPDATE SET Nombre=${sq(r.nombre)},Cargo=${sq(r.cargo)},EPS=${sq(r.eps)},AFP=${sq(r.afp)},FechaIngreso=${sdate(r.fingreso)},FechaModificacion=GETDATE()\n`;
+      sql += `WHEN NOT MATCHED THEN INSERT (Cedula,Codigo,CodigoAlterno,TipoDocumento,Nombre,Sexo,GrupoSanguineo,FactorRH,EstadoCivil,CiudadExpedicion,Hijos,FechaNacimiento,Ciudad,Telefono1,Telefono2,Direccion,Correo,Cargo,Porcentaje,Salario,ValorHora,TipoCuenta,Banco,NumeroCuenta,Sucursal,CentroCosto,CentroCostos,CodigoCompania,Regimen,TrabajaSabado,ClaseSalario,Pensionado,AplicaLey1393,ModoLiquidacion,TipoLiquidacion,Extranjero,FechaIngreso,FechaRetiro,CausaRetiro,TipoContrato,PorcentajeRete,ValorDeduccionVivienda,ValorDeduccionSalud,ValorDeduccionDependientes,DeclaraRenta,PromedioSalud,EPS,AFP,Caja,ARP,Cesantias,Riesgo,HorasMes,DiasVacaciones,Clasificador1,Clasificador1Nom,SubArea,SubAreaNom,NivelCargo,DriverVariable,Clasificador7,Clasificador7Nom,PagoXDias,RelacionSindical)\n`;
+      sql += `VALUES (${sq(r.cedula)},${sq(r.codigo)},${sq(r.codigoalt)},${sq(r.tipdoc)},${sq(r.nombre)},${sq(r.sexo)},${sq(r.gsang)},${sq(r.rh)},${sq(r.estcivil)},${sq(r.ciudadexp)},${snum(r.hijos)},${sdate(r.fnac)},${sq(r.ciudad)},${sq(r.tel1)},${sq(r.tel2)},${sq(r.dir)},${sq(r.correo)},${sq(r.cargo)},${snum(r.pct)},${snum(r.salario)},${snum(r.valorh)},${sq(r.tipcta)},${sq(r.banco)},${sq(r.numcta)},${sq(r.sucursal)},${sq(r.cc)},${sq(r.ccdesc)},${sq(r.codcia)},${sq(r.regimen)},${sq(r.sabado)},${sq(r.classal)},${sq(r.pension)},${sq(r.ley1393)},${sq(r.modoliq)},${sq(r.tipoliq)},${sq(r.extran)},${sdate(r.fingreso)},${sdate(r.fretiro)},${sq(r.causaret)},${sq(r.tipcontrato)},${snum(r.rete)},${snum(r.dedviv)},${snum(r.dedsalud)},${snum(r.deddep)},${sq(r.renta)},${snum(r.promsalud)},${sq(r.eps)},${sq(r.afp)},${sq(r.caja)},${sq(r.arp)},${sq(r.cesantias)},${snum(r.riesgo)},${snum(r.hmes)},${snum(r.dvac)},${sq(r.clas1)},${sq(r.clas1nom)},${sq(r.subarea)},${sq(r.subareanov)},${sq(r.nivcargo)},${sq(r.driver)},${sq(r.clas7)},${sq(r.clas7nom)},${sq(r.pagodias)},${sq(r.sindical)});\n`;
+      count++;
+    });
+    sql += '\n';
+  }
+
+  if (state.ocasionales.length) {
+    sql += `-- ── Novedades Ocasionales ──────────────────────────────────\n`;
+    state.ocasionales.forEach(r => {
+      sql += `INSERT INTO dbo.NovedadesOcasionales (Identificacion, Nombre, Novedad, TipoNovedad, Cantidad, Valor, Observaciones, PeriodoNomina, UsuarioRegistro)\nVALUES (${sq(r.id)}, ${sq(r.nombre)}, ${sq(r.novedad)}, ${sq(r.tipo)}, ${snum(r.cantidad)}, ${snum(r.valor)}, ${sq(r.obs)}, ${sq(per)}, ${sq(usr)});\n`;
+      count++;
+    });
+    sql += '\n';
+  }
+
+  if (state.fijas.length) {
+    sql += `-- ── Novedades Fijas ─────────────────────────────────────────\n`;
+    state.fijas.forEach(r => {
+      sql += `INSERT INTO dbo.NovedadesFijas (Identificacion, Nombre, Novedad, TipoNovedad, Valor, FechaInicial, FechaFinal, Aplicacion, Cuenta, Cuotas, Observaciones, PeriodoNomina, UsuarioRegistro)\nVALUES (${sq(r.id)}, ${sq(r.nombre)}, ${sq(r.novedad)}, ${sq(r.tipo)}, ${snum(r.valor)}, ${sdate(r.finicial)}, ${sdate(r.ffinal)}, ${sq(r.aplicacion)}, ${sq(r.cuenta)}, ${snum(r.cuotas)}, ${sq(r.obs)}, ${sq(per)}, ${sq(usr)});\n`;
+      count++;
+    });
+    sql += '\n';
+  }
+
+  if (state.ausentismos.length) {
+    sql += `-- ── Ausentismos y Vacaciones ─────────────────────────────────\n`;
+    state.ausentismos.forEach(r => {
+      sql += `INSERT INTO dbo.Ausentismos (Identificacion, Nombre, TipoAusentismo, FechaInicial, FechaFinal, DiasTotales, Diagnostico, Prorroga, Observaciones, PeriodoNomina, UsuarioRegistro)\nVALUES (${sq(r.id)}, ${sq(r.nombre)}, ${sq(r.tipo)}, ${sdate(r.finicial)}, ${sdate(r.ffinal)}, ${snum(r.dias)}, ${sq(r.diag)}, ${sdate(r.prorroga)}, ${sq(r.obs)}, ${sq(per)}, ${sq(usr)});\n`;
+      count++;
+    });
+    sql += '\n';
+  }
+
+  if (state.cambiosMaestro.length) {
+    sql += `-- ── Cambios Maestro ──────────────────────────────────────────\n`;
+    state.cambiosMaestro.forEach(r => {
+      sql += `INSERT INTO dbo.CambiosMaestro (Cedula, Nombre, TipoDocumento, CiudadExpedicion, EstadoCivil, FechaNacimiento, Ciudad, PeriodoNomina, UsuarioRegistro)\nVALUES (${sq(r.cedula)}, ${sq(r.nombre)}, ${sq(r.tipdoc)}, ${sq(r.ciudad_exp)}, ${sq(r.estado)}, ${sdate(r.fnac)}, ${sq(r.ciudad_res)}, ${sq(per)}, ${sq(usr)});\n`;
+      count++;
+    });
+    sql += '\n';
+  }
+
+  if (state.cambiosIngresos.length) {
+    sql += `-- ── Cambios e Ingresos ───────────────────────────────────────\n`;
+    state.cambiosIngresos.forEach(r => {
+      sql += `INSERT INTO dbo.CambiosIngresos (Identificacion, Nombre, TipoCambio, FechaInicial, CambioA, Observaciones, PeriodoNomina, UsuarioRegistro)\nVALUES (${sq(r.id)}, ${sq(r.nombre)}, ${sq(r.cambio)}, ${sdate(r.finicial)}, ${sq(r.cambioa)}, ${sq(r.obs)}, ${sq(per)}, ${sq(usr)});\n`;
+      count++;
+    });
+    sql += '\n';
+  }
+
+  if (count === 0) sql += '-- Sin registros ingresados aún\n';
+  sql += `\n-- Total: ${count} statements\nPRINT 'Novedades importadas: ${count}';\nGO\n`;
+
+  document.getElementById('sqlOutput').textContent = sql;
+  document.getElementById('sqlStats').textContent = `${count} statements`;
+  navigate('sql');
+}
+
+function copiarSQL() {
+  navigator.clipboard.writeText(document.getElementById('sqlOutput').textContent);
+  alert('SQL copiado al portapapeles');
+}
+
+function descargarSQL() {
+  const sql = document.getElementById('sqlOutput').textContent;
+  const blob = new Blob([sql], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `novedades_${periodo().replace(/\//g,'_') || 'nomina'}.sql`;
+  a.click();
+}
+
+// ─── CONEXIÓN ─────────────────────────────────────────────────────────────────
+function toggleAuth() {
+  document.getElementById('sqlAuthFields').style.display = document.getElementById('conn_auth').value === 'sql' ? 'block' : 'none';
+}
+
+function generarConnectionString() {
+  const srv = document.getElementById('conn_server').value;
+  const port = document.getElementById('conn_port').value;
+  const db = document.getElementById('conn_db').value;
+  const auth = document.getElementById('conn_auth').value;
+  let cs = '';
+  if (auth === 'windows') {
+    cs = `Server=${srv},${port};Database=${db};Trusted_Connection=True;TrustServerCertificate=True;`;
+  } else {
+    const u = document.getElementById('conn_user').value;
+    const p = document.getElementById('conn_pass').value;
+    cs = `Server=${srv},${port};Database=${db};User Id=${u};Password=${p};TrustServerCertificate=True;`;
+  }
+  document.getElementById('connStringOutput').textContent = cs;
+  navigator.clipboard.writeText(cs).catch(()=>{});
+}
+
+function guardarConexion() {
+  generarConnectionString();
+  document.getElementById('connDot').className = 'dot connected';
+  document.getElementById('connText').textContent = 'Configuración guardada';
+  document.getElementById('connText').style.color = 'var(--success)';
+}
+
+// ─── FILE IMPORT ──────────────────────────────────────────────────────────────
+function handleFileUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  document.getElementById('importResult').style.display = 'block';
+  document.getElementById('importSummary').innerHTML = `
+    <strong style="color:var(--gold-light)">Archivo recibido:</strong> ${file.name}<br>
+    <strong>Tamaño:</strong> ${(file.size/1024).toFixed(1)} KB<br>
+    <strong>Tipo:</strong> ${file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}<br><br>
+    <span style="color:var(--success)">✓ Para procesar el Excel, ejecute el script Python <code>import_excel.py</code> incluido en el paquete de instalación.</span><br><br>
+    Las hojas detectadas en el formato son:<br>
+    · <strong>Ocasionales</strong> → tabla NovedadesOcasionales<br>
+    · <strong>Fijas</strong> → tabla NovedadesFijas<br>
+    · <strong>Ausentismos Vacaciones</strong> → tabla Ausentismos<br>
+    · <strong>Maestro Original</strong> → tabla Empleados<br>
+    · <strong>Cambios Maestro</strong> → tabla CambiosMaestro<br>
+    · <strong>Cambios e Ingresos</strong> → tabla CambiosIngresos
+  `;
+}
+
+const dropZone = document.getElementById('dropZone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor = 'var(--gold)'; });
+dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = ''; });
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.style.borderColor = ''; const f = e.dataTransfer.files[0]; if(f) handleFileUpload({target:{files:[f]}}); });
+
+// Función de diagnóstico para verificar sesión
+function diagnosticarSesion() {
+  console.log('=== DIAGNÓSTICO DE SESIÓN ===');
+  console.log('Token en localStorage:', localStorage.getItem('authToken') ? 'SÍ' : 'NO');
+  const usuarioJson = localStorage.getItem('usuario');
+  console.log('Usuario en localStorage:', usuarioJson ? 'SÍ' : 'NO');
+  if (usuarioJson) {
+    const usuario = JSON.parse(usuarioJson);
+    console.log('Datos del usuario:', usuario);
+  }
+  if (typeof AuthUtil !== 'undefined') {
+    console.log('AuthUtil disponible: SÍ');
+    console.log('AuthUtil.estaAutenticado():', AuthUtil.estaAutenticado());
+    console.log('AuthUtil.getNombre():', AuthUtil.getNombre());
+  } else {
+    console.log('AuthUtil disponible: NO');
+  }
+}
+
+// Cargar conceptos ocasionales cuando se carga la página
+document.addEventListener('DOMContentLoaded', () => {
+  // Diagnóstico de sesión (para debugging)
+  diagnosticarSesion();
+
+  // Inicializar interfaz con período automático y bienvenida personalizada
+  inicializarInterfaz();
+
+  cargarConceptosOcasionales();
+  cargarConceptosFijas();
+  cargarConceptosAusentismos();
+  cargarConceptosCambios();
+  // Resolver y mostrar período activo (quincena vigente por fecha).
+  cargarPeriodoActualOcas();
+  cargarPeriodoActualFijas();
+  cargarPeriodoActualAus();
+  cargarPeriodoActualCam();
+  // Pre-cargar registros del período para que las tablas estén pobladas aunque
+  // el usuario aún no haya navegado a la pestaña.
+  cargarOcasionalesDelPeriodo();
+  cargarFijasDelPeriodo();
+  cargarAusentismosDelPeriodo();
+  cargarCambiosDelPeriodo();
+
+  // Cerrar dropdowns de autocomplete al hacer click fuera
+  document.addEventListener('click', (e) => {
+    const dropdowns = document.querySelectorAll('.autocomplete-dropdown.show');
+    dropdowns.forEach(dropdown => {
+      const formGroup = dropdown.parentElement;
+      if (!formGroup.contains(e.target)) {
+        dropdown.classList.remove('show');
+      }
+    });
+  });
+});
+</script>
+<!-- ===== Modal: Editar Novedad Ocasional ===== -->
+<div id="modalEditOcas" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:#1d1f24;border:1px solid rgba(224,187,92,.35);border-radius:12px;width:min(560px,92vw);padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.5);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-bottom:1px solid rgba(224,187,92,.15);padding-bottom:12px;">
+      <h3 style="margin:0;color:var(--gold-light,#e0bb5c);font-size:18px;">Editar novedad ocasional</h3>
+      <button onclick="cerrarModalEditOcas()" style="background:transparent;border:none;color:var(--muted,#8a8f98);font-size:22px;cursor:pointer;line-height:1;">×</button>
+    </div>
+    <input type="hidden" id="ed_cod_noved">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div class="form-group-autocomplete" style="position:relative;">
+        <label style="display:block;color:var(--muted,#8a8f98);font-size:12px;margin-bottom:4px;">Cédula</label>
+        <input id="ed_cedula" type="text" inputmode="numeric" autocomplete="off"
+               placeholder="Número de cédula"
+               oninput="buscarCedulasAutocomplete('ed_cedula', 'ed_dropdown', 'ed_nombre')"
+               style="width:100%;padding:8px;background:#111317;border:1px solid rgba(255,255,255,.1);color:#fff;border-radius:6px;">
+        <div id="ed_dropdown" class="autocomplete-dropdown"></div>
+      </div>
+      <div>
+        <label style="display:block;color:var(--muted,#8a8f98);font-size:12px;margin-bottom:4px;">Nombre <span style="opacity:.6;">(referencia)</span></label>
+        <input id="ed_nombre" type="text" readonly style="width:100%;padding:8px;background:#0a0b0f;border:1px solid rgba(255,255,255,.05);color:#aaa;border-radius:6px;">
+      </div>
+      <div style="grid-column:1/-1;">
+        <label style="display:block;color:var(--muted,#8a8f98);font-size:12px;margin-bottom:4px;">Concepto</label>
+        <select id="ed_cod_conc" style="width:100%;padding:8px;background:#111317;border:1px solid rgba(255,255,255,.1);color:#fff;border-radius:6px;"></select>
+      </div>
+      <div>
+        <label style="display:block;color:var(--muted,#8a8f98);font-size:12px;margin-bottom:4px;">Cantidad</label>
+        <input id="ed_cantidad" type="number" step="any" style="width:100%;padding:8px;background:#111317;border:1px solid rgba(255,255,255,.1);color:#fff;border-radius:6px;">
+      </div>
+      <div>
+        <label style="display:block;color:var(--muted,#8a8f98);font-size:12px;margin-bottom:4px;">Valor</label>
+        <input id="ed_valor" type="number" step="any" style="width:100%;padding:8px;background:#111317;border:1px solid rgba(255,255,255,.1);color:#fff;border-radius:6px;">
+      </div>
+      <div style="grid-column:1/-1;">
+        <label style="display:block;color:var(--muted,#8a8f98);font-size:12px;margin-bottom:4px;">Observaciones</label>
+        <textarea id="ed_obs" rows="2" style="width:100%;padding:8px;background:#111317;border:1px solid rgba(255,255,255,.1);color:#fff;border-radius:6px;resize:vertical;"></textarea>
+      </div>
+    </div>
+    <div style="margin-top:10px;color:var(--muted,#8a8f98);font-size:11px;">
+      El período no puede modificarse desde aquí. Si el registro pertenece a otro período, anúlalo y créalo de nuevo.
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px;">
+      <button onclick="cerrarModalEditOcas()" style="padding:8px 14px;background:transparent;border:1px solid rgba(255,255,255,.15);color:#ccc;border-radius:6px;cursor:pointer;">Cancelar</button>
+      <button onclick="guardarEdicionOcasional()" style="padding:8px 16px;background:var(--gold-light,#e0bb5c);border:none;color:#1a1c21;font-weight:600;border-radius:6px;cursor:pointer;">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/auth.js"></script>
+<script src="js/api.js"></script>
+</body>
+</html>
