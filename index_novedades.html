@@ -5,29 +5,29 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Novedades Nómina · Collective Mining</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;600;700&family=Barlow+Condensed:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root {
-    --gold: #C9A84C;
-    --gold-light: #E8CC8A;
-    --coal: #0E0E0E;
-    --dark: #161616;
-    --surface: #1E1E1E;
-    --surface2: #252525;
-    --border: rgba(201,168,76,0.18);
-    --text: #F0EDE8;
-    --muted: #8A857A;
+    --cm-blue: #20A7C9;
+    --cm-blue-light: #4DC4E0;
+    --coal: #2B2B2B;
+    --dark: #222222;
+    --surface: #2E2E2E;
+    --surface2: #383838;
+    --border: rgba(32,167,201,0.18);
+    --text: #FFFFFF;
+    --muted: #706F6F;
     --danger: #E05555;
     --success: #4CAF82;
     --info: #5B9BD5;
     --radius: 10px;
-    --tab-active: var(--gold);
+    --tab-active: var(--cm-blue);
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Barlow', sans-serif;
     background: var(--coal);
     color: var(--text);
     min-height: 100vh;
@@ -36,7 +36,7 @@
 
   /* ─── HEADER ─── */
   header {
-    background: linear-gradient(135deg, #0E0E0E 0%, #1a1610 100%);
+    background: linear-gradient(135deg, #1a1a1a 0%, #222222 100%);
     border-bottom: 1px solid var(--border);
     padding: 0 32px;
     display: flex;
@@ -47,28 +47,28 @@
   }
   .logo-mark {
     width: 36px; height: 36px;
-    background: var(--gold);
+    background: var(--cm-blue);
     clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
     display: flex; align-items: center; justify-content: center;
-    font-family: 'Syne', sans-serif; font-weight: 800; font-size: 13px; color: #000;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 13px; color: #fff;
     flex-shrink: 0;
   }
-  .logo-text { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.04em; }
-  .logo-text span { color: var(--gold); }
-  .header-sub { color: var(--muted); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
+  .logo-text { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 16px; letter-spacing: 0.06em; text-transform: uppercase; }
+  .logo-text span { color: var(--cm-blue); }
+  .header-sub { color: var(--muted); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
   .header-right { margin-left: auto; display: flex; align-items: center; gap: 16px; }
   .period-badge {
-    background: rgba(201,168,76,0.1); border: 1px solid var(--border);
+    background: rgba(32,167,201,0.1); border: 1px solid var(--border);
     border-radius: 6px; padding: 6px 14px; font-size: 12px;
-    color: var(--gold-light); font-family: 'Syne', sans-serif; font-weight: 600;
+    color: var(--cm-blue-light); font-family: 'Barlow', sans-serif; font-weight: 600;
   }
   .btn-export {
-    background: var(--gold); color: #000; border: none; border-radius: 7px;
-    padding: 8px 18px; font-family: 'Syne', sans-serif; font-weight: 700; font-size: 12px;
+    background: var(--cm-blue); color: #fff; border: none; border-radius: 7px;
+    padding: 8px 18px; font-family: 'Barlow', sans-serif; font-weight: 700; font-size: 12px;
     letter-spacing: 0.05em; cursor: pointer; transition: all .2s;
     display: flex; align-items: center; gap: 8px;
   }
-  .btn-export:hover { background: var(--gold-light); transform: translateY(-1px); }
+  .btn-export:hover { background: var(--cm-blue-light); transform: translateY(-1px); }
 
   /* ─── LAYOUT ─── */
   .layout { display: flex; height: calc(100vh - 64px); }
@@ -81,7 +81,7 @@
     overflow-y: auto;
   }
   .aside-section { padding: 0 16px 8px; margin-bottom: 4px; }
-  .aside-label { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); padding: 0 12px 8px; font-family: 'Syne', sans-serif; }
+  .aside-label { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); padding: 0 12px 8px; font-family: 'Barlow', sans-serif; font-weight: 600; }
   .nav-item {
     display: flex; align-items: center; gap: 12px;
     padding: 10px 16px; border-radius: 8px; cursor: pointer;
@@ -90,14 +90,14 @@
   }
   .nav-item:hover { background: rgba(255,255,255,0.04); color: var(--text); }
   .nav-item.active {
-    background: rgba(201,168,76,0.12); color: var(--gold);
-    border-color: rgba(201,168,76,0.25);
+    background: rgba(32,167,201,0.12); color: var(--cm-blue);
+    border-color: rgba(32,167,201,0.25);
   }
   .nav-icon { font-size: 16px; width: 18px; text-align: center; }
   .nav-badge {
-    margin-left: auto; background: var(--gold); color: #000;
+    margin-left: auto; background: var(--cm-blue); color: #fff;
     font-size: 10px; font-weight: 700; border-radius: 10px;
-    padding: 1px 7px; font-family: 'Syne', sans-serif;
+    padding: 1px 7px; font-family: 'Barlow', sans-serif;
   }
   .nav-divider { height: 1px; background: var(--border); margin: 10px 16px; }
 
@@ -107,10 +107,10 @@
   .page.active { display: block; }
 
   .page-title {
-    font-family: 'Syne', sans-serif; font-weight: 800; font-size: 24px;
-    margin-bottom: 4px; letter-spacing: -0.02em;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 26px;
+    margin-bottom: 4px; letter-spacing: 0.02em; text-transform: uppercase;
   }
-  .page-title span { color: var(--gold); }
+  .page-title span { color: var(--cm-blue); }
   .page-desc { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
 
   /* ─── STATS ROW ─── */
@@ -122,10 +122,10 @@
   }
   .stat-card::before {
     content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
-    background: var(--accent, var(--gold));
+    background: var(--accent, var(--cm-blue));
   }
   .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 8px; }
-  .stat-value { font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 800; color: var(--text); }
+  .stat-value { font-family: 'Barlow Condensed', sans-serif; font-size: 32px; font-weight: 800; color: var(--text); }
   .stat-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
 
   /* ─── FORM SECTION ─── */
@@ -135,8 +135,8 @@
     margin-bottom: 20px;
   }
   .form-card-title {
-    font-family: 'Syne', sans-serif; font-weight: 700; font-size: 14px;
-    margin-bottom: 18px; color: var(--gold-light);
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 15px;
+    margin-bottom: 18px; color: var(--cm-blue-light); letter-spacing: 0.05em; text-transform: uppercase;
     display: flex; align-items: center; gap: 10px;
   }
   .form-card-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
@@ -148,19 +148,19 @@
 
   .form-group { display: flex; flex-direction: column; gap: 6px; }
   label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
-  label .req { color: var(--gold); margin-left: 2px; }
+  label .req { color: var(--cm-blue); margin-left: 2px; }
 
   input[type=text], input[type=date], input[type=number], input[type=email],
   select, textarea {
     background: var(--surface2); border: 1px solid rgba(255,255,255,0.08);
     border-radius: 7px; padding: 10px 13px; color: var(--text);
-    font-family: 'DM Sans', sans-serif; font-size: 13.5px;
+    font-family: 'Barlow', sans-serif; font-size: 13.5px;
     transition: border-color .2s, box-shadow .2s;
     width: 100%;
   }
   input:focus, select:focus, textarea:focus {
-    outline: none; border-color: var(--gold);
-    box-shadow: 0 0 0 3px rgba(201,168,76,0.12);
+    outline: none; border-color: var(--cm-blue);
+    box-shadow: 0 0 0 3px rgba(32,167,201,0.12);
   }
   select option { background: var(--surface2); }
   textarea { resize: vertical; min-height: 72px; }
@@ -169,7 +169,7 @@
   .form-group-autocomplete { position: relative; }
   .autocomplete-dropdown {
     position: absolute; top: 100%; left: 0; right: 0;
-    background: var(--surface2); border: 1px solid var(--gold);
+    background: var(--surface2); border: 1px solid var(--cm-blue);
     border-top: none; border-radius: 0 0 7px 7px;
     max-height: 200px; overflow-y: auto; z-index: 1000;
     display: none;
@@ -181,8 +181,8 @@
     display: flex; flex-direction: column; gap: 3px;
   }
   .autocomplete-item:last-child { border-bottom: none; }
-  .autocomplete-item:hover { background: rgba(201,168,76,0.15); }
-  .autocomplete-item-cedula { font-size: 12px; color: var(--gold); font-weight: 600; }
+  .autocomplete-item:hover { background: rgba(32,167,201,0.15); }
+  .autocomplete-item-cedula { font-size: 12px; color: var(--cm-blue); font-weight: 600; }
   .autocomplete-item-nombre { font-size: 13px; color: var(--text); }
   .autocomplete-item-info { font-size: 11px; color: var(--muted); }
 
@@ -193,11 +193,11 @@
 
   .btn {
     padding: 10px 22px; border-radius: 7px; border: none; cursor: pointer;
-    font-family: 'Syne', sans-serif; font-weight: 700; font-size: 13px;
-    letter-spacing: 0.04em; transition: all .2s; display: flex; align-items: center; gap: 8px;
+    font-family: 'Barlow', sans-serif; font-weight: 700; font-size: 13px;
+    letter-spacing: 0.06em; text-transform: uppercase; transition: all .2s; display: flex; align-items: center; gap: 8px;
   }
-  .btn-primary { background: var(--gold); color: #000; }
-  .btn-primary:hover { background: var(--gold-light); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(201,168,76,0.3); }
+  .btn-primary { background: var(--cm-blue); color: #fff; }
+  .btn-primary:hover { background: var(--cm-blue-light); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(32,167,201,0.3); }
   .btn-secondary { background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid var(--border); }
   .btn-secondary:hover { background: rgba(255,255,255,0.1); }
   .btn-danger { background: rgba(224,85,85,0.15); color: var(--danger); border: 1px solid rgba(224,85,85,0.3); }
@@ -212,17 +212,17 @@
     padding: 16px 20px; display: flex; align-items: center; gap: 12px;
     border-bottom: 1px solid var(--border);
   }
-  .table-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 14px; }
+  .table-title { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 15px; text-transform: uppercase; letter-spacing: 0.05em; }
   .table-search {
     margin-left: auto; background: var(--surface2); border: 1px solid rgba(255,255,255,0.08);
     border-radius: 7px; padding: 8px 13px; color: var(--text);
-    font-family: 'DM Sans', sans-serif; font-size: 13px; width: 220px;
+    font-family: 'Barlow', sans-serif; font-size: 13px; width: 220px;
   }
   table { width: 100%; border-collapse: collapse; }
   th {
     text-align: left; padding: 11px 16px; font-size: 10px;
     text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted);
-    background: rgba(255,255,255,0.02); font-family: 'Syne', sans-serif; font-weight: 600;
+    background: rgba(255,255,255,0.02); font-family: 'Barlow', sans-serif; font-weight: 600;
     border-bottom: 1px solid var(--border);
   }
   td {
@@ -238,14 +238,14 @@
   .badge-dev { background: rgba(76,175,130,0.15); color: var(--success); }
   .badge-ded { background: rgba(224,85,85,0.15); color: var(--danger); }
   .badge-aus { background: rgba(91,155,213,0.15); color: var(--info); }
-  .badge-cam { background: rgba(201,168,76,0.15); color: var(--gold); }
+  .badge-cam { background: rgba(32,167,201,0.15); color: var(--cm-blue); }
   .td-actions { display: flex; gap: 6px; }
   .btn-sm {
     padding: 5px 10px; border-radius: 5px; border: none; cursor: pointer;
-    font-size: 11px; font-family: 'Syne', sans-serif; font-weight: 700; transition: all .15s;
+    font-size: 11px; font-family: 'Barlow', sans-serif; font-weight: 700; transition: all .15s;
   }
-  .btn-sm-edit { background: rgba(201,168,76,0.1); color: var(--gold); }
-  .btn-sm-edit:hover { background: rgba(201,168,76,0.2); }
+  .btn-sm-edit { background: rgba(32,167,201,0.1); color: var(--cm-blue); }
+  .btn-sm-edit:hover { background: rgba(32,167,201,0.2); }
   .btn-sm-del { background: rgba(224,85,85,0.1); color: var(--danger); }
   .btn-sm-del:hover { background: rgba(224,85,85,0.2); }
 
@@ -260,7 +260,7 @@
 
   /* ─── SQL EXPORT ─── */
   .sql-output {
-    background: #0a0a0a; border: 1px solid var(--border); border-radius: var(--radius);
+    background: #1a1a1a; border: 1px solid var(--border); border-radius: var(--radius);
     padding: 20px; font-family: 'Courier New', monospace; font-size: 12px;
     color: #b5cea8; line-height: 1.7; max-height: 500px; overflow-y: auto;
     white-space: pre-wrap; word-break: break-word;
@@ -274,21 +274,21 @@
   .tabs { display: flex; gap: 4px; margin-bottom: 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 5px; width: fit-content; }
   .tab {
     padding: 8px 18px; border-radius: 6px; cursor: pointer;
-    font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700;
-    color: var(--muted); letter-spacing: 0.04em; transition: all .2s; border: none; background: none;
+    font-family: 'Barlow', sans-serif; font-size: 12px; font-weight: 700;
+    color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; transition: all .2s; border: none; background: none;
   }
-  .tab.active { background: var(--gold); color: #000; }
+  .tab.active { background: var(--cm-blue); color: #fff; }
 
   /* ─── UPLOAD ZONE ─── */
   .upload-zone {
-    border: 2px dashed rgba(201,168,76,0.3); border-radius: var(--radius);
+    border: 2px dashed rgba(32,167,201,0.3); border-radius: var(--radius);
     padding: 40px; text-align: center; cursor: pointer;
-    transition: all .2s; background: rgba(201,168,76,0.03);
+    transition: all .2s; background: rgba(32,167,201,0.03);
     margin-bottom: 20px;
   }
-  .upload-zone:hover { border-color: var(--gold); background: rgba(201,168,76,0.07); }
+  .upload-zone:hover { border-color: var(--cm-blue); background: rgba(32,167,201,0.07); }
   .upload-icon { font-size: 36px; margin-bottom: 12px; }
-  .upload-label { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; margin-bottom: 6px; }
+  .upload-label { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 16px; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em; }
   .upload-sub { color: var(--muted); font-size: 12px; }
   #fileInput { display: none; }
 
@@ -312,11 +312,11 @@
   </div>
   <div class="header-right">
     <div style="display:flex; flex-direction:column; gap:4px; margin-right:auto; color:var(--muted); font-size:12px;">
-      <div id="welcomeMessage" style="color:var(--gold-light); font-weight:600;">Bienvenido</div>
+      <div id="welcomeMessage" style="color:var(--cm-blue-light); font-weight:600;">Bienvenido</div>
       <div id="userNameDisplay" style="font-size:11px;">—</div>
     </div>
     <div class="period-badge" id="periodoBadge">Período: —</div>
-    <button class="btn-export" onclick="generarSQLCompleto()">⬇ Exportar SQL</button>
+    <button class="btn-export" onclick="abrirModalExportarAdecco()">⬇ Exportar ADECCO</button>
   </div>
 </header>
 
@@ -377,7 +377,7 @@
       <div class="page-desc">Estado actual de novedades registradas para el período</div>
 
       <div class="stats">
-        <div class="stat-card" style="--accent:#C9A84C">
+        <div class="stat-card" style="--accent:#20A7C9">
           <div class="stat-label">Ocasionales</div>
           <div class="stat-value" id="statOcas">0</div>
           <div class="stat-sub">registros pendientes</div>
@@ -1201,20 +1201,147 @@
 
     <!-- ===== IMPORTAR EXCEL ===== -->
     <div class="page" id="page-importar">
-      <div class="page-title">Importar <span>Excel</span></div>
-      <div class="page-desc">Carga el formato NOVEDADES_SIN_CLAVE.xlsx para importar registros automáticamente</div>
+      <div class="page-title">Importar <span>Novedades Masivas</span></div>
+      <div class="page-desc">Carga el formato de novedades (hoja "Reporte Final") para registrar masivamente en la base de datos</div>
 
-      <div class="upload-zone" onclick="document.getElementById('fileInput').click()" id="dropZone">
-        <div class="upload-icon">📊</div>
-        <div class="upload-label">Arrastra el archivo aquí o haz clic</div>
-        <div class="upload-sub">Formatos soportados: .xlsx · Tamaño máximo: 50 MB</div>
-        <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="handleFileUpload(event)">
+      <!-- Zona de carga -->
+      <div class="upload-zone" onclick="document.getElementById('fileInput').click()" id="dropZone"
+           style="position:relative;">
+        <div class="upload-icon" id="uploadIcon">📊</div>
+        <div class="upload-label" id="uploadLabel">Arrastra el archivo aquí o haz clic</div>
+        <div class="upload-sub" id="uploadSub">Formato soportado: .xlsx (hoja "Reporte Final") · Máx 50 MB</div>
+        <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="seleccionarArchivoImport(event)">
       </div>
 
-      <div id="importResult" style="display:none">
-        <div class="form-card">
-          <div class="form-card-title">Resultado de importación</div>
-          <div id="importSummary" style="color:var(--muted);font-size:13px;line-height:1.8"></div>
+      <!-- Info del archivo seleccionado + botón importar -->
+      <div id="importFileInfo" style="display:none; margin-bottom:16px;">
+        <div class="form-card" style="padding:16px 20px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+            <div style="display:flex; align-items:center; gap:14px;">
+              <span style="font-size:24px;">📄</span>
+              <div>
+                <div id="importFileName" style="font-weight:600; font-size:14px; color:var(--text)">—</div>
+                <div id="importFileSize" style="font-size:11px; color:var(--muted); margin-top:2px;">—</div>
+              </div>
+            </div>
+            <div style="display:flex; gap:10px; align-items:center;">
+              <button class="btn btn-secondary" onclick="cancelarImport()" style="padding:8px 16px;">✕ Cancelar</button>
+              <button class="btn btn-primary" id="btnImportar" onclick="ejecutarImportMasiva()" style="padding:8px 18px;">
+                ⬆ Importar a la BD
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Barra de progreso -->
+      <div id="importProgress" style="display:none; margin-bottom:20px;">
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:20px; text-align:center;">
+          <div style="font-size:14px; color:var(--cm-blue-light); margin-bottom:12px;" id="importProgressText">Procesando archivo…</div>
+          <div style="background:var(--surface2); border-radius:20px; height:6px; overflow:hidden;">
+            <div id="importProgressBar" style="height:100%; background:var(--cm-blue); border-radius:20px; width:0%; transition:width 0.4s ease;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resultado -->
+      <div id="importResult" style="display:none;">
+        <!-- Resumen estadístico -->
+        <div id="importResultBanner" style="padding:16px 20px; border-radius:var(--radius); margin-bottom:16px; border: 1px solid; display:flex; align-items:center; gap:14px;">
+          <span id="importResultIcon" style="font-size:24px;">✓</span>
+          <div>
+            <div id="importResultTitle" style="font-weight:700; font-size:15px; margin-bottom:4px;"></div>
+            <div id="importResultSub" style="font-size:12px; opacity:0.8;"></div>
+          </div>
+        </div>
+
+        <div class="stats" style="grid-template-columns: repeat(5,1fr);" id="importStatsGrid">
+          <div class="stat-card" style="--accent:#20A7C9;">
+            <div class="stat-label">Filas Leídas</div>
+            <div class="stat-value" id="istat_filas">0</div>
+            <div class="stat-sub">en el Excel</div>
+          </div>
+          <div class="stat-card" style="--accent:#4CAF82;">
+            <div class="stat-label">Empleados</div>
+            <div class="stat-value" id="istat_procesados">0</div>
+            <div class="stat-sub">con novedades</div>
+          </div>
+          <div class="stat-card" style="--accent:#4CAF82;">
+            <div class="stat-label">Insertados</div>
+            <div class="stat-value" id="istat_insertados">0</div>
+            <div class="stat-sub">nuevos registros</div>
+          </div>
+          <div class="stat-card" style="--accent:#5B9BD5;">
+            <div class="stat-label">Acumulados</div>
+            <div class="stat-value" id="istat_acumulados">0</div>
+            <div class="stat-sub">cantidades sumadas</div>
+          </div>
+          <div class="stat-card" style="--accent:#E05555;">
+            <div class="stat-label">Errores</div>
+            <div class="stat-value" id="istat_errores">0</div>
+            <div class="stat-sub">registros fallidos</div>
+          </div>
+        </div>
+
+        <!-- Período aplicado -->
+        <div class="form-card" style="padding:14px 20px; margin-bottom:16px;" id="importPeriodoCard">
+          <span style="font-size:11px; text-transform:uppercase; letter-spacing:0.07em; color:var(--muted);">Período aplicado: </span>
+          <span id="importPeriodoLabel" style="color:var(--cm-blue-light); font-weight:700; font-size:13px;"></span>
+        </div>
+
+        <!-- Tabla detalle -->
+        <div class="table-wrap">
+          <div class="table-header" style="justify-content:space-between;">
+            <div class="table-title">Detalle por registro</div>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <select id="filtroEstadoImport" onchange="filtrarDetalleImport()" style="background:var(--surface2); border:1px solid rgba(255,255,255,0.08); border-radius:6px; padding:6px 10px; color:var(--text); font-size:12px;">
+                <option value="">Todos los estados</option>
+                <option value="INSERTADO">✓ Insertados</option>
+                <option value="ACUMULADO">⊕ Acumulados</option>
+                <option value="ERROR">✕ Errores</option>
+              </select>
+              <input class="table-search" placeholder="🔍 Buscar empleado..." style="width:180px;"
+                     oninput="filtrarDetalleImport()">
+            </div>
+          </div>
+          <table>
+            <thead><tr>
+              <th>Cédula</th>
+              <th>Nombre</th>
+              <th>Concepto</th>
+              <th>Cantidad</th>
+              <th>Estado</th>
+              <th>Detalle</th>
+            </tr></thead>
+            <tbody id="tbImportDetalle">
+              <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">Sin datos</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div style="margin-top:16px; display:flex; gap:10px; justify-content:flex-end;">
+          <button class="btn btn-secondary" onclick="resetearImport()">↺ Nueva importación</button>
+          <button class="btn btn-primary" onclick="navigate('ocasionales')">→ Ver Ocasionales</button>
+        </div>
+      </div>
+
+      <!-- Guía de formato -->
+      <div class="form-card" id="importGuia" style="margin-top:20px;">
+        <div class="form-card-title">📋 Formato esperado</div>
+        <div style="color:var(--muted); font-size:13px; line-height:2;">
+          <strong style="color:var(--cm-blue-light)">Hoja requerida:</strong> <code style="background:rgba(255,255,255,0.06);padding:2px 8px;border-radius:4px">Reporte Final</code><br>
+          <strong style="color:var(--cm-blue-light)">Fila 4:</strong> Encabezados — Col B: Cédula, C: Nombre, D: Cargo, E: Centro Costo, F–N: Tipos de novedad<br>
+          <strong style="color:var(--cm-blue-light)">Fila 5+:</strong> Datos de empleados con cantidades de horas<br><br>
+          <strong style="color:var(--text)">Mapeo de columnas a conceptos:</strong><br>
+          · F → Hora Extra Diurna 125%<br>
+          · G → Hora Extra Nocturna 175%<br>
+          · H → Hora Dominical o Festiva Ordinaria 175%<br>
+          · I → Recargo Nocturno 35%<br>
+          · J → Recargo Nocturno Festivo 210%<br>
+          · K → Hora Extra Diurna Festiva 200%<br>
+          · L → Hora Extra Nocturna Festiva 250%<br>
+          · M → Recargo Dominical Compensado 0.75%<br>
+          · N → Hora Dominical No Compensado 175% <em style="color:var(--muted)">(se suma con col H si ambas tienen valor)</em>
         </div>
       </div>
     </div>
@@ -1283,7 +1410,7 @@
           <strong style="color:var(--gold-light)">2.</strong> Ejecutar en SQL Server Management Studio o Azure Data Studio<br>
           <strong style="color:var(--gold-light)">3.</strong> Configurar connection string en el archivo <code style="background:rgba(255,255,255,0.06);padding:2px 8px;border-radius:4px">appsettings.json</code><br>
           <strong style="color:var(--gold-light)">4.</strong> Instalar dependencia: <code style="background:rgba(255,255,255,0.06);padding:2px 8px;border-radius:4px">npm install mssql</code><br>
-          <strong style="color:var(--gold-light)">5.</strong> Usar el botón "Exportar SQL" para generar los INSERTs del período
+          <strong style="color:var(--gold-light)">5.</strong> Usar el botón "Exportar ADECCO" para generar el Excel de novedades del período
         </div>
       </div>
     </div>
@@ -2893,30 +3020,253 @@ function guardarConexion() {
   document.getElementById('connText').style.color = 'var(--success)';
 }
 
-// ─── FILE IMPORT ──────────────────────────────────────────────────────────────
-function handleFileUpload(e) {
-  const file = e.target.files[0];
+// ─── IMPORTACIÓN MASIVA DESDE EXCEL ──────────────────────────────────────────
+
+let _importFile = null; // archivo seleccionado para importar
+
+// Mapeo codConc → nombre legible (para la tabla de detalle)
+const CONC_NOMBRES = {
+  7:  'Hora Dominical / Festiva 175%',
+  8:  'H. Extra Dom./Fest. Diurna 200%',
+  9:  'H. Extra Dom./Fest. Noct. 250%',
+  10: 'H. Extra Diurna 125%',
+  11: 'H. Extra Nocturna 175%',
+  14: 'Recargo Nocturno 35%',
+  15: 'Recargo Noct. Dominical 210%',
+  16: 'Recargo Dominical 0.75%',
+};
+
+function seleccionarArchivoImport(e) {
+  const file = e.target.files && e.target.files[0];
   if (!file) return;
-  document.getElementById('importResult').style.display = 'block';
-  document.getElementById('importSummary').innerHTML = `
-    <strong style="color:var(--gold-light)">Archivo recibido:</strong> ${file.name}<br>
-    <strong>Tamaño:</strong> ${(file.size/1024).toFixed(1)} KB<br>
-    <strong>Tipo:</strong> ${file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}<br><br>
-    <span style="color:var(--success)">✓ Para procesar el Excel, ejecute el script Python <code>import_excel.py</code> incluido en el paquete de instalación.</span><br><br>
-    Las hojas detectadas en el formato son:<br>
-    · <strong>Ocasionales</strong> → tabla NovedadesOcasionales<br>
-    · <strong>Fijas</strong> → tabla NovedadesFijas<br>
-    · <strong>Ausentismos Vacaciones</strong> → tabla Ausentismos<br>
-    · <strong>Maestro Original</strong> → tabla Empleados<br>
-    · <strong>Cambios Maestro</strong> → tabla CambiosMaestro<br>
-    · <strong>Cambios e Ingresos</strong> → tabla CambiosIngresos
-  `;
+  _importFile = file;
+
+  // Actualizar zona de drop
+  document.getElementById('uploadIcon').textContent = '✅';
+  document.getElementById('uploadLabel').textContent = 'Archivo listo';
+  document.getElementById('uploadSub').textContent = 'Haz clic en "Importar a la BD" para proceder';
+
+  // Mostrar info del archivo
+  document.getElementById('importFileName').textContent = file.name;
+  document.getElementById('importFileSize').textContent =
+    `${(file.size / 1024).toFixed(1)} KB · ${file.type || 'Excel'}`;
+  document.getElementById('importFileInfo').style.display = 'block';
+
+  // Ocultar resultado anterior si existe
+  document.getElementById('importResult').style.display = 'none';
+  document.getElementById('importGuia').style.display = 'none';
 }
 
+function cancelarImport() {
+  _importFile = null;
+  document.getElementById('fileInput').value = '';
+  document.getElementById('uploadIcon').textContent = '📊';
+  document.getElementById('uploadLabel').textContent = 'Arrastra el archivo aquí o haz clic';
+  document.getElementById('uploadSub').textContent = 'Formato soportado: .xlsx (hoja "Reporte Final") · Máx 50 MB';
+  document.getElementById('importFileInfo').style.display = 'none';
+  document.getElementById('importResult').style.display = 'none';
+  document.getElementById('importGuia').style.display = 'block';
+}
+
+function resetearImport() {
+  cancelarImport();
+}
+
+async function ejecutarImportMasiva() {
+  if (!_importFile) {
+    alert('Selecciona un archivo .xlsx primero.');
+    return;
+  }
+
+  // Obtener usuario desde sesión
+  let usuario = 'MineDax';
+  try {
+    const u = JSON.parse(localStorage.getItem('usuario'));
+    if (u && u.nombre) usuario = u.nombre;
+  } catch (_) {}
+
+  // Deshabilitar botón y mostrar progreso
+  const btn = document.getElementById('btnImportar');
+  btn.disabled = true;
+  btn.textContent = '⏳ Procesando…';
+  document.getElementById('importFileInfo').style.display = 'none';
+  document.getElementById('importProgress').style.display = 'block';
+  document.getElementById('importResult').style.display = 'none';
+
+  // Animar barra de progreso ficticia mientras espera
+  let pct = 0;
+  const barEl = document.getElementById('importProgressBar');
+  const txtEl = document.getElementById('importProgressText');
+  const progTimer = setInterval(() => {
+    pct = Math.min(pct + (pct < 60 ? 8 : pct < 85 ? 3 : 0.5), 90);
+    barEl.style.width = pct + '%';
+    if (pct < 30)      txtEl.textContent = 'Leyendo archivo Excel…';
+    else if (pct < 55) txtEl.textContent = 'Validando empleados en la BD…';
+    else if (pct < 75) txtEl.textContent = 'Insertando novedades…';
+    else               txtEl.textContent = 'Finalizando…';
+  }, 300);
+
+  try {
+    const formData = new FormData();
+    formData.append('archivo', _importFile);
+    formData.append('usuario', usuario);
+
+    const token = localStorage.getItem('authToken');
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const resp = await fetch('/api/ocasionales/importar-excel', {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    clearInterval(progTimer);
+    barEl.style.width = '100%';
+    await new Promise(r => setTimeout(r, 400));
+
+    const data = await resp.json();
+    document.getElementById('importProgress').style.display = 'none';
+
+    if (!resp.ok && resp.status !== 207) {
+      // Error real (400, 409, 422, 500)
+      mostrarResultadoImport(null, data.error || data.details || 'Error desconocido');
+    } else {
+      mostrarResultadoImport(data, null);
+      // Recargar tabla de ocasionales en segundo plano
+      cargarOcasionalesDelPeriodo();
+    }
+  } catch (err) {
+    clearInterval(progTimer);
+    document.getElementById('importProgress').style.display = 'none';
+    mostrarResultadoImport(null, `Error de red: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '⬆ Importar a la BD';
+  }
+}
+
+let _importDetalle = []; // para filtrar
+
+function mostrarResultadoImport(data, errorMsg) {
+  document.getElementById('importResult').style.display = 'block';
+  document.getElementById('importGuia').style.display = 'none';
+
+  if (errorMsg || !data) {
+    // Error general
+    const banner = document.getElementById('importResultBanner');
+    banner.style.background = 'rgba(224,85,85,0.12)';
+    banner.style.borderColor = 'rgba(224,85,85,0.35)';
+    banner.style.color = 'var(--danger)';
+    document.getElementById('importResultIcon').textContent = '✕';
+    document.getElementById('importResultTitle').textContent = 'No se pudo procesar el archivo';
+    document.getElementById('importResultSub').textContent = errorMsg || 'Error desconocido';
+    document.getElementById('importStatsGrid').style.display = 'none';
+    document.getElementById('importPeriodoCard').style.display = 'none';
+    document.getElementById('tbImportDetalle').innerHTML =
+      `<tr><td colspan="6" style="text-align:center;color:var(--danger);padding:24px">${errorMsg}</td></tr>`;
+    return;
+  }
+
+  document.getElementById('importStatsGrid').style.display = 'grid';
+  document.getElementById('importPeriodoCard').style.display = 'block';
+
+  const r = data.resumen;
+  const hayErr = r.conErrores > 0;
+
+  // Banner
+  const banner = document.getElementById('importResultBanner');
+  if (!hayErr) {
+    banner.style.background = 'rgba(76,175,130,0.12)';
+    banner.style.borderColor = 'rgba(76,175,130,0.3)';
+    banner.style.color = 'var(--success)';
+    document.getElementById('importResultIcon').textContent = '✓';
+    document.getElementById('importResultTitle').textContent = 'Importación completada exitosamente';
+  } else {
+    banner.style.background = 'rgba(255,165,0,0.10)';
+    banner.style.borderColor = 'rgba(255,165,0,0.3)';
+    banner.style.color = '#f5a623';
+    document.getElementById('importResultIcon').textContent = '⚠';
+    document.getElementById('importResultTitle').textContent = 'Importación completada con advertencias';
+  }
+  document.getElementById('importResultSub').textContent =
+    `${r.insertados} insertados · ${r.acumulados} acumulados · ${r.conErrores} errores · Período: ${data.periodo?.etiqueta || '—'}`;
+
+  // Stats
+  document.getElementById('istat_filas').textContent = r.totalFilas;
+  document.getElementById('istat_procesados').textContent = r.procesados;
+  document.getElementById('istat_insertados').textContent = r.insertados;
+  document.getElementById('istat_acumulados').textContent = r.acumulados;
+  document.getElementById('istat_errores').textContent = r.conErrores;
+
+  // Período
+  document.getElementById('importPeriodoLabel').textContent =
+    data.periodo ? `${data.periodo.etiqueta}  (${new Date(data.periodo.inicio).toLocaleDateString('es-CO')} – ${new Date(data.periodo.fin).toLocaleDateString('es-CO')})` : '—';
+
+  // Detalle
+  _importDetalle = data.detalle || [];
+  renderDetalleImport(_importDetalle);
+}
+
+function renderDetalleImport(rows) {
+  const tb = document.getElementById('tbImportDetalle');
+  if (!rows || rows.length === 0) {
+    tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">Sin detalle</td></tr>';
+    return;
+  }
+  tb.innerHTML = rows.map(d => {
+    let estadoHtml = '';
+    if (d.estado === 'INSERTADO') {
+      estadoHtml = `<span class="badge badge-dev">✓ Insertado</span>`;
+    } else if (d.estado === 'ACUMULADO') {
+      estadoHtml = `<span class="badge badge-cam">⊕ Acumulado</span>`;
+    } else {
+      estadoHtml = `<span class="badge badge-ded">✕ Error</span>`;
+    }
+    const concNom = d.codConc ? (CONC_NOMBRES[d.codConc] || `Concepto #${d.codConc}`) : '—';
+    const cant = d.cantidad != null ? Number(d.cantidad).toFixed(2) : '—';
+    return `<tr>
+      <td style="font-family:monospace;font-size:12px;color:var(--cm-blue)">${d.cedula || '—'}</td>
+      <td>${d.nombre || '—'}</td>
+      <td style="font-size:12px">${concNom}</td>
+      <td style="text-align:right">${cant}</td>
+      <td>${estadoHtml}</td>
+      <td style="font-size:11px;color:var(--muted);max-width:260px;">${d.mensaje || ''}</td>
+    </tr>`;
+  }).join('');
+}
+
+function filtrarDetalleImport() {
+  const estado = document.getElementById('filtroEstadoImport').value;
+  const txt = (document.querySelector('#page-importar .table-search') || {value:''}).value.toLowerCase();
+  const filtered = _importDetalle.filter(d => {
+    const matchEstado = !estado || d.estado === estado;
+    const matchTxt = !txt ||
+      (d.cedula && String(d.cedula).includes(txt)) ||
+      (d.nombre && d.nombre.toLowerCase().includes(txt));
+    return matchEstado && matchTxt;
+  });
+  renderDetalleImport(filtered);
+}
+
+// Drag & drop
 const dropZone = document.getElementById('dropZone');
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor = 'var(--gold)'; });
-dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = ''; });
-dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.style.borderColor = ''; const f = e.dataTransfer.files[0]; if(f) handleFileUpload({target:{files:[f]}}); });
+dropZone.addEventListener('dragover', e => {
+  e.preventDefault();
+  dropZone.style.borderColor = 'var(--cm-blue)';
+  dropZone.style.background = 'rgba(32,167,201,0.08)';
+});
+dropZone.addEventListener('dragleave', () => {
+  dropZone.style.borderColor = '';
+  dropZone.style.background = '';
+});
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.style.borderColor = '';
+  dropZone.style.background = '';
+  const f = e.dataTransfer && e.dataTransfer.files[0];
+  if (f) seleccionarArchivoImport({ target: { files: [f] } });
+});
 
 // Función de diagnóstico para verificar sesión
 function diagnosticarSesion() {
@@ -3023,5 +3373,184 @@ document.addEventListener('DOMContentLoaded', () => {
 
 <script src="js/auth.js"></script>
 <script src="js/api.js"></script>
+
+<!-- ══════════════════════════════════════════════════════════════
+     MODAL EXPORTAR ADECCO
+     ══════════════════════════════════════════════════════════════ -->
+<div id="modalExportarAdecco" style="
+  display:none; position:fixed; inset:0; z-index:9999;
+  background:rgba(0,0,0,.6); backdrop-filter:blur(3px);
+  align-items:center; justify-content:center;">
+  <div style="
+    background:#1e2128; border:1px solid rgba(201,168,76,.3); border-radius:12px;
+    padding:28px 32px; width:460px; max-width:95vw; box-shadow:0 20px 60px rgba(0,0,0,.6);">
+
+    <!-- Título -->
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+      <div style="
+        background:linear-gradient(135deg,#c9a84c,#e8c96a);
+        width:36px;height:36px;border-radius:8px;
+        display:flex;align-items:center;justify-content:center;
+        font-size:18px;">📊</div>
+      <div>
+        <div style="font-size:15px;font-weight:700;color:#e8c96a;font-family:'Syne',sans-serif;">Exportar Formato ADECCO</div>
+        <div style="font-size:11px;color:#8b9ab0;margin-top:2px;">Genera el Excel de novedades para enviar a ADECCO</div>
+      </div>
+    </div>
+
+    <!-- Selector de período -->
+    <label style="display:block;font-size:12px;color:#a0aec0;margin-bottom:6px;font-weight:600;letter-spacing:.04em;">
+      PERÍODO
+    </label>
+    <select id="adeccoSelectPeriodo" style="
+      width:100%;padding:10px 12px;background:#2a2d35;border:1px solid rgba(201,168,76,.25);
+      border-radius:7px;color:#e2e8f0;font-size:13px;cursor:pointer;margin-bottom:18px;
+      outline:none;">
+      <option value="">— Cargando períodos… —</option>
+    </select>
+
+    <!-- Resumen (se llena después de seleccionar) -->
+    <div id="adeccoResumen" style="
+      display:none;background:rgba(201,168,76,.07);border:1px solid rgba(201,168,76,.18);
+      border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:12px;color:#c9a84c;">
+    </div>
+
+    <!-- Botones -->
+    <div style="display:flex;justify-content:flex-end;gap:10px;">
+      <button onclick="cerrarModalExportarAdecco()" style="
+        padding:9px 18px;background:transparent;border:1px solid rgba(255,255,255,.15);
+        color:#ccc;border-radius:7px;cursor:pointer;font-size:13px;transition:all .2s;"
+        onmouseover="this.style.borderColor='rgba(255,255,255,.35)'"
+        onmouseout="this.style.borderColor='rgba(255,255,255,.15)'">
+        Cancelar
+      </button>
+      <button id="btnDescargarAdecco" onclick="descargarAdecco()" style="
+        padding:9px 20px;background:linear-gradient(135deg,#c9a84c,#e8c96a);
+        border:none;color:#1a1c21;border-radius:7px;cursor:pointer;
+        font-weight:700;font-size:13px;font-family:'Syne',sans-serif;
+        display:flex;align-items:center;gap:8px;transition:all .2s;"
+        onmouseover="this.style.transform='translateY(-1px)'"
+        onmouseout="this.style.transform='none'">
+        <span>⬇</span> Descargar Excel
+      </button>
+    </div>
+
+    <!-- Mensaje de progreso -->
+    <div id="adeccoProgreso" style="display:none;text-align:center;margin-top:14px;font-size:12px;color:#8b9ab0;">
+      ⏳ Generando archivo, por favor espera…
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ─── MODAL EXPORTAR ADECCO ────────────────────────────────────────────────────
+
+async function abrirModalExportarAdecco() {
+  const modal = document.getElementById('modalExportarAdecco');
+  modal.style.display = 'flex';
+  document.getElementById('adeccoResumen').style.display = 'none';
+  document.getElementById('adeccoProgreso').style.display = 'none';
+
+  const sel = document.getElementById('adeccoSelectPeriodo');
+  sel.innerHTML = '<option value="">— Cargando períodos… —</option>';
+
+  try {
+    const r = await fetch('/api/exportar-adecco/periodos');
+    if (!r.ok) throw new Error('No se pudieron cargar los períodos');
+    const periodos = await r.json();
+
+    sel.innerHTML = '<option value="">— Seleccionar período —</option>';
+    periodos.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.codPeriod;
+      opt.textContent = p.etiqueta + (p.estado === 'A' ? '' : ' (cerrado)');
+      // Pre-seleccionar el período activo de la app si existe
+      if (_periodoActualOcas && p.codPeriod === _periodoActualOcas.codPeriod) {
+        opt.selected = true;
+        mostrarResumenAdecco(p);
+      }
+      sel.appendChild(opt);
+    });
+
+    sel.onchange = () => {
+      const p = periodos.find(x => x.codPeriod == sel.value);
+      if (p) mostrarResumenAdecco(p);
+      else document.getElementById('adeccoResumen').style.display = 'none';
+    };
+  } catch (e) {
+    sel.innerHTML = '<option value="">⚠ Error cargando períodos</option>';
+    console.error('adecco modal error:', e);
+  }
+}
+
+function mostrarResumenAdecco(p) {
+  const res = document.getElementById('adeccoResumen');
+  const fi = p.fechaIni ? new Date(p.fechaIni).toLocaleDateString('es-CO') : '—';
+  const ff = p.fechaFin ? new Date(p.fechaFin).toLocaleDateString('es-CO') : '—';
+  res.innerHTML = `
+    <strong style="color:#e8c96a">📅 ${p.etiqueta}</strong><br>
+    <span style="color:#a0aec0">Del ${fi} al ${ff}</span><br>
+    <span style="color:#718096;font-size:11px;margin-top:4px;display:block;">
+      Se incluirán todas las novedades activas (ocasionales, fijas, ausentismos y cambios).
+    </span>`;
+  res.style.display = 'block';
+}
+
+function cerrarModalExportarAdecco() {
+  document.getElementById('modalExportarAdecco').style.display = 'none';
+}
+
+async function descargarAdecco() {
+  const sel = document.getElementById('adeccoSelectPeriodo');
+  const codPeriod = sel.value;
+  if (!codPeriod) {
+    alert('Por favor selecciona un período antes de descargar.');
+    return;
+  }
+
+  const btn = document.getElementById('btnDescargarAdecco');
+  const prog = document.getElementById('adeccoProgreso');
+  btn.disabled = true;
+  btn.style.opacity = '.6';
+  prog.style.display = 'block';
+
+  try {
+    const url = `/api/exportar-adecco?codPeriod=${codPeriod}&codEmpr=1`;
+    const r = await fetch(url);
+
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({ error: 'Error desconocido' }));
+      throw new Error(err.error || `HTTP ${r.status}`);
+    }
+
+    // Obtener nombre de archivo desde Content-Disposition
+    const cd = r.headers.get('Content-Disposition') || '';
+    const match = cd.match(/filename="?([^"]+)"?/);
+    const filename = match ? match[1] : `Novedades_ADECCO_Periodo${codPeriod}.xlsx`;
+
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+
+    cerrarModalExportarAdecco();
+  } catch (e) {
+    alert('❌ Error generando el archivo:\n' + e.message);
+    console.error('descargarAdecco error:', e);
+  } finally {
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    prog.style.display = 'none';
+  }
+}
+
+// Cerrar modal al hacer clic fuera
+document.getElementById('modalExportarAdecco').addEventListener('click', function(e) {
+  if (e.target === this) cerrarModalExportarAdecco();
+});
+</script>
 </body>
 </html>
