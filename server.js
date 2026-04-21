@@ -31,6 +31,7 @@ const fijasRoutes = require('./routes/fijas');
 const ausentismosRoutes = require('./routes/ausentismos');
 const cambiosRoutes        = require('./routes/cambios');
 const exportarAdeccoRoutes = require('./routes/exportarAdecco');
+const changelogRoutes      = require('./routes/changelog');
 
 // Usar rutas
 app.use('/api/auth', authRoutes);
@@ -43,6 +44,7 @@ app.use('/api/fijas', fijasRoutes);
 app.use('/api/ausentismos', ausentismosRoutes);
 app.use('/api/cambios', cambiosRoutes);
 app.use('/api/exportar-adecco', exportarAdeccoRoutes);
+app.use('/api/changelog',      changelogRoutes);
 
 // Ruta de prueba
 app.get('/api/health', (req, res) => {

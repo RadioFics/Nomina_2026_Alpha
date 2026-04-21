@@ -26,7 +26,6 @@ pnpm-debug.log*
 #  2) Variables de entorno y secretos
 # -----------------------------------------------------------------------------
 # .env tiene credenciales de SQL Server y JWT → NUNCA subir.
-.env
 .env.local
 .env.development.local
 .env.test.local

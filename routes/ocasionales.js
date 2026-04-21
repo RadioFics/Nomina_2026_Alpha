@@ -15,8 +15,12 @@ router.get('/periodo-actual', ctl.obtenerPeriodoActual);
 router.get('/', ctl.listarOcasionales);
 
 // ── Importación masiva desde Excel (formato Exploración / Reporte Final) ──
-// multipart/form-data: campo "archivo" = .xlsx
+// multipart/form-data: campo "archivos[]" = .xlsx
 router.post('/importar-excel', importarDesdeExcel);
+
+// Anulación lógica masiva (body: { codNoveds: [1,2,...] })
+// Usa POST /anular-batch para evitar cualquier colisión con DELETE /:codNoved
+router.post('/anular-batch', ctl.anularOcasionalBatch);
 
 // Crear registro (NO_NOVED + NO_OCASI en una transacción)
 router.post('/', ctl.crearOcasional);
@@ -24,7 +28,7 @@ router.post('/', ctl.crearOcasional);
 // Editar CANTIDAD / VALOR / OBSERVACIONES
 router.put('/:codNoved', ctl.actualizarOcasional);
 
-// Anulación lógica (ACT_ESTA = 'I')
+// Anulación lógica individual (ACT_ESTA = 'I')
 router.delete('/:codNoved', ctl.anularOcasional);
 
 module.exports = router;

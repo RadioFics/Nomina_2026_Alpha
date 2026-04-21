@@ -1,0 +1,261 @@
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║            UBICACIONES EXACTAS PARA EDITAR EL NOMBRE DE USUARIO               ║
+║                          EN index_novedades.html                              ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+┌───────────────────────────────────────────────────────────────────────────────┐
+│ UBICACIÓN #1: ELEMENTO HTML - BIENVENIDA (LÍNEA ~315)                         │
+├───────────────────────────────────────────────────────────────────────────────┤
+│                                                                               │
+│  Abre index_novedades.html y busca (Ctrl+F):                                  │
+│  ┌──────────────────────────────────────────────────────────────────────────┐ │
+│  │ id="welcomeMessage"                                                     │ │
+│  └──────────────────────────────────────────────────────────────────────────┘ │
+│                                                                               │
+│  CÓDIGO ACTUAL:                                                               │
+│  ┌──────────────────────────────────────────────────────────────────────────┐ │
+│  │ <div id="welcomeMessage"                                                │ │
+│  │      style="color:var(--cm-blue-light); font-weight:600;">             │ │
+│  │   Bienvenido                                                            │ │
+│  │ </div>                                                                  │ │
+│  └──────────────────────────────────────────────────────────────────────────┘ │
+│                                                                               │
+│  ✓ PUEDES CAMBIAR:                                                            │
+│    • El texto inicial: "Bienvenido" → lo que quieras                         │
+│    • El color: color:var(--cm-blue-light) → otro color                      │
+│    • El tamaño: font-weight:600 → otro peso                                 │
+│    • Agregar más estilos: text-transform: uppercase; etc                    │
+│                                                                               │
+│  EJEMPLO 1 - Cambiar color a verde:                                          │
+│  ┌──────────────────────────────────────────────────────────────────────────┐ │
+│  │ <div id="welcomeMessage"                                                │ │
+│  │      style="color:var(--success); font-weight:600;">                   │ │
+│  │   Bienvenido                                                            │ │
+│  │ </div>                                                                  │ │
+│  └──────────────────────────────────────────────────────────────────────────┘ │
+│                                                                               │
+│  EJEMPLO 2 - Cambiar tamaño de fuente:                                        │
+│  ┌──────────────────────────────────────────────────────────────────────────┐ │
+│  │ <div id="welcomeMessage"                                                │ │
+│  │      style="color:var(--cm-blue-light); font-weight:600; font-size:16px;│ │
+│  │   Bienvenido                                                            │ │
+│  │ </div>                                                                  │ │
+│  └──────────────────────────────────────────────────────────────────────────┘ │
+│                                                                               │
+└───────────────────────────────────────────────────────────────────────────────┘
+
+┌───────────────────────────────────────────────────────────────────────────────┐
+│ UBICACIÓN #2: ELEMENTO HTML - NOMBRE COMPLETO (LÍNEA ~316)                   │
+├───────────────────────────────────────────────────────────────────────────────┤
+│                                                                               │
+│  Abre index_novedades.html y busca (Ctrl+F):                                  │
+│  ┌──────────────────────────────────────────────────────────────────────────┐ │
+│  │ id="userNameDisplay"                                                    │ │
+│  └──────────────────────────────────────────────────────────────────────────┘ │
+│                                                                               │
+│  CÓDIGO ACTUAL:                                                               │
+│  ┌──────────────────────────────────────────────────────────────────────────┐ │
+│  │ <div id="userNameDisplay" style="font-size:11px;">—</div>              │ │
+│  └──────────────────────────────────────────────────────────────────────────┘ │
+│                                                                               │
+│  ✓ PUEDES CAMBIAR:                                                            │
+│    • El tamaño: font-size:11px → font-size:14px                             │
+│    • El color: agregar color:#fff                                           │
+│    • El peso: agregar font-weight:700                                       │
+│                                                                               │
+│  EJEMPLO - Hacer nombre más visible:                                         │
+│  ┌──────────────────────────────────────────────────────────────────────────┐ │
+│  │ <div id="userNameDisplay"                                               │ │
+│  │      style="font-size:13px; font-weight:600; color:var(--cm-blue);">  │ │
+│  │   —                                                                     │ │
+│  │ </div>                                                                  │ │
+│  └──────────────────────────────────────────────────────────────────────────┘ │
+│                                                                               │
+└───────────────────────────────────────────────────────────────────────────────┘
+
+┌───────────────────────────────────────────────────────────────────────────────┐
+│ UBICACIÓN #3: JAVASCRIPT - LÓGICA DE REORDENAMIENTO (LÍNEA ~1761)            │
+├───────────────────────────────────────────────────────────────────────────────┤
+│                                                                               │
+│  Abre index_novedades.html y busca (Ctrl+F):                                  │
+│  ┌──────────────────────────────────────────────────────────────────────────┐ │
+│  │ CORRECCIÓN #2 MEJORADA                                                  │ │
+│  └──────────────────────────────────────────────────────────────────────────┘ │
+│                                                                               │
+│  CÓDIGO ACTUAL (aprox. línea 1761-1790):                                      │
+│  ┌──────────────────────────────────────────────────────────────────────────┐ │
+│  │ try {                                                                   │ │
+│  │   const partes = nombreCompleto.trim().split(/\s+/);                   │ │
+│  │                                                                         │ │
+│  │   if (partes.length >= 4) {                                             │ │
+│  │     usuarioDisplay = partes.slice(-2).join(' ');                       │ │
+│  │     // "CALLE PALMETT JUAN ESTEBAN" → "JUAN ESTEBAN"                  │ │
+│  │   } else if (partes.length === 3) {                                     │ │
+│  │     usuarioDisplay = partes.slice(-2).join(' ');                       │ │
+│  │   } else {                                                              │ │
+│  │     usuarioDisplay = nombreCompleto;                                   │ │
+│  │   }                                                                     │ │
+│  │ } catch (e) {                                                           │ │
+│  │   usuarioDisplay = nombreCompleto;                                     │ │
+│  │ }                                                                       │ │
+│  └──────────────────────────────────────────────────────────────────────────┘ │
+│                                                                               │
+│  ✓ PUEDES CAMBIAR:                                                            │
+│    • La lógica de slice(-2) → slice(-1) para solo último nombre             │
+│    • La lógica de slice(-2) → slice(0, 2) para solo apellidos              │
+│    • Agregar más procesamiento (mayúsculas, minúsculas, etc)               │
+│                                                                               │
+│  EJEMPLO 1 - Solo Primer Nombre:                                             │
+│  ┌──────────────────────────────────────────────────────────────────────────┐ │
+│  │ if (partes.length >= 4) {                                               │ │
+│  │   usuarioDisplay = partes[2];  // Índice 2 = NOM_TERC                  │ │
+│  │   // "CALLE PALMETT JUAN ESTEBAN" → "JUAN"                             │ │
+│  │ }                                                                       │ │
+│  └──────────────────────────────────────────────────────────────────────────┘ │
+│                                                                               │
+│  EJEMPLO 2 - Solo Apellidos:                                                 │
+│  ┌──────────────────────────────────────────────────────────────────────────┐ │
+│  │ if (partes.length >= 4) {                                               │ │
+│  │   usuarioDisplay = partes.slice(0, 2).join(' ');                        │ │
+│  │   // "CALLE PALMETT JUAN ESTEBAN" → "CALLE PALMETT"                    │ │
+│  │ }                                                                       │ │
+│  └──────────────────────────────────────────────────────────────────────────┘ │
+│                                                                               │
+│  EJEMPLO 3 - Convertir a Minúsculas:                                          │
+│  ┌──────────────────────────────────────────────────────────────────────────┐ │
+│  │ if (partes.length >= 4) {                                               │ │
+│  │   usuarioDisplay = partes.slice(-2).join(' ').toLowerCase();            │ │
+│  │   // "CALLE PALMETT JUAN ESTEBAN" → "juan esteban"                     │ │
+│  │ }                                                                       │ │
+│  └──────────────────────────────────────────────────────────────────────────┘ │
+│                                                                               │
+└───────────────────────────────────────────────────────────────────────────────┘
+
+┌───────────────────────────────────────────────────────────────────────────────┐
+│ UBICACIÓN #4: JAVASCRIPT - MENSAJE DE BIENVENIDA (LÍNEA ~1792)               │
+├───────────────────────────────────────────────────────────────────────────────┤
+│                                                                               │
+│  Abre index_novedades.html y busca (Ctrl+F):                                  │
+│  ┌──────────────────────────────────────────────────────────────────────────┐ │
+│  │ ¡Bienvenido, ${primerNombre}!                                           │ │
+│  └──────────────────────────────────────────────────────────────────────────┘ │
+│                                                                               │
+│  CÓDIGO ACTUAL (aprox. línea 1792):                                           │
+│  ┌──────────────────────────────────────────────────────────────────────────┐ │
+│  │ const primerNombre = usuarioDisplay.split(' ')[0];                      │ │
+│  │ document.getElementById('welcomeMessage')                               │ │
+│  │   .textContent = `¡Bienvenido, ${primerNombre}!`;                       │ │
+│  └──────────────────────────────────────────────────────────────────────────┘ │
+│                                                                               │
+│  ✓ PUEDES CAMBIAR:                                                            │
+│    • El mensaje: "¡Bienvenido" → "Buenos días", "Hola", etc                │
+│    • La variable: ${primerNombre} → ${usuarioDisplay}                        │
+│    • Agregar lógica de hora del día                                          │
+│    • Agregar emojis                                                          │
+│                                                                               │
+│  EJEMPLO 1 - Nombre Completo:                                                │
+│  ┌──────────────────────────────────────────────────────────────────────────┐ │
+│  │ document.getElementById('welcomeMessage')                               │ │
+│  │   .textContent = `¡Bienvenido, ${usuarioDisplay}!`;                     │ │
+│  │ // "¡Bienvenido, JUAN ESTEBAN!"                                        │ │
+│  └──────────────────────────────────────────────────────────────────────────┘ │
+│                                                                               │
+│  EJEMPLO 2 - Con Hora del Día:                                               │
+│  ┌──────────────────────────────────────────────────────────────────────────┐ │
+│  │ const hora = new Date().getHours();                                     │ │
+│  │ const saludo = hora < 12 ? 'Buenos días' : 'Buenas tardes';             │ │
+│  │ document.getElementById('welcomeMessage')                               │ │
+│  │   .textContent = `${saludo}, ${primerNombre}!`;                         │ │
+│  │ // "Buenos días, JUAN!" o "Buenas tardes, JUAN!"                        │ │
+│  └──────────────────────────────────────────────────────────────────────────┘ │
+│                                                                               │
+│  EJEMPLO 3 - Con Emoji:                                                      │
+│  ┌──────────────────────────────────────────────────────────────────────────┐ │
+│  │ document.getElementById('welcomeMessage')                               │ │
+│  │   .textContent = `👋 ¡Bienvenido, ${primerNombre}!`;                    │ │
+│  │ // "👋 ¡Bienvenido, JUAN!"                                             │ │
+│  └──────────────────────────────────────────────────────────────────────────┘ │
+│                                                                               │
+│  EJEMPLO 4 - Sin Exclamación:                                                │
+│  ┌──────────────────────────────────────────────────────────────────────────┐ │
+│  │ document.getElementById('welcomeMessage')                               │ │
+│  │   .textContent = `¡Bienvenido, ${primerNombre}`;                        │ │
+│  │ // "¡Bienvenido, JUAN" (sin !)                                         │ │
+│  └──────────────────────────────────────────────────────────────────────────┘ │
+│                                                                               │
+└───────────────────────────────────────────────────────────────────────────────┘
+
+┌───────────────────────────────────────────────────────────────────────────────┐
+│ UBICACIÓN #5: JAVASCRIPT - CAMPO USUARIO REGISTRADOR (LÍNEA ~1795)           │
+├───────────────────────────────────────────────────────────────────────────────┤
+│                                                                               │
+│  Abre index_novedades.html y busca (Ctrl+F):                                  │
+│  ┌──────────────────────────────────────────────────────────────────────────┐ │
+│  │ document.getElementById('cfgUsuario').value = primerNombre;             │ │
+│  └──────────────────────────────────────────────────────────────────────────┘ │
+│                                                                               │
+│  CÓDIGO ACTUAL (aprox. línea 1795):                                           │
+│  ┌──────────────────────────────────────────────────────────────────────────┐ │
+│  │ document.getElementById('cfgUsuario').value = primerNombre;             │ │
+│  │ // Asigna: "JUAN"                                                       │ │
+│  └──────────────────────────────────────────────────────────────────────────┘ │
+│                                                                               │
+│  ✓ PUEDES CAMBIAR:                                                            │
+│    • ${primerNombre} → ${usuarioDisplay} (nombre completo)                  │
+│    • ${primerNombre} → apellido (solo apellido)                             │
+│    • Agregar prefijos/sufijos                                                │
+│                                                                               │
+│  EJEMPLO 1 - Nombre Completo:                                                │
+│  ┌──────────────────────────────────────────────────────────────────────────┐ │
+│  │ document.getElementById('cfgUsuario').value = usuarioDisplay;           │ │
+│  │ // Asigna: "JUAN ESTEBAN"                                               │ │
+│  └──────────────────────────────────────────────────────────────────────────┘ │
+│                                                                               │
+│  EJEMPLO 2 - Con Título:                                                     │
+│  ┌──────────────────────────────────────────────────────────────────────────┐ │
+│  │ document.getElementById('cfgUsuario').value = `Sr. ${primerNombre}`;    │ │
+│  │ // Asigna: "Sr. JUAN"                                                   │ │
+│  └──────────────────────────────────────────────────────────────────────────┘ │
+│                                                                               │
+└───────────────────────────────────────────────────────────────────────────────┘
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                           RESUMEN DE BÚSQUEDAS                               ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║                                                                               ║
+║  PRESIONA: Ctrl+F (Windows/Linux) o Cmd+F (Mac) en index_novedades.html     ║
+║                                                                               ║
+║  1. Para cambiar ESTILO del nombre:                                          ║
+║     → Busca: id="welcomeMessage"                                             ║
+║     → Busca: id="userNameDisplay"                                            ║
+║                                                                               ║
+║  2. Para cambiar QUÉ PARTES mostrar:                                         ║
+║     → Busca: CORRECCIÓN #2 MEJORADA                                          ║
+║                                                                               ║
+║  3. Para cambiar MENSAJE de bienvenida:                                      ║
+║     → Busca: ¡Bienvenido, ${primerNombre}!                                  ║
+║                                                                               ║
+║  4. Para cambiar USUARIO REGISTRADOR:                                        ║
+║     → Busca: cfgUsuario                                                      ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+┌───────────────────────────────────────────────────────────────────────────────┐
+│ 💡 TIPS DE EDICIÓN                                                            │
+├───────────────────────────────────────────────────────────────────────────────┤
+│                                                                               │
+│  ✓ Haz un RESPALDO del archivo antes de editar (copia el archivo)            │
+│  ✓ Edita en un editor de texto (Notepad++, VS Code, etc)                    │
+│  ✓ Recarga la página (F5 o Ctrl+Shift+R) para ver cambios                   │
+│  ✓ Abre la consola (F12) para ver mensajes de error                          │
+│  ✓ Los backticks `` ` `` son importantes en los templates de JavaScript     │
+│  ✓ Las llaves ${} se usan para insertar variables en strings                │
+│                                                                               │
+└───────────────────────────────────────────────────────────────────────────────┘
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                              ¡LISTO PARA EDITAR!                            ║
+║                                                                               ║
+║  Abre: /sessions/laughing-quirky-ptolemy/mnt/Nomina_2026_Alpha/             ║
+║                              index_novedades.html                            ║
+╚═══════════════════════════════════════════════════════════════════════════════╝

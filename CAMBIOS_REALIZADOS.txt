@@ -1,0 +1,101 @@
+═══════════════════════════════════════════════════════════════════════════════
+  RESUMEN DE MODIFICACIONES - index_novedades.html
+  Fecha: 2026-04-21
+═══════════════════════════════════════════════════════════════════════════════
+
+Se han realizado las 3 correcciones solicitadas en el archivo index_novedades.html:
+
+───────────────────────────────────────────────────────────────────────────────
+CORRECCIÓN #1: Formato del Período en el Badge (Esquina superior derecha)
+───────────────────────────────────────────────────────────────────────────────
+
+ANTES: Período: 2026-04-16 / 2026-04-30
+AHORA: Período: 2026-04-2Q
+
+Cambios realizados:
+  • Actualizada función calcularQuincenaActual() para devolver "formatoBadge"
+  • Badge ahora muestra formato: AÑO-MES-QNA (ej: 2026-04-1Q o 2026-04-2Q)
+  • Campo "Período" en dashboard mantiene formato completo: AÑO-MES FECHA_INICIO / FECHA_FIN
+  • Actualizada lógica de carga de periodo desde API (línea ~1863)
+  • Actualizada función usarPeriodoLocal() para usar nuevo formato (línea ~1895)
+
+───────────────────────────────────────────────────────────────────────────────
+CORRECCIÓN #2: Uso de NOM_TERC + SEG_NOMB en "Bienvenido [Usuario]"
+───────────────────────────────────────────────────────────────────────────────
+
+ANTES: ¡Bienvenido, Calle Palmett!     (tomaba APE_TERC incorrectamente)
+AHORA: ¡Bienvenido, Juan Esteban!     (toma NOM_TERC + SEG_NOMB correctamente)
+
+Detalles:
+  • Pestaña/Header "¡Bienvenido [Usuario]": Muestra NOM_TERC + SEG_NOMB
+  • Subtítulo (debajo): Muestra nombre completo desde BD
+  • Usuario Registrador: Muestra nombre completo desde BD
+  • Si usuario solo tiene NOM_TERC: Muestra solo eso
+  • Si usuario solo tiene APE_TERC: Usa el APE_TERC como fallback
+
+Cambios en código (línea ~1811-1842):
+  • Mejorada lógica de consulta a API para obtener NOM_TERC y SEG_NOMB
+  • cfgUsuario ahora recibe usuarioDisplay (nombre completo) en lugar de primerNombre
+  • userNameDisplay permanece como el nombre completo
+
+───────────────────────────────────────────────────────────────────────────────
+CORRECCIÓN #3: Campo "Empresa" No Editable
+───────────────────────────────────────────────────────────────────────────────
+
+ANTES: Campo editable con valor "COLLECTIVE MINING"
+AHORA: Campo readonly con fondo grisado (no editable)
+
+Cambios realizados (línea ~407):
+  • Añadido atributo readonly al input#cfgEmpresa
+  • Añadido style="background:rgba(255,255,255,0.03);" para visualizar estado readonly
+  • Campo mantiene su valor inicial "COLLECTIVE MINING"
+
+───────────────────────────────────────────────────────────────────────────────
+ARCHIVOS MODIFICADOS
+───────────────────────────────────────────────────────────────────────────────
+
+✓ index_novedades.html
+  - Ubicación: /mnt/Nomina_2026_Alpha/index_novedades.html
+  - Función calcularQuincenaActual: Líneas 1727-1746
+  - Función usarPeriodoLocal: Líneas 1888-1896
+  - Sección período API: Líneas 1850-1878
+  - Sección usuario: Líneas 1805-1842
+  - Campo empresa readonly: Línea 407
+
+───────────────────────────────────────────────────────────────────────────────
+NOTAS TÉCNICAS
+───────────────────────────────────────────────────────────────────────────────
+
+1. La consulta a la base de datos MineDax se realiza a través de:
+   - Tabla GN_TERCE para obtener NOM_TERC y SEG_NOMB
+   - Tabla NO_PERIOD para obtener PER_ANO, PER_MES, PER_QNA, PER_FINI, PER_FFIN
+
+2. Las funciones de API esperadas:
+   - GET /api/periodo/actual → Retorna datos de período actual
+   - GET /api/usuario/datos?nombre=... → Retorna datos del usuario desde GN_TERCE
+
+3. Si las APIs no están disponibles, el sistema usa cálculos locales:
+   - Período se calcula automáticamente según fecha actual
+   - Usuario se obtiene desde AuthUtil o localStorage como fallback
+
+───────────────────────────────────────────────────────────────────────────────
+TESTING RECOMENDADO
+───────────────────────────────────────────────────────────────────────────────
+
+1. Verificar período badge en esquina superior derecha
+   → Debe mostrar formato "2026-04-2Q" (no la fecha completa)
+
+2. Verificar bienvenida en header
+   → Debe mostrar "¡Bienvenido, Juan Esteban!" (primer nombre)
+   → Subtítulo debe mostrar nombre completo de BD
+
+3. Verificar campo Empresa en Dashboard
+   → No debe ser editable
+   → Debe tener fondo grisado visual
+
+4. Probar con usuarios que tengan:
+   - NOM_TERC + SEG_NOMB (debe combinarlos)
+   - Solo NOM_TERC (debe mostrar solo eso)
+   - Sin datos (debe mostrar "Usuario" como fallback)
+
+═══════════════════════════════════════════════════════════════════════════════

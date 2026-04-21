@@ -138,13 +138,27 @@ async function queryPeriodo(codPeriod, codEmpr) {
 }
 
 // ─── Helper: invocar script Python ───────────────────────────────────────────
+// Se fuerza UTF-8 en toda la comunicación con el proceso hijo para garantizar
+// el correcto manejo de tildes, ñ, apóstrofes y cualquier carácter Unicode
+// en nombres y conceptos (lenguas romance y anglosajonas).
 
 function invocarPython(jsonData, outputPath) {
   return new Promise((resolve, reject) => {
-    const py = spawn('python3', [PYTHON_SCRIPT, outputPath]);
-    let stderr = '';
+    const py = spawn('python3', [PYTHON_SCRIPT, outputPath], {
+      // Forzar que el proceso hijo herede UTF-8 en su entorno.
+      // PYTHONUTF8=1 activa el modo UTF-8 de Python (PEP 540) en Windows y Linux.
+      // PYTHONIOENCODING=utf-8 es el mecanismo clásico compatible con Python 3.6+.
+      env: {
+        ...process.env,
+        PYTHONUTF8:        '1',
+        PYTHONIOENCODING:  'utf-8',
+      },
+    });
 
-    py.stderr.on('data', d => { stderr += d.toString(); });
+    // Leer stderr como UTF-8 para que los mensajes de error con tildes no se corrompan
+    let stderr = '';
+    py.stderr.setEncoding('utf8');
+    py.stderr.on('data', d => { stderr += d; });
 
     py.on('close', code => {
       if (code === 0) resolve();
@@ -153,7 +167,10 @@ function invocarPython(jsonData, outputPath) {
 
     py.on('error', err => reject(new Error(`No se pudo lanzar Python: ${err.message}`)));
 
-    py.stdin.write(JSON.stringify(jsonData));
+    // Escribir JSON en UTF-8 explícito (Buffer.from garantiza la codificación
+    // independientemente del locale del sistema operativo).
+    const jsonStr = JSON.stringify(jsonData);
+    py.stdin.write(Buffer.from(jsonStr, 'utf8'));
     py.stdin.end();
   });
 }

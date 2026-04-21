@@ -23,6 +23,7 @@
 // ============================================================================
 
 const { executeQuery, getConnection } = require('../config/database');
+const { getActUsua } = require('../config/userHelper');
 const sql = require('mssql');
 
 // -- Constante de empresa. Por ahora hardcoded a 1 (Collective Mining).
@@ -197,8 +198,9 @@ async function listarOcasionales(req, res) {
 //   5. COMMIT. Si algo falla -> ROLLBACK.
 // ===========================================================================
 async function crearOcasional(req, res) {
-  const { cedula, codConc, cantidad, valor, observaciones, codCcost, usuario } = req.body;
+  const { cedula, codConc, cantidad, valor, observaciones, codCcost } = req.body;
   const codEmpr = Number(req.body.codEmpr) || DEFAULT_COD_EMPR;
+  const usuario = getActUsua(req);
 
   if (!cedula || !codConc) {
     return res.status(400).json({ error: 'cedula y codConc son obligatorios.' });
@@ -240,7 +242,7 @@ async function crearOcasional(req, res) {
     reqNov.input('codConc',    sql.Int,           Number(codConc));
     reqNov.input('codPeriod',  sql.Int,           periodo.COD_PERIOD);
     reqNov.input('obs',        sql.NVarChar(500), observaciones || null);
-    reqNov.input('actUsua',    sql.NVarChar(50),  usuario || 'MineDax');
+    reqNov.input('actUsua',    sql.NVarChar(50),  usuario);
     reqNov.input('codCcost',   sql.Int,           codCcost || null);
 
     const novResult = await reqNov.query(`
@@ -264,7 +266,7 @@ async function crearOcasional(req, res) {
     reqOc.input('codNoved', sql.Int,         codNoved);
     reqOc.input('cantidad', sql.Decimal(18,4), cantidad !== undefined && cantidad !== null && cantidad !== '' ? Number(cantidad) : null);
     reqOc.input('valor',    sql.Decimal(18,2), Number(valor));
-    reqOc.input('actUsua',  sql.NVarChar(50), usuario || 'MineDax');
+    reqOc.input('actUsua',  sql.NVarChar(50), usuario);
 
     await reqOc.query(`
       INSERT INTO dbo.NO_OCASI
@@ -299,7 +301,8 @@ async function crearOcasional(req, res) {
 async function actualizarOcasional(req, res) {
   const codEmpr = Number(req.query.codEmpr) || Number(req.body.codEmpr) || DEFAULT_COD_EMPR;
   const codNoved = Number(req.params.codNoved);
-  const { cedula, codConc, cantidad, valor, observaciones, usuario } = req.body;
+  const { cedula, codConc, cantidad, valor, observaciones } = req.body;
+  const usuario = getActUsua(req);
 
   if (!codNoved) return res.status(400).json({ error: 'codNoved inválido.' });
 
@@ -326,7 +329,7 @@ async function actualizarOcasional(req, res) {
     reqNov.input('codFunci',  sql.Int,           nuevoCodFunci);  // null si no cambia
     reqNov.input('codConc',   sql.Int,           codConc !== undefined && codConc !== null && codConc !== '' ? Number(codConc) : null);
     reqNov.input('obs',       sql.NVarChar(500), observaciones !== undefined ? observaciones : null);
-    reqNov.input('actUsua',   sql.NVarChar(50),  usuario || 'MineDax');
+    reqNov.input('actUsua',   sql.NVarChar(50),  usuario);
 
     await reqNov.query(`
       UPDATE dbo.NO_NOVED
@@ -344,7 +347,7 @@ async function actualizarOcasional(req, res) {
     reqOc.input('codNoved', sql.Int,           codNoved);
     reqOc.input('cantidad', sql.Decimal(18,4), cantidad !== undefined && cantidad !== null && cantidad !== '' ? Number(cantidad) : null);
     reqOc.input('valor',    sql.Decimal(18,2), valor    !== undefined && valor    !== null && valor    !== '' ? Number(valor)    : null);
-    reqOc.input('actUsua',  sql.NVarChar(50),  usuario || 'MineDax');
+    reqOc.input('actUsua',  sql.NVarChar(50),  usuario);
 
     await reqOc.query(`
       UPDATE dbo.NO_OCASI
@@ -371,6 +374,78 @@ async function actualizarOcasional(req, res) {
 }
 
 // ===========================================================================
+// DELETE /api/ocasionales/batch
+// Anulación lógica masiva: recibe { codNoveds: [1,2,3,...] } en el body.
+// Ejecuta un UPDATE ... WHERE COD_NOVED IN (...) dentro de una transacción.
+// Retorna cuántos registros se anularon efectivamente.
+// ===========================================================================
+async function anularOcasionalBatch(req, res) {
+  const codEmpr  = Number(req.query.codEmpr) || DEFAULT_COD_EMPR;
+  const usuario  = getActUsua(req);
+  const { codNoveds } = req.body || {};
+
+  if (!Array.isArray(codNoveds) || codNoveds.length === 0) {
+    return res.status(400).json({ error: 'Se requiere un array codNoveds con al menos un elemento.' });
+  }
+
+  // Validar que todos los IDs sean enteros positivos
+  const ids = codNoveds.map(Number).filter(n => Number.isInteger(n) && n > 0);
+  if (ids.length === 0) {
+    return res.status(400).json({ error: 'Los codNoveds deben ser enteros positivos.' });
+  }
+  if (ids.length > 500) {
+    return res.status(400).json({ error: 'No se pueden anular más de 500 registros en una sola operación.' });
+  }
+
+  let transaction;
+  try {
+    const pool = await getConnection();
+    transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    // Construir parámetros TVP-style: @p0, @p1, ... para evitar SQL injection
+    const paramNames = ids.map((_, i) => `@id${i}`).join(',');
+
+    const reqNov = new sql.Request(transaction);
+    reqNov.input('codEmpr',  sql.SmallInt,     codEmpr);
+    reqNov.input('actUsua',  sql.NVarChar(50), usuario);
+    ids.forEach((id, i) => reqNov.input(`id${i}`, sql.Int, id));
+    const resNov = await reqNov.query(`
+      UPDATE dbo.NO_NOVED
+      SET ACT_ESTA = 'I', ACT_USUA = @actUsua, ACT_HORA = GETDATE()
+      WHERE COD_EMPR = @codEmpr
+        AND COD_NOVED IN (${paramNames})
+        AND ACT_ESTA  = 'A'
+    `);
+
+    const reqOc = new sql.Request(transaction);
+    reqOc.input('codEmpr',  sql.SmallInt,     codEmpr);
+    reqOc.input('actUsua',  sql.NVarChar(50), usuario);
+    ids.forEach((id, i) => reqOc.input(`id${i}`, sql.Int, id));
+    await reqOc.query(`
+      UPDATE dbo.NO_OCASI
+      SET ACT_ESTA = 'I', ACT_USUA = @actUsua, ACT_HORA = SYSDATETIME()
+      WHERE COD_EMPR = @codEmpr
+        AND COD_NOVED IN (${paramNames})
+        AND ACT_ESTA  = 'A'
+    `);
+
+    await transaction.commit();
+
+    const anulados = resNov.rowsAffected[0] || 0;
+    res.json({
+      success: true,
+      anulados,
+      solicitados: ids.length,
+      message: `${anulados} novedad(es) anulada(s) correctamente.`
+    });
+  } catch (err) {
+    if (transaction) { try { await transaction.rollback(); } catch (_) {} }
+    console.error('[ocasionales] anularBatch error:', err);
+    res.status(500).json({ error: 'Error en anulación masiva', details: err.message });
+  }
+}
+
 // DELETE /api/ocasionales/:codNoved
 // Anulación lógica: ACT_ESTA = 'I' en NO_NOVED y NO_OCASI.
 // La fila se conserva para trazabilidad histórica.
@@ -378,7 +453,7 @@ async function actualizarOcasional(req, res) {
 async function anularOcasional(req, res) {
   const codEmpr = Number(req.query.codEmpr) || DEFAULT_COD_EMPR;
   const codNoved = Number(req.params.codNoved);
-  const usuario = req.body && req.body.usuario ? req.body.usuario : 'MineDax';
+  const usuario = getActUsua(req);
 
   if (!codNoved) return res.status(400).json({ error: 'codNoved inválido.' });
 
@@ -423,5 +498,6 @@ module.exports = {
   listarOcasionales,
   crearOcasional,
   actualizarOcasional,
-  anularOcasional
+  anularOcasional,
+  anularOcasionalBatch
 };

@@ -20,6 +20,7 @@
 // ============================================================================
 
 const { executeQuery, getConnection } = require('../config/database');
+const { getActUsua } = require('../config/userHelper');
 const sql = require('mssql');
 
 const DEFAULT_COD_EMPR = 1;
@@ -215,8 +216,9 @@ async function listarFijas(req, res) {
 async function crearFija(req, res) {
   const {
     cedula, codConc, cantidad, valor, fecIni, fecFin,
-    aplicacion, numCuotas, numCuenta, observaciones, usuario
+    aplicacion, numCuotas, numCuenta, observaciones
   } = req.body;
+  const usuario = getActUsua(req);
   const codEmpr = Number(req.body.codEmpr) || DEFAULT_COD_EMPR;
 
   if (!cedula || !codConc) {
@@ -247,7 +249,7 @@ async function crearFija(req, res) {
     reqNov.input('codConc',   sql.Int,           Number(codConc));
     reqNov.input('codPeriod', sql.Int,           periodo.COD_PERIOD);
     reqNov.input('obs',       sql.NVarChar(500), observaciones || null);
-    reqNov.input('actUsua',   sql.NVarChar(50),  usuario || 'MineDax');
+    reqNov.input('actUsua',   sql.NVarChar(50),  usuario);
     reqNov.input('fecIni',    sql.Date,          fecIni || null);
     reqNov.input('fecFin',    sql.Date,          fecFin || null);
 
@@ -279,7 +281,7 @@ async function crearFija(req, res) {
     reqFj.input('aplicacion', sql.NVarChar(30),   aplicacion || null);
     reqFj.input('numCuotas',  sql.Int,            numCuotas !== undefined && numCuotas !== null && numCuotas !== '' ? Number(numCuotas) : null);
     reqFj.input('numCuenta',  sql.NVarChar(50),   numCuenta || null);
-    reqFj.input('actUsua',    sql.NVarChar(50),   usuario || 'MineDax');
+    reqFj.input('actUsua',    sql.NVarChar(50),   usuario);
 
     await reqFj.query(`
       INSERT INTO dbo.NO_FIJAS
@@ -312,8 +314,9 @@ async function actualizarFija(req, res) {
   const codNoved = Number(req.params.codNoved);
   const {
     cedula, codConc, cantidad, valor, fecIni, fecFin,
-    aplicacion, numCuotas, numCuenta, observaciones, usuario
+    aplicacion, numCuotas, numCuenta, observaciones
   } = req.body;
+  const usuario = getActUsua(req);
 
   if (!codNoved) return res.status(400).json({ error: 'codNoved inválido.' });
 
@@ -340,7 +343,7 @@ async function actualizarFija(req, res) {
     reqNov.input('obs',       sql.NVarChar(500), observaciones !== undefined ? observaciones : null);
     reqNov.input('fecIni',    sql.Date,          fecIni !== undefined ? (fecIni || null) : null);
     reqNov.input('fecFin',    sql.Date,          fecFin !== undefined ? (fecFin || null) : null);
-    reqNov.input('actUsua',   sql.NVarChar(50),  usuario || 'MineDax');
+    reqNov.input('actUsua',   sql.NVarChar(50),  usuario);
 
     await reqNov.query(`
       UPDATE dbo.NO_NOVED
@@ -365,7 +368,7 @@ async function actualizarFija(req, res) {
     reqFj.input('aplicacion', sql.NVarChar(30),   aplicacion !== undefined ? (aplicacion || null) : null);
     reqFj.input('numCuotas',  sql.Int,            numCuotas  !== undefined && numCuotas  !== null && numCuotas  !== '' ? Number(numCuotas)  : null);
     reqFj.input('numCuenta',  sql.NVarChar(50),   numCuenta  !== undefined ? (numCuenta || null) : null);
-    reqFj.input('actUsua',    sql.NVarChar(50),   usuario || 'MineDax');
+    reqFj.input('actUsua',    sql.NVarChar(50),   usuario);
 
     await reqFj.query(`
       UPDATE dbo.NO_FIJAS
@@ -396,7 +399,7 @@ async function actualizarFija(req, res) {
 async function anularFija(req, res) {
   const codEmpr = Number(req.query.codEmpr) || DEFAULT_COD_EMPR;
   const codNoved = Number(req.params.codNoved);
-  const usuario = req.body && req.body.usuario ? req.body.usuario : 'MineDax';
+  const usuario = getActUsua(req);
 
   if (!codNoved) return res.status(400).json({ error: 'codNoved inválido.' });
 
@@ -435,6 +438,58 @@ async function anularFija(req, res) {
   }
 }
 
+// POST /api/fijas/anular-batch
+// Anulación lógica masiva: body { codNoveds: [1,2,...] }
+async function anularFijaBatch(req, res) {
+  const codEmpr  = Number(req.query.codEmpr) || DEFAULT_COD_EMPR;
+  const usuario  = getActUsua(req);
+  const { codNoveds } = req.body || {};
+
+  if (!Array.isArray(codNoveds) || codNoveds.length === 0)
+    return res.status(400).json({ error: 'Se requiere un array codNoveds con al menos un elemento.' });
+
+  const ids = codNoveds.map(Number).filter(n => Number.isInteger(n) && n > 0);
+  if (ids.length === 0)
+    return res.status(400).json({ error: 'Los codNoveds deben ser enteros positivos.' });
+  if (ids.length > 500)
+    return res.status(400).json({ error: 'No se pueden anular más de 500 registros a la vez.' });
+
+  let transaction;
+  try {
+    const pool = await getConnection();
+    transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    const paramNames = ids.map((_, i) => `@id${i}`).join(',');
+
+    const reqNov = new sql.Request(transaction);
+    reqNov.input('codEmpr', sql.SmallInt, codEmpr);
+    reqNov.input('actUsua', sql.NVarChar(50), usuario);
+    ids.forEach((id, i) => reqNov.input(`id${i}`, sql.Int, id));
+    const resNov = await reqNov.query(`
+      UPDATE dbo.NO_NOVED SET ACT_ESTA='I', ACT_USUA=@actUsua, ACT_HORA=GETDATE()
+      WHERE COD_EMPR=@codEmpr AND COD_NOVED IN (${paramNames}) AND ACT_ESTA='A'
+    `);
+
+    const reqFj = new sql.Request(transaction);
+    reqFj.input('codEmpr', sql.SmallInt, codEmpr);
+    reqFj.input('actUsua', sql.NVarChar(50), usuario);
+    ids.forEach((id, i) => reqFj.input(`id${i}`, sql.Int, id));
+    await reqFj.query(`
+      UPDATE dbo.NO_FIJAS SET ACT_ESTA='I', ACT_USUA=@actUsua, ACT_HORA=SYSDATETIME()
+      WHERE COD_EMPR=@codEmpr AND COD_NOVED IN (${paramNames}) AND ACT_ESTA='A'
+    `);
+
+    await transaction.commit();
+    const anulados = resNov.rowsAffected[0] || 0;
+    res.json({ success: true, anulados, solicitados: ids.length, message: `${anulados} fija(s) anulada(s).` });
+  } catch (err) {
+    if (transaction) { try { await transaction.rollback(); } catch (_) {} }
+    console.error('[fijas] anularBatch error:', err);
+    res.status(500).json({ error: 'Error en anulación masiva de fijas', details: err.message });
+  }
+}
+
 module.exports = {
   ensureDbObjects,
   obtenerPeriodoActual,
@@ -442,5 +497,6 @@ module.exports = {
   listarFijas,
   crearFija,
   actualizarFija,
-  anularFija
+  anularFija,
+  anularFijaBatch
 };

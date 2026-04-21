@@ -17,6 +17,7 @@
 // ============================================================================
 
 const { executeQuery, getConnection } = require('../config/database');
+const { getActUsua } = require('../config/userHelper');
 const sql = require('mssql');
 
 const DEFAULT_COD_EMPR = 1;
@@ -216,8 +217,9 @@ async function listarAusentismos(req, res) {
 async function crearAusentismo(req, res) {
   const {
     cedula, codConc, fecIni, fecFin, diasTotal,
-    diagnostico, fecProrroga, observaciones, usuario
+    diagnostico, fecProrroga, observaciones
   } = req.body;
+  const usuario = getActUsua(req);
   const codEmpr = Number(req.body.codEmpr) || DEFAULT_COD_EMPR;
 
   if (!cedula || !codConc) {
@@ -257,7 +259,7 @@ async function crearAusentismo(req, res) {
     reqNov.input('codConc',   sql.Int,           Number(codConc));
     reqNov.input('codPeriod', sql.Int,           periodo.COD_PERIOD);
     reqNov.input('obs',       sql.NVarChar(500), observaciones || null);
-    reqNov.input('actUsua',   sql.NVarChar(50),  usuario || 'MineDax');
+    reqNov.input('actUsua',   sql.NVarChar(50),  usuario);
     reqNov.input('fecIni',    sql.Date,          fecIni);
     reqNov.input('fecFin',    sql.Date,          fecFin);
 
@@ -286,7 +288,7 @@ async function crearAusentismo(req, res) {
     reqAu.input('diasTotal',  sql.Int,          dias);
     reqAu.input('diagnost',   sql.NVarChar(20), diagnostico || null);
     reqAu.input('fecProrrg',  sql.Date,         fecProrroga || null);
-    reqAu.input('actUsua',    sql.NVarChar(50), usuario || 'MineDax');
+    reqAu.input('actUsua',    sql.NVarChar(50), usuario);
 
     await reqAu.query(`
       INSERT INTO dbo.NO_AUSEN
@@ -320,8 +322,9 @@ async function actualizarAusentismo(req, res) {
   const codNoved = Number(req.params.codNoved);
   const {
     cedula, codConc, fecIni, fecFin, diasTotal,
-    diagnostico, fecProrroga, observaciones, usuario
+    diagnostico, fecProrroga, observaciones
   } = req.body;
+  const usuario = getActUsua(req);
 
   if (!codNoved) return res.status(400).json({ error: 'codNoved inválido.' });
 
@@ -353,7 +356,7 @@ async function actualizarAusentismo(req, res) {
     reqNov.input('obs',       sql.NVarChar(500), observaciones !== undefined ? observaciones : null);
     reqNov.input('fecIni',    sql.Date,          fecIni || null);
     reqNov.input('fecFin',    sql.Date,          fecFin || null);
-    reqNov.input('actUsua',   sql.NVarChar(50),  usuario || 'MineDax');
+    reqNov.input('actUsua',   sql.NVarChar(50),  usuario);
 
     await reqNov.query(`
       UPDATE dbo.NO_NOVED
@@ -375,7 +378,7 @@ async function actualizarAusentismo(req, res) {
     reqAu.input('diasTotal', sql.Int,          diasRecalc);
     reqAu.input('diagnost',  sql.NVarChar(20), diagnostico !== undefined ? (diagnostico || null) : null);
     reqAu.input('fecProrrg', sql.Date,         fecProrroga !== undefined ? (fecProrroga || null) : null);
-    reqAu.input('actUsua',   sql.NVarChar(50), usuario || 'MineDax');
+    reqAu.input('actUsua',   sql.NVarChar(50), usuario);
 
     await reqAu.query(`
       UPDATE dbo.NO_AUSEN
@@ -404,7 +407,7 @@ async function actualizarAusentismo(req, res) {
 async function anularAusentismo(req, res) {
   const codEmpr = Number(req.query.codEmpr) || DEFAULT_COD_EMPR;
   const codNoved = Number(req.params.codNoved);
-  const usuario = req.body && req.body.usuario ? req.body.usuario : 'MineDax';
+  const usuario = getActUsua(req);
 
   if (!codNoved) return res.status(400).json({ error: 'codNoved inválido.' });
 
@@ -443,6 +446,77 @@ async function anularAusentismo(req, res) {
   }
 }
 
+// ===========================================================================
+// POST /api/ausentismos/anular-batch
+// Body: { codNoveds: [1, 2, 3, ...] }
+// ===========================================================================
+async function anularAusentismoBatch(req, res) {
+  const codEmpr = Number(req.query.codEmpr) || DEFAULT_COD_EMPR;
+  const usuario = getActUsua(req);
+  const { codNoveds } = req.body || {};
+
+  if (!Array.isArray(codNoveds) || codNoveds.length === 0) {
+    return res.status(400).json({ error: 'codNoveds debe ser un arreglo no vacío.' });
+  }
+  if (codNoveds.length > 500) {
+    return res.status(400).json({ error: 'Máximo 500 registros por lote.' });
+  }
+
+  const ids = codNoveds.map(Number).filter(n => Number.isInteger(n) && n > 0);
+  if (ids.length === 0) {
+    return res.status(400).json({ error: 'No se recibieron codNoveds válidos (enteros positivos).' });
+  }
+
+  const paramNames = ids.map((_, i) => `@id${i}`).join(',');
+
+  let transaction;
+  try {
+    const pool = await getConnection();
+    transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    const reqNov = new sql.Request(transaction);
+    reqNov.input('codEmpr', sql.SmallInt, codEmpr);
+    reqNov.input('actUsua', sql.NVarChar(50), usuario);
+    ids.forEach((id, i) => reqNov.input(`id${i}`, sql.Int, id));
+
+    const rNov = await reqNov.query(`
+      UPDATE dbo.NO_NOVED
+      SET ACT_ESTA = 'I', ACT_USUA = @actUsua, ACT_HORA = GETDATE()
+      WHERE COD_EMPR = @codEmpr
+        AND COD_NOVED IN (${paramNames})
+        AND ACT_ESTA = 'A'
+    `);
+
+    const reqAu = new sql.Request(transaction);
+    reqAu.input('codEmpr', sql.SmallInt, codEmpr);
+    reqAu.input('actUsua', sql.NVarChar(50), usuario);
+    ids.forEach((id, i) => reqAu.input(`id${i}`, sql.Int, id));
+
+    await reqAu.query(`
+      UPDATE dbo.NO_AUSEN
+      SET ACT_ESTA = 'I', ACT_USUA = @actUsua, ACT_HORA = SYSDATETIME()
+      WHERE COD_EMPR = @codEmpr
+        AND COD_NOVED IN (${paramNames})
+        AND ACT_ESTA = 'A'
+    `);
+
+    await transaction.commit();
+
+    const anulados = rNov.rowsAffected[0] || 0;
+    res.json({
+      success: true,
+      anulados,
+      solicitados: ids.length,
+      message: `${anulados} ausentismo(s) anulado(s) correctamente.`
+    });
+  } catch (err) {
+    if (transaction) { try { await transaction.rollback(); } catch (_) {} }
+    console.error('[ausentismos] anularBatch error:', err);
+    res.status(500).json({ error: 'Error anulando ausentismos en lote', details: err.message });
+  }
+}
+
 module.exports = {
   ensureDbObjects,
   obtenerPeriodoActual,
@@ -450,5 +524,6 @@ module.exports = {
   listarAusentismos,
   crearAusentismo,
   actualizarAusentismo,
-  anularAusentismo
+  anularAusentismo,
+  anularAusentismoBatch
 };

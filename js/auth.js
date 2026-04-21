@@ -62,13 +62,43 @@ const AuthUtil = {
   },
 
   /**
+   * Obtener abreviatura del usuario (máx 8 chars) para ACT_USUA en la BD.
+   * Usa ABR_USUA del perfil si está disponible; si no, la genera en tiempo real
+   * aplicando el algoritmo: 1ª MAYÚSCULA + 2ª minúscula de cada palabra del nombre.
+   * Ej: "CALLE PALMETT JUAN ESTEBAN" → "CaPaJuEs"
+   */
+  getAbrUsua() {
+    const usuario = this.getUsuario();
+    // Prioridad 1: abreviatura ya calculada y guardada en el perfil
+    if (usuario?.abr_usua && usuario.abr_usua.trim()) {
+      return usuario.abr_usua.trim();
+    }
+    // Prioridad 2: calcularla desde el nombre completo
+    const nombre = usuario?.nombre;
+    if (!nombre) return 'MineDax';
+    const palabras = String(nombre).trim().split(/\s+/).filter(Boolean);
+    let abr = '';
+    for (const palabra of palabras) {
+      if (abr.length >= 8) break;
+      const p = palabra.replace(/[^a-zA-ZáéíóúÁÉÍÓÚüÜñÑ]/g, '');
+      if (!p) continue;
+      abr += p[0].toUpperCase();
+      if (abr.length < 8 && p.length > 1) abr += p[1].toLowerCase();
+    }
+    return abr || 'MineDax';
+  },
+
+  /**
    * Obtener headers con autenticación
+   * Incluye x-abr-usua para que todos los controladores puedan
+   * identificar al usuario sin depender de req.body.usuario.
    */
   getAuthHeaders() {
     const token = this.getToken();
     return {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
+      'Authorization': `Bearer ${token}`,
+      'x-abr-usua': this.getAbrUsua()
     };
   },
 

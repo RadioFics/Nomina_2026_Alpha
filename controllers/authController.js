@@ -8,6 +8,27 @@ const {
   JWT_SECRET
 } = require('../middleware/authMiddleware');
 
+// ─── Generar abreviatura de usuario (máx 8 chars, char(8)) ───────────────────
+// Algoritmo: primera letra MAYÚSCULA + segunda letra minúscula de cada palabra.
+// Ej: "CALLE PALMETT JUAN ESTEBAN" → "CaPaJuEs" (8 chars)
+// Si hay menos palabras, rellena con las letras disponibles hasta llenar.
+function generarAbrUsuario(nombreCompleto) {
+  if (!nombreCompleto) return 'MineDax ';
+  const palabras = String(nombreCompleto).trim().split(/\s+/).filter(Boolean);
+  let abr = '';
+  for (const palabra of palabras) {
+    if (abr.length >= 8) break;
+    const p = palabra.replace(/[^a-zA-ZáéíóúÁÉÍÓÚüÜñÑ]/g, '');
+    if (!p) continue;
+    abr += p[0].toUpperCase();
+    if (abr.length < 8 && p.length > 1) abr += p[1].toLowerCase();
+  }
+  // Si quedó vacío o muy corto, rellenar con el nombre truncado
+  if (abr.length === 0) abr = 'MineDax ';
+  // Pad con espacios hasta 8 (char(8) lo requiere)
+  return abr.padEnd(8, ' ').substring(0, 8);
+}
+
 /**
  * LOGIN - Autenticación de usuario
  * Adaptado a estructura REAL de BD
@@ -76,6 +97,7 @@ exports.login = async (req, res) => {
         u.COD_FUNCI,
         u.COD_GUSU,
         u.CAM_PASS,
+        u.ABR_USUA,
         f.COD_CARGO,
         f.FEC_INGRES,
         f.FEC_RETIRO,
@@ -193,12 +215,28 @@ exports.login = async (req, res) => {
       WHERE COD_USUA = @usuarioId
     `, { usuarioId: usuario.COD_USUA });
 
+    // Calcular ABR_USUA si aún no está persistida
+    const abrUsua = (usuario.ABR_USUA && usuario.ABR_USUA.trim())
+      ? usuario.ABR_USUA.trim()
+      : generarAbrUsuario(usuario.NOM_USUA).trim();
+
+    // Persistir ABR_USUA en la BD si estaba vacía
+    if (!usuario.ABR_USUA || !usuario.ABR_USUA.trim()) {
+      try {
+        await executeQuery(
+          `UPDATE GN_USUAR SET ABR_USUA = @abr WHERE COD_USUA = @id`,
+          { abr: abrUsua.padEnd(8, ' ').substring(0, 8), id: usuario.COD_USUA }
+        );
+      } catch (_) { /* no crítico */ }
+    }
+
     // Generar token JWT
     const token = generateToken({
       cod_usua: usuario.COD_USUA,
       cod_empr: usuario.COD_EMPR,
       email: usuario.DIR_ELEC,
       nombre: usuario.NOM_USUA,
+      abr_usua: abrUsua,
       cedula: usuario.NUM_IDEN || usuario.DIR_ELEC,
       cod_funci: usuario.COD_FUNCI,
       cod_cargo: usuario.COD_CARGO,
@@ -428,6 +466,7 @@ exports.obtenerUsuarioActual = async (req, res) => {
         u.COD_GUSU,
         u.FEC_ACTI,
         u.FEC_ULCA,
+        u.ABR_USUA,
         f.COD_CARGO,
         g.NOM_GUSU,
         t.NUM_IDEN
@@ -450,12 +489,17 @@ exports.obtenerUsuarioActual = async (req, res) => {
       });
     }
 
+    const abrUsua = (usuario.ABR_USUA && usuario.ABR_USUA.trim())
+      ? usuario.ABR_USUA.trim()
+      : generarAbrUsuario(usuario.NOM_USUA).trim();
+
     return res.status(200).json({
       status: 'success',
       usuario: {
         id: usuario.COD_USUA,
         empresa: usuario.COD_EMPR,
         nombre: usuario.NOM_USUA,
+        abr_usua: abrUsua,
         email: usuario.DIR_ELEC,
         cedula: usuario.NUM_IDEN,
         activo: usuario.ACT_INAC === 'S',
@@ -548,12 +592,12 @@ exports.crearUsuario = async (req, res) => {
       INSERT INTO GN_USUAR (
         COD_EMPR, NOM_USUA, DIR_ELEC, PAS_HASH, COD_FUNCI, COD_GUSU,
         ACT_INAC, IND_BLOQ, INT_FALL,
-        ACT_USUA, ACT_HORA, ACT_ESTA
+        ABR_USUA, ACT_USUA, ACT_HORA, ACT_ESTA
       )
       VALUES (
         1, ISNULL(@NOM_TERC, @email), @email, @passHash, @COD_FUNCI, @codGusu,
         'S', 'N', 0,
-        'ADMIN', GETDATE(), 'A'
+        @abrUsua, 'ADMIN', GETDATE(), 'A'
       );
 
       SET @NewCodUsua = SCOPE_IDENTITY();
@@ -561,11 +605,17 @@ exports.crearUsuario = async (req, res) => {
       SELECT @NewCodUsua AS COD_USUA;
     `;
 
+    // Calcular ABR_USUA a partir del nombre: se obtiene del tercero luego del INSERT,
+    // pero podemos calcularla aquí con la cédula como fallback temporal.
+    // El valor real se actualizará en el primer login cuando NOM_USUA esté disponible.
+    const abrProvisional = generarAbrUsuario(email || cedula).padEnd(8, ' ').substring(0, 8);
+
     const resultCrear = await executeQuery(queryCrear, {
       cedula,
       email: email || cedula,
       passHash,
-      codGusu: cod_gusu || 1  // Por defecto grupo 1
+      codGusu: cod_gusu || 1,  // Por defecto grupo 1
+      abrUsua: abrProvisional
     });
 
     const nuevoUsuarioId = resultCrear.recordset[0]?.COD_USUA;

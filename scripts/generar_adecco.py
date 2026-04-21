@@ -2,7 +2,7 @@
 # =============================================================================
 #  scripts/generar_adecco.py
 #
-#  Recibe los datos de novedades por stdin (JSON) y genera un Excel
+#  Recibe los datos de novedades por stdin (JSON, UTF-8) y genera un Excel
 #  basado en la plantilla FORMATO_LIBRE_ADECCO.xlsx.
 #  Escribe el archivo resultante en la ruta indicada por argv[1].
 #
@@ -14,14 +14,27 @@
 #    "ausentismos":  [ { IDENTIFICACION, NOMBRE, AUSENTISMO, FECHA_INICIAL, FECHA_FINAL, DIAS_TOTALES, DIAGNOSTICO, PRORROGA, OBSERVACIONES } ],
 #    "cambios":      [ { IDENTIFICACION, NOMBRE, CAMBIO, FECHA_INICIAL, CAMBIO_A, OBSERVACIONES } ]
 #  }
+#
+#  ENCODING: stdin y stdout se fuerzan a UTF-8 explícitamente para garantizar
+#  el correcto manejo de tildes, ñ, apóstrofes y caracteres de lenguas romance
+#  y anglosajonas en cualquier plataforma (Windows, Linux, macOS).
 # =============================================================================
 
 import sys
+import io
 import json
 import shutil
 import os
 from copy import copy
 from datetime import datetime
+
+# ─── Forzar UTF-8 en stdin/stdout/stderr ─────────────────────────────────────
+# En Windows el encoding por defecto puede ser cp1252 o similar, lo que
+# corrompe caracteres como á, é, í, ó, ú, ñ, ü, â, ê, apostrofes tipográficos, etc.
+# Forzamos UTF-8 independientemente del entorno.
+sys.stdin  = io.TextIOWrapper(sys.stdin.buffer,  encoding='utf-8', errors='replace')
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side, numbers
@@ -29,7 +42,7 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side, numbers
 OUTPUT_PATH   = sys.argv[1]
 TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), '..', 'assets', 'FORMATO_LIBRE_ADECCO.xlsx')
 
-# ─── Leer datos desde stdin ───────────────────────────────────────────────────
+# ─── Leer datos desde stdin (ya forzado a UTF-8) ─────────────────────────────
 data = json.load(sys.stdin)
 
 ocasionales = data.get('ocasionales', [])

@@ -249,6 +249,67 @@
   .btn-sm-del { background: rgba(224,85,85,0.1); color: var(--danger); }
   .btn-sm-del:hover { background: rgba(224,85,85,0.2); }
 
+  /* ─── SELECCIÓN MÚLTIPLE ─── */
+  .cb-row { width: 16px; height: 16px; accent-color: var(--danger); cursor: pointer; }
+  .th-cb  { width: 40px; padding-left: 18px !important; }
+  .td-cb  { padding-left: 18px !important; }
+  tr.selected-row td { background: rgba(224,85,85,0.07) !important; }
+
+  /* Barra flotante de selección */
+  #seleccionBar {
+    display: none; position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+    background: var(--surface); border: 1px solid var(--danger);
+    border-radius: 12px; padding: 12px 20px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.45);
+    align-items: center; gap: 16px; z-index: 999;
+    font-family: 'Barlow', sans-serif; font-size: 13px; white-space: nowrap;
+    animation: slideUp .18s ease;
+  }
+  #seleccionBar.visible { display: flex; }
+  @keyframes slideUp { from { opacity:0; transform: translateX(-50%) translateY(10px); } to { opacity:1; transform: translateX(-50%) translateY(0); } }
+  #seleccionBar .sel-count { font-weight: 700; color: var(--danger); }
+  #seleccionBar .sel-label { color: var(--muted); }
+  #selBtnClear { background: transparent; border: 1px solid var(--border); color: var(--muted);
+    padding: 6px 14px; border-radius: 7px; cursor: pointer; font-family: 'Barlow', sans-serif; font-size: 12px; font-weight: 600; }
+  #selBtnClear:hover { border-color: var(--text); color: var(--text); }
+  #selBtnAnular { background: var(--danger); color: #fff;
+    padding: 6px 16px; border-radius: 7px; border: none; cursor: pointer;
+    font-family: 'Barlow', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 0.03em; }
+  #selBtnAnular:hover { background: #c0392b; }
+
+  /* Modal confirmación anulación masiva */
+  #modalAnularBatch {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65);
+    z-index: 1100; align-items: center; justify-content: center;
+  }
+  #modalAnularBatch.open { display: flex; }
+  .modal-batch-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 28px 32px; max-width: 500px; width: 90%;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+  }
+  .modal-batch-title { font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.05em; color: var(--danger); margin-bottom: 10px; }
+  .modal-batch-desc { font-size: 13px; color: var(--muted); margin-bottom: 16px; line-height: 1.6; }
+  .modal-batch-list {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+    max-height: 220px; overflow-y: auto; margin-bottom: 20px;
+  }
+  .modal-batch-list table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .modal-batch-list th { padding: 7px 12px; color: var(--muted); text-transform: uppercase; font-size: 10px;
+    letter-spacing: 0.06em; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.02); }
+  .modal-batch-list td { padding: 7px 12px; border-bottom: 1px solid rgba(255,255,255,0.04); color: var(--text); }
+  .modal-batch-list tr:last-child td { border-bottom: none; }
+  .modal-batch-actions { display: flex; gap: 10px; justify-content: flex-end; }
+  .btn-batch-cancel { background: transparent; border: 1px solid var(--border); color: var(--muted);
+    padding: 8px 18px; border-radius: 8px; cursor: pointer; font-family: 'Barlow', sans-serif; font-size: 13px; font-weight: 600; }
+  .btn-batch-cancel:hover { color: var(--text); border-color: var(--text); }
+  .btn-batch-confirm { background: var(--danger); color: #fff; border: none;
+    padding: 8px 22px; border-radius: 8px; cursor: pointer;
+    font-family: 'Barlow', sans-serif; font-size: 13px; font-weight: 700; }
+  .btn-batch-confirm:hover { background: #c0392b; }
+  .btn-batch-confirm:disabled { opacity: .5; cursor: not-allowed; }
+
   /* ─── ALERT ─── */
   .alert {
     display: none; padding: 14px 18px; border-radius: 8px; margin-bottom: 16px;
@@ -324,47 +385,49 @@
   <!-- SIDEBAR -->
   <aside>
     <div class="aside-label">Módulos</div>
-    <div class="nav-item active" onclick="navigate('dashboard')">
+    <div class="nav-item active" data-page="dashboard" onclick="navigate('dashboard')">
       <span class="nav-icon">⬡</span> Dashboard
     </div>
     <div class="nav-divider"></div>
     <div class="aside-label">Novedades</div>
-    <div class="nav-item" onclick="navigate('ocasionales')">
+    <div class="nav-item" data-page="ocasionales" onclick="navigate('ocasionales')">
       <span class="nav-icon">◈</span> Ocasionales
       <span class="nav-badge" id="badgeOcas">0</span>
     </div>
-    <div class="nav-item" onclick="navigate('fijas')">
+    <div class="nav-item" data-page="fijas" onclick="navigate('fijas')">
       <span class="nav-icon">◉</span> Fijas
       <span class="nav-badge" id="badgeFijas">0</span>
     </div>
-    <div class="nav-item" onclick="navigate('ausentismos')">
+    <div class="nav-item" data-page="ausentismos" onclick="navigate('ausentismos')">
       <span class="nav-icon">◷</span> Ausentismos
       <span class="nav-badge" id="badgeAus">0</span>
     </div>
-    <div class="nav-item" onclick="navigate('cambiosIngresos')">
+    <div class="nav-item" data-page="cambiosIngresos" onclick="navigate('cambiosIngresos')">
       <span class="nav-icon">◨</span> Cambios e Ingresos
       <span class="nav-badge" id="badgeCIngresos">0</span>
     </div>
     <div class="nav-divider"></div>
     <div class="aside-label">Maestro</div>
-    <div class="nav-item" onclick="navigate('maestroOriginal')">
+    <div class="nav-item" data-page="maestroOriginal" onclick="navigate('maestroOriginal')">
       <span class="nav-icon">◫</span> Maestro Original
       <span class="nav-badge" id="badgeMaestro">0</span>
     </div>
-    <div class="nav-item" onclick="navigate('cambiosMaestro')">
+    <div class="nav-item" data-page="cambiosMaestro" onclick="navigate('cambiosMaestro')">
       <span class="nav-icon">◧</span> Cambios Maestro
       <span class="nav-badge" id="badgeCMaestro">0</span>
     </div>
     <div class="nav-divider"></div>
     <div class="aside-label">Configuración</div>
-    <div class="nav-item" onclick="navigate('importar')">
+    <div class="nav-item" data-page="importar" onclick="navigate('importar')">
       <span class="nav-icon">↑</span> Importar Excel
     </div>
-    <div class="nav-item" onclick="navigate('conexion')">
+    <div class="nav-item" data-page="conexion" onclick="navigate('conexion')">
       <span class="nav-icon">⊟</span> Conexión BD
     </div>
-    <div class="nav-item" onclick="navigate('sql')">
-      <span class="nav-icon">⟨/⟩</span> SQL Generado
+    <div class="nav-divider"></div>
+    <div class="aside-label">Sistema</div>
+    <div class="nav-item" data-page="changelog" onclick="navigate('changelog')">
+      <span class="nav-icon">◑</span> Versiones
     </div>
   </aside>
 
@@ -404,15 +467,15 @@
         <div class="form-grid cols-3">
           <div class="form-group">
             <label>Empresa <span class="req">*</span></label>
-            <input type="text" id="cfgEmpresa" value="COLLECTIVE MINING" placeholder="Nombre empresa">
+            <input type="text" id="cfgEmpresa" value="COLLECTIVE MINING" placeholder="Nombre empresa" readonly style="background:rgba(255,255,255,0.03);">
           </div>
           <div class="form-group">
             <label>Período <span class="req">*</span></label>
-            <input type="text" id="cfgPeriodo" placeholder="Ej: 2025-03-01 / 2025-03-15" oninput="actualizarBadge()">
+            <input type="text" id="cfgPeriodo" placeholder="Se carga automáticamente..." readonly>
           </div>
           <div class="form-group">
             <label>Usuario Registrador</label>
-            <input type="text" id="cfgUsuario" placeholder="Nombre usuario">
+            <input type="text" id="cfgUsuario" placeholder="Nombre usuario" readonly style="background:rgba(255,255,255,0.03);">
           </div>
         </div>
       </div>
@@ -493,10 +556,11 @@
         </div>
         <table>
           <thead><tr>
+            <th class="th-cb"><input type="checkbox" id="cbSelAll" class="cb-row" title="Seleccionar todos" onchange="_toggleSelAll(this)"></th>
             <th>Cédula</th><th>Nombre</th><th>Código</th><th>Tipo</th><th>Cantidad</th><th>Valor</th><th>Observaciones</th><th>Acciones</th>
           </tr></thead>
           <tbody id="tbOcasionales">
-            <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>
+            <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>
           </tbody>
         </table>
       </div>
@@ -590,10 +654,11 @@
         </div>
         <table>
           <thead><tr>
+            <th class="th-cb"><input type="checkbox" id="cbSelAllFijas" class="cb-row" title="Seleccionar todos" onchange="_toggleSelAllFijas(this)"></th>
             <th>Cédula</th><th>Nombre</th><th>Código</th><th>Tipo</th><th>Valor</th><th>F. Inicial</th><th>F. Final</th><th>Cuotas</th><th>Acciones</th>
           </tr></thead>
           <tbody id="tbFijas">
-            <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>
+            <tr><td colspan="10" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>
           </tbody>
         </table>
       </div>
@@ -665,10 +730,11 @@
         </div>
         <table>
           <thead><tr>
+            <th class="th-cb"><input type="checkbox" id="cbSelAllAusen" class="cb-row" title="Seleccionar todos" onchange="_toggleSelAllAusen(this)"></th>
             <th>Cédula</th><th>Nombre</th><th>Tipo</th><th>F. Inicial</th><th>F. Final</th><th>Días</th><th>Diagnóstico</th><th>Prórroga</th><th>Acciones</th>
           </tr></thead>
           <tbody id="tbAusentismos">
-            <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>
+            <tr><td colspan="10" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>
           </tbody>
         </table>
       </div>
@@ -1190,10 +1256,11 @@
         <div class="table-header"><div class="table-title">Cambios registrados</div></div>
         <table>
           <thead><tr>
+            <th class="th-cb"><input type="checkbox" id="cbSelAllCamb" class="cb-row" title="Seleccionar todos" onchange="_toggleSelAllCamb(this)"></th>
             <th>Cédula</th><th>Nombre</th><th>Tipo Cambio</th><th>Fecha Inicial</th><th>Cambio A</th><th>Observaciones</th><th>Acciones</th>
           </tr></thead>
           <tbody id="tbCIngresos">
-            <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>
+            <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>
           </tbody>
         </table>
       </div>
@@ -1208,28 +1275,21 @@
       <div class="upload-zone" onclick="document.getElementById('fileInput').click()" id="dropZone"
            style="position:relative;">
         <div class="upload-icon" id="uploadIcon">📊</div>
-        <div class="upload-label" id="uploadLabel">Arrastra el archivo aquí o haz clic</div>
-        <div class="upload-sub" id="uploadSub">Formato soportado: .xlsx (hoja "Reporte Final") · Máx 50 MB</div>
-        <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="seleccionarArchivoImport(event)">
+        <div class="upload-label" id="uploadLabel">Arrastra uno o varios archivos aquí, o haz clic</div>
+        <div class="upload-sub" id="uploadSub">Formatos soportados: .xlsx, .xls · Múltiples archivos permitidos · Máx 50 MB c/u</div>
+        <input type="file" id="fileInput" accept=".xlsx,.xls" multiple onchange="seleccionarArchivoImport(event)">
       </div>
 
-      <!-- Info del archivo seleccionado + botón importar -->
+      <!-- Lista de archivos seleccionados + botón importar -->
       <div id="importFileInfo" style="display:none; margin-bottom:16px;">
         <div class="form-card" style="padding:16px 20px;">
-          <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
-            <div style="display:flex; align-items:center; gap:14px;">
-              <span style="font-size:24px;">📄</span>
-              <div>
-                <div id="importFileName" style="font-weight:600; font-size:14px; color:var(--text)">—</div>
-                <div id="importFileSize" style="font-size:11px; color:var(--muted); margin-top:2px;">—</div>
-              </div>
-            </div>
-            <div style="display:flex; gap:10px; align-items:center;">
-              <button class="btn btn-secondary" onclick="cancelarImport()" style="padding:8px 16px;">✕ Cancelar</button>
-              <button class="btn btn-primary" id="btnImportar" onclick="ejecutarImportMasiva()" style="padding:8px 18px;">
-                ⬆ Importar a la BD
-              </button>
-            </div>
+          <!-- Lista de archivos -->
+          <div id="importFileList" style="margin-bottom:14px;"></div>
+          <div style="display:flex; justify-content:flex-end; gap:10px; align-items:center; border-top:1px solid rgba(255,255,255,0.07); padding-top:12px;">
+            <button class="btn btn-secondary" onclick="cancelarImport()" style="padding:8px 16px;">✕ Cancelar</button>
+            <button class="btn btn-primary" id="btnImportar" onclick="ejecutarImportMasiva()" style="padding:8px 18px;">
+              ⬆ Importar a la BD
+            </button>
           </div>
         </div>
       </div>
@@ -1255,11 +1315,16 @@
           </div>
         </div>
 
-        <div class="stats" style="grid-template-columns: repeat(5,1fr);" id="importStatsGrid">
+        <div class="stats" style="grid-template-columns: repeat(6,1fr);" id="importStatsGrid">
+          <div class="stat-card" style="--accent:#7C5CBF;">
+            <div class="stat-label">Archivos</div>
+            <div class="stat-value" id="istat_archivos">0</div>
+            <div class="stat-sub">procesados</div>
+          </div>
           <div class="stat-card" style="--accent:#20A7C9;">
             <div class="stat-label">Filas Leídas</div>
             <div class="stat-value" id="istat_filas">0</div>
-            <div class="stat-sub">en el Excel</div>
+            <div class="stat-sub">total</div>
           </div>
           <div class="stat-card" style="--accent:#4CAF82;">
             <div class="stat-label">Empleados</div>
@@ -1306,6 +1371,7 @@
           </div>
           <table>
             <thead><tr>
+              <th>Archivo</th>
               <th>Cédula</th>
               <th>Nombre</th>
               <th>Concepto</th>
@@ -1314,7 +1380,7 @@
               <th>Detalle</th>
             </tr></thead>
             <tbody id="tbImportDetalle">
-              <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">Sin datos</td></tr>
+              <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">Sin datos</td></tr>
             </tbody>
           </table>
         </div>
@@ -1327,7 +1393,7 @@
 
       <!-- Guía de formato -->
       <div class="form-card" id="importGuia" style="margin-top:20px;">
-        <div class="form-card-title">📋 Formato esperado</div>
+        <div class="form-card-title">📋 Formatos y uso</div>
         <div style="color:var(--muted); font-size:13px; line-height:2;">
           <strong style="color:var(--cm-blue-light)">Hoja requerida:</strong> <code style="background:rgba(255,255,255,0.06);padding:2px 8px;border-radius:4px">Reporte Final</code><br>
           <strong style="color:var(--cm-blue-light)">Fila 4:</strong> Encabezados — Col B: Cédula, C: Nombre, D: Cargo, E: Centro Costo, F–N: Tipos de novedad<br>
@@ -1415,23 +1481,28 @@
       </div>
     </div>
 
-    <!-- ===== SQL GENERADO ===== -->
-    <div class="page" id="page-sql">
-      <div class="page-title">SQL <span>Generado</span></div>
-      <div class="page-desc">Script INSERT listo para ejecutar en SQL Server</div>
+    <!-- ===== CHANGELOG / VERSIONES ===== -->
+    <div class="page" id="page-changelog">
+      <div class="page-title">Versiones <span>& Cambios</span></div>
+      <div class="page-desc">Historial de actualizaciones del sistema MineDax · generado automáticamente desde git</div>
 
-      <div style="display:flex;gap:12px;margin-bottom:20px">
-        <button class="btn btn-primary" onclick="generarSQLCompleto()">⟳ Regenerar SQL</button>
-        <button class="btn btn-secondary" onclick="copiarSQL()">📋 Copiar al portapapeles</button>
-        <button class="btn btn-secondary" onclick="descargarSQL()">⬇ Descargar .sql</button>
+      <!-- Sub-tabs -->
+      <div class="tabs" style="margin-bottom:28px; margin-top:8px;">
+        <div class="tab active" id="clTab-resumen" onclick="clSwitchTab('resumen')">Resumen</div>
+        <div class="tab"        id="clTab-detalle"  onclick="clSwitchTab('detalle')">Detalle técnico</div>
       </div>
 
-      <div class="table-wrap">
-        <div class="table-header">
-          <div class="table-title">Script T-SQL</div>
-          <span id="sqlStats" style="font-size:12px;color:var(--muted)">0 statements</span>
-        </div>
-        <div class="sql-output" id="sqlOutput">-- Agregue registros y haga clic en "Regenerar SQL"</div>
+      <!-- Spinner -->
+      <div id="cl-loading" style="color:var(--muted); font-size:13px; padding:24px 0;">Cargando historial…</div>
+
+      <!-- Sub-pestaña: Resumen -->
+      <div id="cl-resumen" style="display:none;">
+        <div id="cl-resumen-content"></div>
+      </div>
+
+      <!-- Sub-pestaña: Detalle técnico -->
+      <div id="cl-detalle" style="display:none;">
+        <div id="cl-detalle-content"></div>
       </div>
     </div>
 
@@ -1608,6 +1679,94 @@
   </div>
 </div>
 
+
+<!-- Estilos exclusivos del changelog -->
+<style>
+  /* Tarjeta de versión */
+  .cl-version-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+  .cl-version-header {
+    display: flex; align-items: center; gap: 16px;
+    padding: 16px 20px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
+  .cl-version-badge {
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 800;
+    font-size: 15px; letter-spacing: 0.06em; text-transform: uppercase;
+    background: var(--cm-blue); color: #fff;
+    padding: 3px 12px; border-radius: 6px;
+    flex-shrink: 0;
+  }
+  .cl-version-badge.dev { background: var(--muted); }
+  .cl-version-title {
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
+    font-size: 16px; text-transform: uppercase; letter-spacing: 0.03em;
+    flex: 1;
+  }
+  .cl-version-meta {
+    font-size: 11px; color: var(--muted); text-align: right; line-height: 1.5;
+  }
+  .cl-version-body { padding: 18px 20px; }
+
+  /* Lista de puntos resumen */
+  .cl-bullet-list { list-style: none; padding: 0; margin: 0; }
+  .cl-bullet-list li {
+    padding: 5px 0 5px 20px;
+    position: relative; font-size: 13.5px; color: var(--text);
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .cl-bullet-list li:last-child { border-bottom: none; }
+  .cl-bullet-list li::before {
+    content: '›';
+    position: absolute; left: 4px;
+    color: var(--cm-blue); font-weight: 700;
+  }
+
+  /* Categorías en detalle */
+  .cl-category { margin-bottom: 18px; }
+  .cl-category-title {
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--cm-blue-light); margin-bottom: 8px;
+    padding-bottom: 4px; border-bottom: 1px solid rgba(32,167,201,0.2);
+  }
+  .cl-detail-list { list-style: none; padding: 0; margin: 0; }
+  .cl-detail-list li {
+    padding: 4px 0 4px 18px; position: relative;
+    font-size: 13px; color: var(--text); line-height: 1.55;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+  .cl-detail-list li:last-child { border-bottom: none; }
+  .cl-detail-list li::before {
+    content: '·'; position: absolute; left: 6px;
+    color: var(--cm-blue); font-weight: 900; font-size: 16px; top: 2px;
+  }
+
+  /* Commits crudos en detalle */
+  .cl-commits-wrap { margin-top: 14px; }
+  .cl-commits-title {
+    font-size: 11px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.08em; margin-bottom: 6px;
+  }
+  .cl-commit-row {
+    display: flex; gap: 10px; align-items: baseline;
+    font-size: 12px; padding: 3px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+  .cl-commit-hash { color: var(--cm-blue); font-family: monospace; flex-shrink: 0; }
+  .cl-commit-date { color: var(--muted); flex-shrink: 0; }
+  .cl-commit-msg  { color: var(--text); flex: 1; }
+
+  /* Sin datos */
+  .cl-empty { color: var(--muted); font-size: 13px; font-style: italic; padding: 8px 0; }
+</style>
+
 <script>
 // ─── STATE ───────────────────────────────────────────────────────────────────
 const state = {
@@ -1624,18 +1783,133 @@ function navigate(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
+
+  // CORRECCIÓN #3: Activar solo el elemento nav-item que corresponde exactamente a la página solicitada
+  // Usar data-page o buscar por ID en lugar de substring para evitar selecciones no intencionales
   const items = document.querySelectorAll('.nav-item');
-  items.forEach(i => { if (i.textContent.trim().toLowerCase().includes(page.toLowerCase().substring(0,5))) i.classList.add('active'); });
-  if (page === 'sql') generarSQLCompleto();
+  items.forEach(i => {
+    const pageAttr = i.getAttribute('data-page');
+    if (pageAttr === page) {
+      i.classList.add('active');
+    }
+  });
+
   if (page === 'ocasionales') { cargarOcasionalesDelPeriodo(); }
   if (page === 'fijas')       { cargarFijasDelPeriodo(); }
   if (page === 'ausentismos') { cargarAusentismosDelPeriodo(); }
   if (page === 'cambios')     { cargarCambiosDelPeriodo(); }
+  if (page === 'changelog')   { clCargar(); }
+}
+
+// ─── CHANGELOG ───────────────────────────────────────────────────────────────
+let _clDatos    = null; // cache de versiones ya cargadas
+let _clTabActiva = 'resumen';
+
+function clSwitchTab(tab) {
+  _clTabActiva = tab;
+  document.querySelectorAll('#page-changelog .tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('clTab-' + tab).classList.add('active');
+  document.getElementById('cl-resumen').style.display = tab === 'resumen' ? '' : 'none';
+  document.getElementById('cl-detalle').style.display = tab === 'detalle' ? '' : 'none';
+}
+
+async function clCargar(forzar = false) {
+  if (_clDatos && !forzar) { clRenderizar(_clDatos); return; }
+
+  document.getElementById('cl-loading').style.display = '';
+  document.getElementById('cl-resumen').style.display = 'none';
+  document.getElementById('cl-detalle').style.display = 'none';
+
+  try {
+    const token = localStorage.getItem('authToken');
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+    const res  = await fetch('/api/changelog', { headers });
+    if (res.status === 401) throw new Error('No autorizado — sesión expirada');
+    const data = await res.json();
+    if (!data.ok) throw new Error('Respuesta inválida del servidor');
+    _clDatos = data.versiones;
+    clRenderizar(_clDatos);
+  } catch (e) {
+    document.getElementById('cl-loading').innerHTML =
+      `<span style="color:var(--danger)">⚠ ${e.message || 'No se pudo cargar el historial de versiones.'}</span>`;
+  }
+}
+
+function clRenderizar(versiones) {
+  document.getElementById('cl-loading').style.display = 'none';
+
+  // ── Resumen ──
+  const resEl = document.getElementById('cl-resumen-content');
+  resEl.innerHTML = versiones.map(v => `
+    <div class="cl-version-card">
+      <div class="cl-version-header">
+        <span class="cl-version-badge ${v.version === 'dev' ? 'dev' : ''}">${v.version}</span>
+        <span class="cl-version-title">${escH(v.titulo)}</span>
+        <div class="cl-version-meta">
+          ${v.fecha ? `<div>📅 ${v.fecha}</div>` : ''}
+          ${v.commit ? `<div style="font-family:monospace;color:var(--cm-blue)">${v.commit}</div>` : ''}
+        </div>
+      </div>
+      <div class="cl-version-body">
+        ${v.resumen.length > 0
+          ? `<ul class="cl-bullet-list">${v.resumen.map(r => `<li>${escH(r)}</li>`).join('')}</ul>`
+          : `<p class="cl-empty">Sin descripción registrada para esta versión.</p>`
+        }
+      </div>
+    </div>
+  `).join('');
+
+  // ── Detalle técnico ──
+  const detEl = document.getElementById('cl-detalle-content');
+  detEl.innerHTML = versiones.map(v => `
+    <div class="cl-version-card">
+      <div class="cl-version-header">
+        <span class="cl-version-badge ${v.version === 'dev' ? 'dev' : ''}">${v.version}</span>
+        <span class="cl-version-title">${escH(v.titulo)}</span>
+        <div class="cl-version-meta">
+          ${v.fecha ? `<div>📅 ${v.fecha}</div>` : ''}
+          ${v.commit ? `<div style="font-family:monospace;color:var(--cm-blue)">${v.commit}</div>` : ''}
+        </div>
+      </div>
+      <div class="cl-version-body">
+        ${v.detalle.length > 0
+          ? v.detalle.map(cat => `
+              <div class="cl-category">
+                <div class="cl-category-title">${escH(cat.categoria)}</div>
+                <ul class="cl-detail-list">
+                  ${cat.items.map(it => `<li>${escH(it)}</li>`).join('')}
+                </ul>
+              </div>
+            `).join('')
+          : `<p class="cl-empty" style="margin-bottom:12px">Sin documentación técnica detallada para esta versión.</p>`
+        }
+        ${v.commits && v.commits.length > 0 ? `
+          <div class="cl-commits-wrap">
+            <div class="cl-commits-title">Commits incluidos</div>
+            ${v.commits.map(c => `
+              <div class="cl-commit-row">
+                <span class="cl-commit-hash">${c.hash.substring(0,7)}</span>
+                <span class="cl-commit-date">${c.date}</span>
+                <span class="cl-commit-msg">${escH(c.subject)}</span>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
+      </div>
+    </div>
+  `).join('');
+
+  // Mostrar pestaña activa
+  clSwitchTab(_clTabActiva);
+}
+
+function escH(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 function actualizarBadge() {
-  const p = document.getElementById('cfgPeriodo').value;
-  document.getElementById('periodoBadge').textContent = 'Período: ' + (p || '—');
+  // El período ahora es automático, no se actualiza por input del usuario
+  // Se calcula al inicializar la interfaz
 }
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -1718,64 +1992,227 @@ function calcularQuincenaActual() {
   const dia = hoy.getDate();
   const mes = hoy.toLocaleString('es-CO', { month: 'long' });
   const año = hoy.getFullYear();
+  const mesNum = String(hoy.getMonth() + 1).padStart(2, '0');
 
-  let quincena, rango;
+  let quincena, rango, formatoBadge;
   if (dia <= 15) {
     quincena = '1era quincena de ' + mes;
-    rango = `${año}-${String(hoy.getMonth() + 1).padStart(2, '0')}-01 / ${año}-${String(hoy.getMonth() + 1).padStart(2, '0')}-15`;
+    rango = `${año}-${mesNum}-01 / ${año}-${mesNum}-15`;
+    formatoBadge = `${año}-${mesNum}-1Q`;
   } else {
     quincena = '2da quincena de ' + mes;
     const ultimoDia = new Date(año, hoy.getMonth() + 1, 0).getDate();
-    rango = `${año}-${String(hoy.getMonth() + 1).padStart(2, '0')}-16 / ${año}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${ultimoDia}`;
+    rango = `${año}-${mesNum}-16 / ${año}-${mesNum}-${ultimoDia}`;
+    formatoBadge = `${año}-${mesNum}-2Q`;
   }
 
-  return { quincena, rango };
+  return { quincena, rango, formatoBadge };
 }
 
 // ─── FUNCIÓN PARA MOSTRAR BIENVENIDA Y PERÍODO ──────────────────────────────
-function inicializarInterfaz() {
+// CORRECCIÓN #1 y #2: Período automático desde BD + Nombre de usuario correcto
+async function inicializarInterfaz() {
   try {
-    // Obtener nombre del usuario autenticado desde AuthUtil
+    // ──────────────────────────────────────────────────────────────────────────
+    // CORRECCIÓN #2: DOS PROCESOS INDEPENDIENTES
+    // Proceso 1: Obtener nombre COMPLETO para "Usuario Registrador" y subtítulo
+    // Proceso 2: Obtener NOM_TERC + SEG_NOMB para "¡Bienvenido, [nombres]!"
+    // ──────────────────────────────────────────────────────────────────────────
     let nombreCompleto = null;
+    let usuarioDisplay = 'Usuario';
+    let nombreBienvenida = 'Usuario';
 
+    // Obtener identificador del usuario desde AuthUtil o localStorage
     if (typeof AuthUtil !== 'undefined' && AuthUtil.getNombre) {
       nombreCompleto = AuthUtil.getNombre();
-      console.log('Nombre obtenido de AuthUtil:', nombreCompleto);
+      console.log('Identificador obtenido de AuthUtil (RAW):', nombreCompleto);
     } else {
       console.warn('AuthUtil no disponible, intentando localStorage');
-      // Fallback: intentar obtener del localStorage directamente
       const usuarioJson = localStorage.getItem('usuario');
       if (usuarioJson) {
         const usuario = JSON.parse(usuarioJson);
         nombreCompleto = usuario.nombre;
-        console.log('Nombre obtenido de localStorage:', nombreCompleto);
+        console.log('Identificador obtenido de localStorage:', nombreCompleto);
       }
     }
 
-    // Mostrar bienvenida personalizada
+    // Si tenemos el identificador del usuario, ejecutar dos procesos independientes
     if (nombreCompleto) {
-      const primerNombre = nombreCompleto.split(' ')[0];
-      document.getElementById('welcomeMessage').textContent = `¡Bienvenido, ${primerNombre}!`;
-      document.getElementById('userNameDisplay').textContent = nombreCompleto;
+      // ────────────────────────────────────────────────────────────────────────
+      // PROCESO 1: Obtener nombre COMPLETO desde BD (para Usuario Registrador)
+      // ────────────────────────────────────────────────────────────────────────
+      try {
+        const usuarioNormalizado = nombreCompleto.trim().toUpperCase();
+        console.log('PROCESO 1: Buscando nombre completo para:', usuarioNormalizado);
+
+        let resp = await fetch(`/api/usuario/datos?nombre=${encodeURIComponent(usuarioNormalizado)}`);
+
+        // Si no funciona con nombre completo, intentar con apellido (primer token)
+        if (!resp.ok) {
+          const tokens = usuarioNormalizado.split(/\s+/);
+          if (tokens.length > 0) {
+            console.log('PROCESO 1: Reintentando con apellido:', tokens[0]);
+            resp = await fetch(`/api/usuario/datos?apellido=${encodeURIComponent(tokens[0])}`);
+          }
+        }
+
+        if (resp.ok) {
+          const userData = await resp.json();
+          // Construir nombre completo: APE_TERC + SEG_APEL (si existe) + NOM_TERC + SEG_NOMB (si existe)
+          let nombreCompletoConstructed = '';
+
+          if (userData.APE_TERC) nombreCompletoConstructed += userData.APE_TERC.trim();
+          if (userData.SEG_APEL) nombreCompletoConstructed += ' ' + userData.SEG_APEL.trim();
+          if (userData.NOM_TERC) nombreCompletoConstructed += ' ' + userData.NOM_TERC.trim();
+          if (userData.SEG_NOMB) nombreCompletoConstructed += ' ' + userData.SEG_NOMB.trim();
+
+          usuarioDisplay = nombreCompletoConstructed.trim() || 'Usuario';
+          console.log('PROCESO 1 ✓ Nombre completo obtenido:', usuarioDisplay);
+        } else {
+          console.log('PROCESO 1: API no disponible, usando fallback');
+          usuarioDisplay = nombreCompleto;
+        }
+      } catch (e) {
+        console.log('PROCESO 1 Error:', e);
+        usuarioDisplay = nombreCompleto;
+      }
+
+      // ────────────────────────────────────────────────────────────────────────
+      // PROCESO 2: Obtener NOM_TERC + SEG_NOMB para "¡Bienvenido!"
+      // ────────────────────────────────────────────────────────────────────────
+      // Estrategia:
+      // 1. Primero intentar desde API
+      // 2. Si falla, usar lógica inteligente de parsing del identificador
+      // ────────────────────────────────────────────────────────────────────────
+      let proceso2Exitoso = false;
+
+      try {
+        const usuarioNormalizado = nombreCompleto.trim().toUpperCase();
+        console.log('PROCESO 2: Buscando NOM_TERC + SEG_NOMB para:', usuarioNormalizado);
+
+        let resp = await fetch(`/api/usuario/datos?nombre=${encodeURIComponent(usuarioNormalizado)}`);
+
+        // Si no funciona con nombre completo, intentar con apellido (primer token)
+        if (!resp.ok) {
+          const tokens = usuarioNormalizado.split(/\s+/);
+          if (tokens.length > 0) {
+            console.log('PROCESO 2: Reintentando con apellido:', tokens[0]);
+            resp = await fetch(`/api/usuario/datos?apellido=${encodeURIComponent(tokens[0])}`);
+          }
+        }
+
+        if (resp.ok) {
+          const userData = await resp.json();
+          // Construir bienvenida: NOM_TERC + SEG_NOMB (si existe)
+          if (userData.NOM_TERC) {
+            let nombreBienvenidaConstructed = userData.NOM_TERC.trim();
+            if (userData.SEG_NOMB) {
+              nombreBienvenidaConstructed += ' ' + userData.SEG_NOMB.trim();
+            }
+            nombreBienvenida = nombreBienvenidaConstructed;
+            proceso2Exitoso = true;
+            console.log('PROCESO 2 ✓ Bienvenida obtenida desde API:', nombreBienvenida);
+          }
+        }
+      } catch (e) {
+        console.log('PROCESO 2: Error en llamada API:', e);
+      }
+
+      // Si la API falló o no retornó datos, usar lógica de parsing inteligente
+      if (!proceso2Exitoso) {
+        console.log('PROCESO 2: Usando parsing inteligente del identificador');
+        const tokensIdentificador = nombreCompleto.trim().toUpperCase().split(/\s+/);
+        console.log('PROCESO 2: Tokens del identificador:', tokensIdentificador);
+
+        // Estrategia: Si hay 4+ tokens, los últimos 2 son NOM_TERC + SEG_NOMB
+        // Si hay 3, tokens[1] es NOM_TERC y tokens[2] es SEG_NOMB
+        // Si hay 2, token[1] es el nombre
+        // Si hay 1, usarlo como es
+
+        if (tokensIdentificador.length >= 4) {
+          // Formato: APE_TERC SEG_APEL NOM_TERC SEG_NOMB
+          nombreBienvenida = tokensIdentificador.slice(-2).join(' ');
+          console.log('PROCESO 2 ✓ 4+ tokens - Extrayendo últimos 2:', nombreBienvenida);
+        } else if (tokensIdentificador.length === 3) {
+          // Formato: APE_TERC NOM_TERC SEG_NOMB
+          nombreBienvenida = tokensIdentificador.slice(1).join(' ');
+          console.log('PROCESO 2 ✓ 3 tokens - Extrayendo desde índice 1:', nombreBienvenida);
+        } else if (tokensIdentificador.length === 2) {
+          // Formato: APE_TERC NOM_TERC
+          nombreBienvenida = tokensIdentificador[1];
+          console.log('PROCESO 2 ✓ 2 tokens - Usando segundo token:', nombreBienvenida);
+        } else {
+          // Fallback: solo un token
+          nombreBienvenida = tokensIdentificador[0];
+          console.log('PROCESO 2 ✓ 1 token - Usando único token:', nombreBienvenida);
+        }
+      }
+
+      // Actualizar elementos del DOM con valores obtenidos de ambos procesos
+      document.getElementById('welcomeMessage').textContent = `¡Bienvenido, ${nombreBienvenida}!`;
+      document.getElementById('userNameDisplay').textContent = usuarioDisplay;
+      document.getElementById('cfgUsuario').value = usuarioDisplay;
+
+      console.log('✓ Interfaz actualizada:', {
+        bienvenida: `¡Bienvenido, ${nombreBienvenida}!`,
+        subtitulo: usuarioDisplay,
+        usuarioRegistrador: usuarioDisplay
+      });
     } else {
       document.getElementById('welcomeMessage').textContent = '¡Bienvenido!';
       document.getElementById('userNameDisplay').textContent = 'Usuario';
-      console.warn('No se pudo obtener el nombre del usuario');
+      console.warn('No se pudo obtener el identificador del usuario');
     }
 
-    // Calcular y establecer quincena actual
-    const { quincena, rango } = calcularQuincenaActual();
-    document.getElementById('cfgPeriodo').value = rango;
+    // ──────────────────────────────────────────────────────────────────────────
+    // CORRECCIÓN #1: Período automático desde NO_PERIOD basado en fecha actual
+    // Badge muestra: "AÑO-MES-QNA" (ej: 2026-04-2Q)
+    // Campo período muestra: "AÑO-MES FECHA_INICIO / FECHA_FIN"
+    // NO es editable, se obtiene de la BD
+    // ──────────────────────────────────────────────────────────────────────────
+    try {
+      const respPeriodo = await fetch('/api/periodo/actual');
+      if (respPeriodo.ok) {
+        const periodoData = respPeriodo.json();
+        periodoData.then(data => {
+          // Formatear el período para el dashboard: con fecha de inicio y fin
+          const mesNum = String(data.PER_MES).padStart(2, '0');
+          const periodText = `${data.PER_ANO}-${mesNum} ${data.PER_FINI} / ${data.PER_FFIN}`;
+          // Formatear badge: "AÑO-MES-QNA" (ej: 2026-04-1Q o 2026-04-2Q)
+          const badgeText = `${data.PER_ANO}-${mesNum}-${data.PER_QNA}Q`;
+          document.getElementById('periodoBadge').textContent = `Período: ${badgeText}`;
+          document.getElementById('cfgPeriodo').value = periodText;
 
-    // Mostrar la quincena en el usuario si está disponible
-    if (nombreCompleto) {
-      document.getElementById('cfgUsuario').value = nombreCompleto.split(' ')[0];
+          // IMPORTANTE: Hacer el campo readonly para que no sea editable
+          document.getElementById('cfgPeriodo').setAttribute('readonly', 'readonly');
+          document.getElementById('cfgPeriodo').style.background = 'rgba(255,255,255,0.03)';
+
+          console.log('Período cargado desde BD - Badge:', badgeText, '| Dashboard:', periodText);
+        }).catch(e => {
+          console.warn('Error parseando respuesta período:', e);
+          usarPeriodoLocal();
+        });
+      } else {
+        console.warn('No se pudo obtener período de la BD, usando cálculo local');
+        usarPeriodoLocal();
+      }
+    } catch (e) {
+      console.warn('Error al obtener período desde API:', e);
+      usarPeriodoLocal();
     }
-
-    actualizarBadge();
   } catch (error) {
     console.error('Error inicializando interfaz:', error);
   }
+}
+
+// Función auxiliar para usar el período calculado localmente si la API falla
+function usarPeriodoLocal() {
+  const { quincena, rango, formatoBadge } = calcularQuincenaActual();
+  document.getElementById('cfgPeriodo').value = rango;
+  document.getElementById('cfgPeriodo').setAttribute('readonly', 'readonly');
+  document.getElementById('cfgPeriodo').style.background = 'rgba(255,255,255,0.03)';
+  // Mostrar solo formato AÑO-MES-QUINCENA en el badge
+  document.getElementById('periodoBadge').textContent = `Período: ${formatoBadge}`;
 }
 
 // ─── MAESTRO ORIGINAL ────────────────────────────────────────────────────────
@@ -1976,12 +2413,21 @@ async function guardarOcasional() {
 
 function renderOcasionales() {
   const tb = document.getElementById('tbOcasionales');
+
+  // Limpiar selección al re-renderizar (recarga de datos)
+  _selOcas.clear();
+  _actualizarBarraSeleccion();
+  const cbAll = document.getElementById('cbSelAll');
+  if (cbAll) { cbAll.checked = false; cbAll.indeterminate = false; }
+
   if (!state.ocasionales.length) {
-    tb.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>';
+    tb.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>';
     return;
   }
   tb.innerHTML = state.ocasionales.map(r => `
     <tr data-cod-noved="${r.codNoved}">
+      <td class="td-cb"><input type="checkbox" class="cb-row" data-cod-noved="${r.codNoved}"
+        onchange="_toggleSelOcas(${r.codNoved}, this)"></td>
       <td>${r.id}</td><td>${r.nombre}</td>
       <td><span class="badge badge-dev">${r.novedad}${r.nomConc ? ' · ' + r.nomConc.replace(/"/g,'&quot;') : ''}</span></td>
       <td><span class="badge ${r.tipo==='DEVENGO'?'badge-dev':'badge-ded'}">${r.tipo||'—'}</span></td>
@@ -1989,7 +2435,7 @@ function renderOcasionales() {
       <td style="color:var(--gold-light)">${r.valor != null ? Number(r.valor).toLocaleString('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}) : '—'}</td>
       <td style="color:var(--muted);font-size:12px">${r.obs || '—'}</td>
       <td><div class="td-actions">
-        <button class="btn-sm" title="Editar" onclick="editarOcasional(${r.codNoved})">✎</button>
+        <button class="btn-sm btn-sm-edit" title="Editar" onclick="editarOcasional(${r.codNoved})">✎</button>
         <button class="btn-sm btn-sm-del" title="Anular" onclick="anularOcasional(${r.codNoved})">✕</button>
       </div></td>
     </tr>`).join('');
@@ -2382,12 +2828,21 @@ async function guardarFija() {
 
 function renderFijas() {
   const tb = document.getElementById('tbFijas');
+
+  // Limpiar selección al re-renderizar
+  _selFijas.clear();
+  _actualizarBarraBatch();
+  const cbAll = document.getElementById('cbSelAllFijas');
+  if (cbAll) { cbAll.checked = false; cbAll.indeterminate = false; }
+
   if (!state.fijas.length) {
-    tb.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>';
+    tb.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>';
     return;
   }
   tb.innerHTML = state.fijas.map(r => `
     <tr data-cod-noved="${r.codNoved}">
+      <td class="td-cb"><input type="checkbox" class="cb-row-fijas" data-cod-noved="${r.codNoved}"
+        onchange="_toggleSelFijas(${r.codNoved}, this)"></td>
       <td>${r.id}</td><td>${r.nombre}</td>
       <td><span class="badge badge-ded">${r.novedad}${r.nomConc ? ' · ' + r.nomConc.replace(/"/g,'&quot;') : ''}</span></td>
       <td><span class="badge ${r.tipo==='DEVENGO'?'badge-dev':'badge-ded'}">${r.tipo||'—'}</span></td>
@@ -2582,12 +3037,21 @@ async function guardarAusentismo() {
 
 function renderAusentismos() {
   const tb = document.getElementById('tbAusentismos');
+
+  // Limpiar selección al re-renderizar
+  _selAusen.clear();
+  _actualizarBarraBatch();
+  const cbAll = document.getElementById('cbSelAllAusen');
+  if (cbAll) { cbAll.checked = false; cbAll.indeterminate = false; }
+
   if (!state.ausentismos.length) {
-    tb.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>';
+    tb.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>';
     return;
   }
   tb.innerHTML = state.ausentismos.map(r => `
     <tr data-cod-noved="${r.codNoved}">
+      <td class="td-cb"><input type="checkbox" class="cb-row-ausen" data-cod-noved="${r.codNoved}"
+        onchange="_toggleSelAusen(${r.codNoved}, this)"></td>
       <td>${r.id}</td><td>${r.nombre}</td>
       <td><span class="badge badge-aus">${r.tipo}${r.nomConc ? ' · ' + r.nomConc.replace(/"/g,'&quot;') : ''}</span></td>
       <td>${r.finicial ? new Date(r.finicial).toISOString().slice(0,10) : '—'}</td>
@@ -2811,12 +3275,21 @@ async function guardarCambioIngreso() {
 
 function renderCIngresos() {
   const tb = document.getElementById('tbCIngresos');
+
+  // Limpiar selección al re-renderizar
+  _selCamb.clear();
+  _actualizarBarraBatch();
+  const cbAll = document.getElementById('cbSelAllCamb');
+  if (cbAll) { cbAll.checked = false; cbAll.indeterminate = false; }
+
   if (!state.cambiosIngresos.length) {
-    tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>';
+    tb.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>';
     return;
   }
   tb.innerHTML = state.cambiosIngresos.map(r => `
     <tr data-cod-noved="${r.codNoved}">
+      <td class="td-cb"><input type="checkbox" class="cb-row-camb" data-cod-noved="${r.codNoved}"
+        onchange="_toggleSelCamb(${r.codNoved}, this)"></td>
       <td>${r.id}</td><td>${r.nombre}</td>
       <td><span class="badge badge-cam">${r.cambio}${r.nomConc ? ' · ' + r.nomConc.replace(/"/g,'&quot;') : ''}</span></td>
       <td>${r.finicial ? new Date(r.finicial).toISOString().slice(0,10) : '—'}</td>
@@ -3022,7 +3495,7 @@ function guardarConexion() {
 
 // ─── IMPORTACIÓN MASIVA DESDE EXCEL ──────────────────────────────────────────
 
-let _importFile = null; // archivo seleccionado para importar
+let _importFiles = []; // array de archivos seleccionados para importar
 
 // Mapeo codConc → nombre legible (para la tabla de detalle)
 const CONC_NOMBRES = {
@@ -3036,33 +3509,92 @@ const CONC_NOMBRES = {
   16: 'Recargo Dominical 0.75%',
 };
 
+// Detectar ícono/tipo por nombre de archivo (extensible)
+function iconoPorArchivo(nombre) {
+  const ext = (nombre || '').split('.').pop().toLowerCase();
+  if (['xlsx', 'xls'].includes(ext)) return '📊';
+  if (ext === 'pdf')                  return '📄';
+  if (['csv', 'tsv'].includes(ext))   return '📋';
+  return '📁';
+}
+
+function formatoLegible(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+function renderListaArchivos() {
+  const container = document.getElementById('importFileList');
+  if (!container) return;
+  if (_importFiles.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+  const html = _importFiles.map((f, i) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,0.05);">
+      <span style="font-size:20px;">${iconoPorArchivo(f.name)}</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.name}</div>
+        <div style="font-size:11px;color:var(--muted);">${formatoLegible(f.size)} · ${f.type || 'desconocido'}</div>
+      </div>
+      <button onclick="quitarArchivoImport(${i})" title="Quitar este archivo"
+        style="background:transparent;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:2px 6px;border-radius:4px;"
+        onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--muted)'">✕</button>
+    </div>
+  `).join('');
+  container.innerHTML = `
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:8px;">
+      ${_importFiles.length} archivo${_importFiles.length !== 1 ? 's' : ''} seleccionado${_importFiles.length !== 1 ? 's' : ''}
+    </div>
+    ${html}
+  `;
+}
+
+function quitarArchivoImport(idx) {
+  _importFiles.splice(idx, 1);
+  if (_importFiles.length === 0) {
+    cancelarImport();
+  } else {
+    renderListaArchivos();
+  }
+}
+
 function seleccionarArchivoImport(e) {
-  const file = e.target.files && e.target.files[0];
-  if (!file) return;
-  _importFile = file;
+  const nuevos = Array.from(e.target.files || []);
+  if (nuevos.length === 0) return;
+
+  // Acumular archivos (permite agregar más en sucesivas selecciones)
+  // Evitar duplicados por nombre+tamaño
+  for (const f of nuevos) {
+    const yaExiste = _importFiles.some(x => x.name === f.name && x.size === f.size);
+    if (!yaExiste) _importFiles.push(f);
+  }
 
   // Actualizar zona de drop
-  document.getElementById('uploadIcon').textContent = '✅';
-  document.getElementById('uploadLabel').textContent = 'Archivo listo';
-  document.getElementById('uploadSub').textContent = 'Haz clic en "Importar a la BD" para proceder';
+  document.getElementById('uploadIcon').textContent = _importFiles.length > 1 ? '📦' : '✅';
+  document.getElementById('uploadLabel').textContent =
+    _importFiles.length > 1
+      ? `${_importFiles.length} archivos listos`
+      : 'Archivo listo';
+  document.getElementById('uploadSub').textContent = 'Haz clic en "Importar a la BD" para proceder, o arrastra más archivos';
 
-  // Mostrar info del archivo
-  document.getElementById('importFileName').textContent = file.name;
-  document.getElementById('importFileSize').textContent =
-    `${(file.size / 1024).toFixed(1)} KB · ${file.type || 'Excel'}`;
+  // Renderizar lista y mostrar panel
+  renderListaArchivos();
   document.getElementById('importFileInfo').style.display = 'block';
-
-  // Ocultar resultado anterior si existe
   document.getElementById('importResult').style.display = 'none';
   document.getElementById('importGuia').style.display = 'none';
+
+  // Reset input para permitir reseleccionar los mismos archivos si quieren
+  e.target.value = '';
 }
 
 function cancelarImport() {
-  _importFile = null;
+  _importFiles = [];
   document.getElementById('fileInput').value = '';
   document.getElementById('uploadIcon').textContent = '📊';
-  document.getElementById('uploadLabel').textContent = 'Arrastra el archivo aquí o haz clic';
-  document.getElementById('uploadSub').textContent = 'Formato soportado: .xlsx (hoja "Reporte Final") · Máx 50 MB';
+  document.getElementById('uploadLabel').textContent = 'Arrastra uno o varios archivos aquí, o haz clic';
+  document.getElementById('uploadSub').textContent = 'Formatos soportados: .xlsx, .xls · Múltiples archivos permitidos · Máx 50 MB c/u';
   document.getElementById('importFileInfo').style.display = 'none';
   document.getElementById('importResult').style.display = 'none';
   document.getElementById('importGuia').style.display = 'block';
@@ -3073,8 +3605,8 @@ function resetearImport() {
 }
 
 async function ejecutarImportMasiva() {
-  if (!_importFile) {
-    alert('Selecciona un archivo .xlsx primero.');
+  if (_importFiles.length === 0) {
+    alert('Selecciona al menos un archivo para importar.');
     return;
   }
 
@@ -3093,22 +3625,25 @@ async function ejecutarImportMasiva() {
   document.getElementById('importProgress').style.display = 'block';
   document.getElementById('importResult').style.display = 'none';
 
-  // Animar barra de progreso ficticia mientras espera
+  // Animar barra de progreso
   let pct = 0;
   const barEl = document.getElementById('importProgressBar');
   const txtEl = document.getElementById('importProgressText');
+  const totalArchivos = _importFiles.length;
   const progTimer = setInterval(() => {
     pct = Math.min(pct + (pct < 60 ? 8 : pct < 85 ? 3 : 0.5), 90);
     barEl.style.width = pct + '%';
-    if (pct < 30)      txtEl.textContent = 'Leyendo archivo Excel…';
-    else if (pct < 55) txtEl.textContent = 'Validando empleados en la BD…';
-    else if (pct < 75) txtEl.textContent = 'Insertando novedades…';
+    if (pct < 25)      txtEl.textContent = `Cargando ${totalArchivos} archivo${totalArchivos > 1 ? 's' : ''}…`;
+    else if (pct < 50) txtEl.textContent = 'Parseando y validando datos…';
+    else if (pct < 75) txtEl.textContent = 'Insertando novedades en la BD…';
     else               txtEl.textContent = 'Finalizando…';
   }, 300);
 
   try {
     const formData = new FormData();
-    formData.append('archivo', _importFile);
+    for (const f of _importFiles) {
+      formData.append('archivos[]', f);
+    }
     formData.append('usuario', usuario);
 
     const token = localStorage.getItem('authToken');
@@ -3129,11 +3664,9 @@ async function ejecutarImportMasiva() {
     document.getElementById('importProgress').style.display = 'none';
 
     if (!resp.ok && resp.status !== 207) {
-      // Error real (400, 409, 422, 500)
       mostrarResultadoImport(null, data.error || data.details || 'Error desconocido');
     } else {
       mostrarResultadoImport(data, null);
-      // Recargar tabla de ocasionales en segundo plano
       cargarOcasionalesDelPeriodo();
     }
   } catch (err) {
@@ -3153,26 +3686,29 @@ function mostrarResultadoImport(data, errorMsg) {
   document.getElementById('importGuia').style.display = 'none';
 
   if (errorMsg || !data) {
-    // Error general
     const banner = document.getElementById('importResultBanner');
     banner.style.background = 'rgba(224,85,85,0.12)';
     banner.style.borderColor = 'rgba(224,85,85,0.35)';
     banner.style.color = 'var(--danger)';
     document.getElementById('importResultIcon').textContent = '✕';
-    document.getElementById('importResultTitle').textContent = 'No se pudo procesar el archivo';
+    document.getElementById('importResultTitle').textContent = 'No se pudo procesar';
     document.getElementById('importResultSub').textContent = errorMsg || 'Error desconocido';
     document.getElementById('importStatsGrid').style.display = 'none';
     document.getElementById('importPeriodoCard').style.display = 'none';
     document.getElementById('tbImportDetalle').innerHTML =
-      `<tr><td colspan="6" style="text-align:center;color:var(--danger);padding:24px">${errorMsg}</td></tr>`;
+      `<tr><td colspan="7" style="text-align:center;color:var(--danger);padding:24px">${errorMsg}</td></tr>`;
     return;
   }
 
   document.getElementById('importStatsGrid').style.display = 'grid';
   document.getElementById('importPeriodoCard').style.display = 'block';
 
-  const r = data.resumen;
-  const hayErr = r.conErrores > 0;
+  // Usar globalResumen si existe (formato multi-archivo), sino caer al resumen legacy
+  const gr = data.globalResumen || data.resumen || {};
+  const archivos = data.archivos || [];
+  const totalArch = archivos.length || 1;
+  const archivosConError = archivos.filter(a => !a.ok || (a.resumen && a.resumen.conErrores > 0)).length;
+  const hayErr = archivosConError > 0 || gr.conErrores > 0;
 
   // Banner
   const banner = document.getElementById('importResultBanner');
@@ -3181,7 +3717,8 @@ function mostrarResultadoImport(data, errorMsg) {
     banner.style.borderColor = 'rgba(76,175,130,0.3)';
     banner.style.color = 'var(--success)';
     document.getElementById('importResultIcon').textContent = '✓';
-    document.getElementById('importResultTitle').textContent = 'Importación completada exitosamente';
+    document.getElementById('importResultTitle').textContent =
+      totalArch > 1 ? `${totalArch} archivos importados exitosamente` : 'Importación completada exitosamente';
   } else {
     banner.style.background = 'rgba(255,165,0,0.10)';
     banner.style.borderColor = 'rgba(255,165,0,0.3)';
@@ -3190,28 +3727,56 @@ function mostrarResultadoImport(data, errorMsg) {
     document.getElementById('importResultTitle').textContent = 'Importación completada con advertencias';
   }
   document.getElementById('importResultSub').textContent =
-    `${r.insertados} insertados · ${r.acumulados} acumulados · ${r.conErrores} errores · Período: ${data.periodo?.etiqueta || '—'}`;
+    `${gr.insertados || 0} insertados · ${gr.acumulados || 0} acumulados · ` +
+    `${gr.conErrores || 0} errores · Período: ${data.periodo?.etiqueta || '—'}`;
 
   // Stats
-  document.getElementById('istat_filas').textContent = r.totalFilas;
-  document.getElementById('istat_procesados').textContent = r.procesados;
-  document.getElementById('istat_insertados').textContent = r.insertados;
-  document.getElementById('istat_acumulados').textContent = r.acumulados;
-  document.getElementById('istat_errores').textContent = r.conErrores;
+  document.getElementById('istat_archivos').textContent = totalArch;
+  document.getElementById('istat_filas').textContent = gr.totalFilas || 0;
+  document.getElementById('istat_procesados').textContent = gr.procesados || 0;
+  document.getElementById('istat_insertados').textContent = gr.insertados || 0;
+  document.getElementById('istat_acumulados').textContent = gr.acumulados || 0;
+  document.getElementById('istat_errores').textContent = gr.conErrores || 0;
 
   // Período
   document.getElementById('importPeriodoLabel').textContent =
-    data.periodo ? `${data.periodo.etiqueta}  (${new Date(data.periodo.inicio).toLocaleDateString('es-CO')} – ${new Date(data.periodo.fin).toLocaleDateString('es-CO')})` : '—';
+    data.periodo
+      ? `${data.periodo.etiqueta}  (${new Date(data.periodo.inicio).toLocaleDateString('es-CO')} – ${new Date(data.periodo.fin).toLocaleDateString('es-CO')})`
+      : '—';
 
-  // Detalle
-  _importDetalle = data.detalle || [];
+  // Construir detalle global unificado desde todos los archivos
+  _importDetalle = [];
+  if (archivos.length > 0) {
+    for (const arch of archivos) {
+      if (!arch.ok && arch.error) {
+        // Archivo que falló completamente
+        _importDetalle.push({
+          _archivo: arch.archivo,
+          estado: 'ERROR',
+          cedula: '—',
+          nombre: '—',
+          codConc: null,
+          cantidad: null,
+          mensaje: `[${arch.archivo}] ${arch.error}`,
+        });
+      } else if (arch.detalle) {
+        for (const d of arch.detalle) {
+          _importDetalle.push({ ...d, _archivo: arch.archivo });
+        }
+      }
+    }
+  } else if (data.detalle) {
+    // compatibilidad formato antiguo
+    _importDetalle = data.detalle;
+  }
+
   renderDetalleImport(_importDetalle);
 }
 
 function renderDetalleImport(rows) {
   const tb = document.getElementById('tbImportDetalle');
   if (!rows || rows.length === 0) {
-    tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">Sin detalle</td></tr>';
+    tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Sin detalle</td></tr>';
     return;
   }
   tb.innerHTML = rows.map(d => {
@@ -3220,18 +3785,24 @@ function renderDetalleImport(rows) {
       estadoHtml = `<span class="badge badge-dev">✓ Insertado</span>`;
     } else if (d.estado === 'ACUMULADO') {
       estadoHtml = `<span class="badge badge-cam">⊕ Acumulado</span>`;
+    } else if (d.estado === 'AVISO') {
+      estadoHtml = `<span class="badge" style="background:rgba(32,167,201,0.15);color:#20A7C9;">ℹ Aviso</span>`;
     } else {
       estadoHtml = `<span class="badge badge-ded">✕ Error</span>`;
     }
     const concNom = d.codConc ? (CONC_NOMBRES[d.codConc] || `Concepto #${d.codConc}`) : '—';
     const cant = d.cantidad != null ? Number(d.cantidad).toFixed(2) : '—';
+    const archNom = d._archivo
+      ? `<span title="${d._archivo}" style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px;display:inline-block;">${d._archivo}</span>`
+      : '—';
     return `<tr>
+      <td style="max-width:90px;overflow:hidden;">${archNom}</td>
       <td style="font-family:monospace;font-size:12px;color:var(--cm-blue)">${d.cedula || '—'}</td>
       <td>${d.nombre || '—'}</td>
       <td style="font-size:12px">${concNom}</td>
       <td style="text-align:right">${cant}</td>
       <td>${estadoHtml}</td>
-      <td style="font-size:11px;color:var(--muted);max-width:260px;">${d.mensaje || ''}</td>
+      <td style="font-size:11px;color:var(--muted);max-width:220px;">${d.mensaje || ''}</td>
     </tr>`;
   }).join('');
 }
@@ -3243,13 +3814,14 @@ function filtrarDetalleImport() {
     const matchEstado = !estado || d.estado === estado;
     const matchTxt = !txt ||
       (d.cedula && String(d.cedula).includes(txt)) ||
-      (d.nombre && d.nombre.toLowerCase().includes(txt));
+      (d.nombre && d.nombre.toLowerCase().includes(txt)) ||
+      (d._archivo && d._archivo.toLowerCase().includes(txt));
     return matchEstado && matchTxt;
   });
   renderDetalleImport(filtered);
 }
 
-// Drag & drop
+// Drag & drop — soporta múltiples archivos
 const dropZone = document.getElementById('dropZone');
 dropZone.addEventListener('dragover', e => {
   e.preventDefault();
@@ -3264,10 +3836,11 @@ dropZone.addEventListener('drop', e => {
   e.preventDefault();
   dropZone.style.borderColor = '';
   dropZone.style.background = '';
-  const f = e.dataTransfer && e.dataTransfer.files[0];
-  if (f) seleccionarArchivoImport({ target: { files: [f] } });
+  const files = e.dataTransfer && e.dataTransfer.files;
+  if (files && files.length > 0) {
+    seleccionarArchivoImport({ target: { files, value: '' } });
+  }
 });
-
 // Función de diagnóstico para verificar sesión
 function diagnosticarSesion() {
   console.log('=== DIAGNÓSTICO DE SESIÓN ===');
@@ -3551,6 +4124,344 @@ async function descargarAdecco() {
 document.getElementById('modalExportarAdecco').addEventListener('click', function(e) {
   if (e.target === this) cerrarModalExportarAdecco();
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  SELECCIÓN MÚLTIPLE Y ANULACIÓN MASIVA — Todas las pestañas de novedad
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Estado local de selección por tipo de novedad
+const _selOcas  = new Set(); // Ocasionales
+const _selFijas = new Set(); // Fijas
+const _selAusen = new Set(); // Ausentismos
+const _selCamb  = new Set(); // Cambios/Ingresos
+
+// Contexto activo (cuál tab tiene selecciones en la barra)
+let _batchTabActivo = null; // 'oc' | 'fj' | 'aus' | 'ci'
+
+// ─── Obtener el set activo según tab ─────────────────────────────────────────
+function _getSelActivo() {
+  if (_batchTabActivo === 'fj')  return _selFijas;
+  if (_batchTabActivo === 'aus') return _selAusen;
+  if (_batchTabActivo === 'ci')  return _selCamb;
+  return _selOcas;
+}
+
+// ─── Actualiza la barra flotante ─────────────────────────────────────────────
+function _actualizarBarraBatch() {
+  const bar   = document.getElementById('seleccionBar');
+  const count = document.getElementById('seleccionCount');
+  const total = _selOcas.size + _selFijas.size + _selAusen.size + _selCamb.size;
+  if (total > 0) {
+    count.textContent = total;
+    bar.classList.add('visible');
+  } else {
+    bar.classList.remove('visible');
+    _batchTabActivo = null;
+  }
+}
+
+// Alias para compatibilidad con código existente
+function _actualizarBarraSeleccion() { _actualizarBarraBatch(); }
+
+// ─── OCASIONALES ─────────────────────────────────────────────────────────────
+function _toggleSelOcas(codNoved, cb) {
+  _batchTabActivo = 'oc';
+  const tr = cb.closest('tr');
+  if (cb.checked) { _selOcas.add(codNoved); tr.classList.add('selected-row'); }
+  else            { _selOcas.delete(codNoved); tr.classList.remove('selected-row'); }
+  const cbAll = document.getElementById('cbSelAll');
+  if (cbAll) {
+    const total = document.querySelectorAll('#tbOcasionales .cb-row').length;
+    cbAll.checked       = _selOcas.size === total && total > 0;
+    cbAll.indeterminate = _selOcas.size > 0 && _selOcas.size < total;
+  }
+  _actualizarBarraBatch();
+}
+
+function _toggleSelAll(cbAll) {
+  _batchTabActivo = 'oc';
+  document.querySelectorAll('#tbOcasionales .cb-row').forEach(cb => {
+    const codNoved = Number(cb.dataset.codNoved);
+    const tr = cb.closest('tr');
+    if (cbAll.checked) { cb.checked = true; _selOcas.add(codNoved); tr.classList.add('selected-row'); }
+    else               { cb.checked = false; _selOcas.delete(codNoved); tr.classList.remove('selected-row'); }
+  });
+  cbAll.indeterminate = false;
+  _actualizarBarraBatch();
+}
+
+function _limpiarSeleccion() {
+  _selOcas.clear();
+  document.querySelectorAll('#tbOcasionales .cb-row').forEach(cb => {
+    cb.checked = false; cb.closest('tr')?.classList.remove('selected-row');
+  });
+  const cbAll = document.getElementById('cbSelAll');
+  if (cbAll) { cbAll.checked = false; cbAll.indeterminate = false; }
+  _actualizarBarraBatch();
+}
+
+// ─── FIJAS ───────────────────────────────────────────────────────────────────
+function _toggleSelFijas(codNoved, cb) {
+  _batchTabActivo = 'fj';
+  const tr = cb.closest('tr');
+  if (cb.checked) { _selFijas.add(codNoved); tr.classList.add('selected-row'); }
+  else            { _selFijas.delete(codNoved); tr.classList.remove('selected-row'); }
+  const cbAll = document.getElementById('cbSelAllFijas');
+  if (cbAll) {
+    const total = document.querySelectorAll('#tbFijas .cb-row-fijas').length;
+    cbAll.checked       = _selFijas.size === total && total > 0;
+    cbAll.indeterminate = _selFijas.size > 0 && _selFijas.size < total;
+  }
+  _actualizarBarraBatch();
+}
+
+function _toggleSelAllFijas(cbAll) {
+  _batchTabActivo = 'fj';
+  document.querySelectorAll('#tbFijas .cb-row-fijas').forEach(cb => {
+    const codNoved = Number(cb.dataset.codNoved);
+    const tr = cb.closest('tr');
+    if (cbAll.checked) { cb.checked = true; _selFijas.add(codNoved); tr.classList.add('selected-row'); }
+    else               { cb.checked = false; _selFijas.delete(codNoved); tr.classList.remove('selected-row'); }
+  });
+  cbAll.indeterminate = false;
+  _actualizarBarraBatch();
+}
+
+function _limpiarSelFijas() {
+  _selFijas.clear();
+  document.querySelectorAll('#tbFijas .cb-row-fijas').forEach(cb => {
+    cb.checked = false; cb.closest('tr')?.classList.remove('selected-row');
+  });
+  const cbAll = document.getElementById('cbSelAllFijas');
+  if (cbAll) { cbAll.checked = false; cbAll.indeterminate = false; }
+  _actualizarBarraBatch();
+}
+
+// ─── AUSENTISMOS ─────────────────────────────────────────────────────────────
+function _toggleSelAusen(codNoved, cb) {
+  _batchTabActivo = 'aus';
+  const tr = cb.closest('tr');
+  if (cb.checked) { _selAusen.add(codNoved); tr.classList.add('selected-row'); }
+  else            { _selAusen.delete(codNoved); tr.classList.remove('selected-row'); }
+  const cbAll = document.getElementById('cbSelAllAusen');
+  if (cbAll) {
+    const total = document.querySelectorAll('#tbAusentismos .cb-row-ausen').length;
+    cbAll.checked       = _selAusen.size === total && total > 0;
+    cbAll.indeterminate = _selAusen.size > 0 && _selAusen.size < total;
+  }
+  _actualizarBarraBatch();
+}
+
+function _toggleSelAllAusen(cbAll) {
+  _batchTabActivo = 'aus';
+  document.querySelectorAll('#tbAusentismos .cb-row-ausen').forEach(cb => {
+    const codNoved = Number(cb.dataset.codNoved);
+    const tr = cb.closest('tr');
+    if (cbAll.checked) { cb.checked = true; _selAusen.add(codNoved); tr.classList.add('selected-row'); }
+    else               { cb.checked = false; _selAusen.delete(codNoved); tr.classList.remove('selected-row'); }
+  });
+  cbAll.indeterminate = false;
+  _actualizarBarraBatch();
+}
+
+function _limpiarSelAusen() {
+  _selAusen.clear();
+  document.querySelectorAll('#tbAusentismos .cb-row-ausen').forEach(cb => {
+    cb.checked = false; cb.closest('tr')?.classList.remove('selected-row');
+  });
+  const cbAll = document.getElementById('cbSelAllAusen');
+  if (cbAll) { cbAll.checked = false; cbAll.indeterminate = false; }
+  _actualizarBarraBatch();
+}
+
+// ─── CAMBIOS / INGRESOS ───────────────────────────────────────────────────────
+function _toggleSelCamb(codNoved, cb) {
+  _batchTabActivo = 'ci';
+  const tr = cb.closest('tr');
+  if (cb.checked) { _selCamb.add(codNoved); tr.classList.add('selected-row'); }
+  else            { _selCamb.delete(codNoved); tr.classList.remove('selected-row'); }
+  const cbAll = document.getElementById('cbSelAllCamb');
+  if (cbAll) {
+    const total = document.querySelectorAll('#tbCIngresos .cb-row-camb').length;
+    cbAll.checked       = _selCamb.size === total && total > 0;
+    cbAll.indeterminate = _selCamb.size > 0 && _selCamb.size < total;
+  }
+  _actualizarBarraBatch();
+}
+
+function _toggleSelAllCamb(cbAll) {
+  _batchTabActivo = 'ci';
+  document.querySelectorAll('#tbCIngresos .cb-row-camb').forEach(cb => {
+    const codNoved = Number(cb.dataset.codNoved);
+    const tr = cb.closest('tr');
+    if (cbAll.checked) { cb.checked = true; _selCamb.add(codNoved); tr.classList.add('selected-row'); }
+    else               { cb.checked = false; _selCamb.delete(codNoved); tr.classList.remove('selected-row'); }
+  });
+  cbAll.indeterminate = false;
+  _actualizarBarraBatch();
+}
+
+function _limpiarSelCamb() {
+  _selCamb.clear();
+  document.querySelectorAll('#tbCIngresos .cb-row-camb').forEach(cb => {
+    cb.checked = false; cb.closest('tr')?.classList.remove('selected-row');
+  });
+  const cbAll = document.getElementById('cbSelAllCamb');
+  if (cbAll) { cbAll.checked = false; cbAll.indeterminate = false; }
+  _actualizarBarraBatch();
+}
+
+// ─── Limpiar toda la selección (botón Deseleccionar en la barra) ──────────────
+function _limpiarTodasSelecciones() {
+  _limpiarSeleccion();  // ocasionales
+  _limpiarSelFijas();
+  _limpiarSelAusen();
+  _limpiarSelCamb();
+}
+
+// ─── Abrir modal de confirmación de anulación masiva ────────────────────────
+function abrirModalAnularBatch() {
+  // Determinar cuál set tiene selecciones
+  let selSet, stateArr, conceptoKey, tabLabel;
+  if (_selOcas.size > 0) {
+    selSet = _selOcas; stateArr = state.ocasionales; conceptoKey = 'nomConc'; tabLabel = 'Ocasional';
+  } else if (_selFijas.size > 0) {
+    selSet = _selFijas; stateArr = state.fijas; conceptoKey = 'nomConc'; tabLabel = 'Fija';
+  } else if (_selAusen.size > 0) {
+    selSet = _selAusen; stateArr = state.ausentismos; conceptoKey = 'tipo'; tabLabel = 'Ausentismo';
+  } else if (_selCamb.size > 0) {
+    selSet = _selCamb; stateArr = state.cambiosIngresos; conceptoKey = 'cambio'; tabLabel = 'Cambio/Ingreso';
+  } else {
+    return;
+  }
+
+  const filas = [...selSet].map(cod => {
+    const rec = stateArr.find(r => r.codNoved === cod);
+    return rec || { codNoved: cod, id: '—', nombre: '—' };
+  }).sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+
+  const tbody = filas.map(r => `
+    <tr>
+      <td>${r.id}</td>
+      <td>${r.nombre}</td>
+      <td>${r[conceptoKey] || r.nomConc || r.novedad || '—'}</td>
+    </tr>`).join('');
+
+  document.getElementById('batchListBody').innerHTML = tbody;
+  document.getElementById('batchCountLabel').textContent =
+    `${filas.length} novedad${filas.length !== 1 ? 'es' : ''} (${tabLabel})`;
+
+  document.getElementById('modalAnularBatch').classList.add('open');
+}
+
+function cerrarModalAnularBatch() {
+  document.getElementById('modalAnularBatch').classList.remove('open');
+}
+
+// ─── Ejecutar anulación masiva ───────────────────────────────────────────────
+async function confirmarAnularBatch() {
+  const btnConfirm = document.getElementById('btnBatchConfirm');
+
+  // Determinar qué set y endpoint usar
+  let selSet, endpoint, alertId, recargar, limpiar;
+  if (_selOcas.size > 0) {
+    selSet = _selOcas; endpoint = '/api/ocasionales/anular-batch';
+    alertId = 'alertOcas'; recargar = cargarOcasionalesDelPeriodo; limpiar = _limpiarSeleccion;
+  } else if (_selFijas.size > 0) {
+    selSet = _selFijas; endpoint = '/api/fijas/anular-batch';
+    alertId = 'alertFijas'; recargar = cargarFijasDelPeriodo; limpiar = _limpiarSelFijas;
+  } else if (_selAusen.size > 0) {
+    selSet = _selAusen; endpoint = '/api/ausentismos/anular-batch';
+    alertId = 'alertAus'; recargar = cargarAusentismosDelPeriodo; limpiar = _limpiarSelAusen;
+  } else if (_selCamb.size > 0) {
+    selSet = _selCamb; endpoint = '/api/cambios/anular-batch';
+    alertId = 'alertCI'; recargar = cargarCambiosDelPeriodo; limpiar = _limpiarSelCamb;
+  } else {
+    return;
+  }
+
+  const ids = [...selSet];
+  if (ids.length === 0) return;
+
+  btnConfirm.disabled = true;
+  btnConfirm.textContent = 'Anulando…';
+
+  try {
+    const resp = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codNoveds: ids })
+    });
+    const data = await resp.json();
+
+    if (!resp.ok) {
+      alert('Error al anular: ' + (data.error || resp.status) + (data.details ? '\n' + data.details : ''));
+      return;
+    }
+
+    cerrarModalAnularBatch();
+    limpiar();
+    await recargar();
+
+    const msg = `✓ ${data.anulados} novedad${data.anulados !== 1 ? 'es anuladas' : ' anulada'} correctamente.`;
+    const alertEl = document.getElementById(alertId);
+    if (alertEl) {
+      alertEl.textContent = msg;
+      alertEl.classList.remove('alert-error');
+      alertEl.classList.add('alert-success', 'show');
+      setTimeout(() => alertEl.classList.remove('show'), 3500);
+    }
+  } catch (err) {
+    alert('Error de red: ' + err.message);
+  } finally {
+    btnConfirm.disabled = false;
+    btnConfirm.textContent = 'Sí, anular todo';
+  }
+}
+
+// Cerrar modal batch al hacer clic fuera
+document.getElementById('modalAnularBatch').addEventListener('click', function(e) {
+  if (e.target === this) cerrarModalAnularBatch();
+});
+// Cerrar con Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    const m = document.getElementById('modalAnularBatch');
+    if (m && m.classList.contains('open')) cerrarModalAnularBatch();
+  }
+});
 </script>
+
+<!-- ── Barra flotante de selección múltiple ── -->
+<div id="seleccionBar">
+  <span class="sel-count" id="seleccionCount">0</span>
+  <span class="sel-label">novedad(es) seleccionada(s)</span>
+  <button id="selBtnClear" onclick="_limpiarTodasSelecciones()">✕ Deseleccionar</button>
+  <button id="selBtnAnular" onclick="abrirModalAnularBatch()">⊘ Anular seleccionadas</button>
+</div>
+
+<!-- ── Modal de confirmación de anulación masiva ── -->
+<div id="modalAnularBatch">
+  <div class="modal-batch-box">
+    <div class="modal-batch-title">⚠ Confirmar anulación masiva</div>
+    <div class="modal-batch-desc">
+      Vas a anular <strong id="batchCountLabel"></strong>. Los registros quedarán
+      inactivos pero se conservarán para trazabilidad histórica.
+      Esta acción no se puede deshacer desde la interfaz.
+    </div>
+    <div class="modal-batch-list">
+      <table>
+        <thead><tr><th>Cédula</th><th>Nombre</th><th>Concepto</th></tr></thead>
+        <tbody id="batchListBody"></tbody>
+      </table>
+    </div>
+    <div class="modal-batch-actions">
+      <button class="btn-batch-cancel" onclick="cerrarModalAnularBatch()">Cancelar</button>
+      <button class="btn-batch-confirm" id="btnBatchConfirm" onclick="confirmarAnularBatch()">Sí, anular todo</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
+    

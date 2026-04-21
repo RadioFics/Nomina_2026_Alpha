@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ejemplos de Edición - Nombre de Usuario</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 30px;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 28px;
+        }
+        .ejemplos-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .ejemplo-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .ejemplo-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+        }
+        .ejemplo-titulo {
+            font-size: 18px;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #667eea;
+        }
+        .resultado-box {
+            background: #f5f5f5;
+            border-left: 4px solid #667eea;
+            padding: 12px;
+            margin: 12px 0;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+        .resultado-label {
+            font-size: 11px;
+            color: #666;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+        .resultado-valor {
+            color: #333;
+            font-weight: 500;
+        }
+        .codigo {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 12px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            margin: 12px 0;
+            line-height: 1.4;
+        }
+        .codigo .keyword { color: #66d9ef; }
+        .codigo .string { color: #e6db74; }
+        .codigo .variable { color: #f92672; }
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #856404;
+            margin-top: 12px;
+        }
+        .info {
+            background: #d1ecf1;
+            border-left: 4px solid #17a2b8;
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #0c5460;
+            margin-top: 12px;
+        }
+        .ubicacion {
+            font-size: 11px;
+            color: #999;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #eee;
+        }
+        .ubicacion strong {
+            color: #667eea;
+        }
+        .dificultad {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: 700;
+            margin-top: 12px;
+        }
+        .dificultad.facil {
+            background: #d4edda;
+            color: #155724;
+        }
+        .dificultad.medio {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .dificultad.avanzado {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .busqueda {
+            background: #e8f4f8;
+            border-left: 4px solid #17a2b8;
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin: 12px 0;
+        }
+        .busqueda strong {
+            color: #0c5460;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 Ejemplos de Edición - Nombre de Usuario</h1>
+
+        <div class="ejemplos-grid">
+            <!-- EJEMPLO 1 -->
+            <div class="ejemplo-card">
+                <div class="ejemplo-titulo">1️⃣ Mostrar Solo Primer Nombre</div>
+
+                <div class="resultado-box">
+                    <div class="resultado-label">Entrada:</div>
+                    <div class="resultado-valor">CALLE PALMETT JUAN ESTEBAN</div>
+                </div>
+
+                <div class="resultado-box">
+                    <div class="resultado-label">Resultado:</div>
+                    <div class="resultado-valor">welcomeMessage: "¡Bienvenido, JUAN!"<br>
+                    userNameDisplay: "JUAN"</div>
+                </div>
+
+                <div class="codigo"><span class="variable">usuarioDisplay</span> = <span class="variable">usuarioDisplay</span>.<span class="keyword">split</span>(<span class="string">' '</span>)[<span class="string">0</span>];</div>
+
+                <div class="busqueda"><strong>Busca en línea 1794:</strong><br>
+                document.getElementById('userNameDisplay').textContent</div>
+
+                <span class="dificultad facil">✓ FÁCIL</span>
+            </div>
+
+            <!-- EJEMPLO 2 -->
+            <div class="ejemplo-card">
+                <div class="ejemplo-titulo">2️⃣ Mensaje Personalizado por Hora</div>
+
+                <div class="resultado-box">
+                    <div class="resultado-label">Mañana:</div>
+                    <div class="resultado-valor">"¡Buenos días, JUAN!"</div>
+                </div>
+
+                <div class="resultado-box">
+                    <div class="resultado-label">Tarde:</div>
+                    <div class="resultado-valor">"¡Buenas tardes, JUAN!"</div>
+                </div>
+
+                <div class="codigo"><span class="keyword">const</span> <span class="variable">hora</span> = <span class="keyword">new</span> <span class="variable">Date</span>().<span class="keyword">getHours</span>();<br>
+                <span class="keyword">const</span> <span class="variable">saludo</span> = <span class="variable">hora</span> &lt; <span class="string">12</span> ? <span class="string">'Buenos días'</span> : <span class="string">'Buenas tardes'</span>;</div>
+
+                <div class="busqueda"><strong>Busca en línea 1792:</strong><br>
+                `¡Bienvenido, ${primerNombre}!`</div>
+
+                <span class="dificultad medio">◐ MEDIO</span>
+            </div>
+
+            <!-- EJEMPLO 3 -->
+            <div class="ejemplo-card">
+                <div class="ejemplo-titulo">3️⃣ Mostrar Nombre Completo</div>
+
+                <div class="resultado-box">
+                    <div class="resultado-label">Resultado:</div>
+                    <div class="resultado-valor">"¡Bienvenido, JUAN ESTEBAN!"</div>
+                </div>
+
+                <div class="codigo"><span class="variable">welcomeMessage</span> = <span class="string">`¡Bienvenido, ${usuarioDisplay}!`</span>;</div>
+
+                <div class="info">💡 Este cambio usa la variable completa en lugar de solo el primer nombre</div>
+
+                <div class="busqueda"><strong>Busca en línea 1792:</strong><br>
+                `¡Bienvenido, ${primerNombre}!`</div>
+
+                <span class="dificultad facil">✓ FÁCIL</span>
+            </div>
+
+            <!-- EJEMPLO 4 -->
+            <div class="ejemplo-card">
+                <div class="ejemplo-titulo">4️⃣ Mostrar Solo Apellidos</div>
+
+                <div class="resultado-box">
+                    <div class="resultado-label">Resultado:</div>
+                    <div class="resultado-valor">"¡Bienvenido, CALLE!"<br>
+                    userNameDisplay: "CALLE PALMETT"</div>
+                </div>
+
+                <div class="codigo"><span class="keyword">const</span> <span class="variable">apellido</span> = <span class="variable">partes</span>.<span class="keyword">slice</span>(<span class="string">0</span>, <span class="string">2</span>).<span class="keyword">join</span>(<span class="string">' '</span>);</div>
+
+                <div class="busqueda"><strong>Busca en línea 1761:</strong><br>
+                CORRECCIÓN #2 MEJORADA</div>
+
+                <span class="dificultad medio">◐ MEDIO</span>
+            </div>
+
+            <!-- EJEMPLO 5 -->
+            <div class="ejemplo-card">
+                <div class="ejemplo-titulo">5️⃣ Nombre Capitalizado</div>
+
+                <div class="resultado-box">
+                    <div class="resultado-label">Resultado:</div>
+                    <div class="resultado-valor">"¡Bienvenido, Juan!"<br>
+                    userNameDisplay: "Juan Esteban"</div>
+                </div>
+
+                <div class="codigo"><span class="variable">usuarioDisplay</span>.<span class="keyword">split</span>(<span class="string">' '</span>)<br/>
+&nbsp;&nbsp;.<span class="keyword">map</span>(<span class="variable">p</span> => <span class="variable">p</span>[<span class="string">0</span>] + <span class="variable">p</span>.<span class="keyword">slice</span>(<span class="string">1</span>).<span class="keyword">toLowerCase</span>())<br/>
+&nbsp;&nbsp;.<span class="keyword">join</span>(<span class="string">' '</span>);</div>
+
+                <span class="dificultad avanzado">⚡ AVANZADO</span>
+            </div>
+
+            <!-- EJEMPLO 6 -->
+            <div class="ejemplo-card">
+                <div class="ejemplo-titulo">6️⃣ Nombre en Minúsculas</div>
+
+                <div class="resultado-box">
+                    <div class="resultado-label">Resultado:</div>
+                    <div class="resultado-valor">"¡Bienvenido, juan!"<br>
+                    userNameDisplay: "juan esteban"</div>
+                </div>
+
+                <div class="codigo"><span class="variable">usuarioDisplay</span>.<span class="keyword">toLowerCase</span>();</div>
+
+                <div class="busqueda"><strong>Busca en línea 1794:</strong><br>
+                document.getElementById('userNameDisplay').textContent = usuarioDisplay;</div>
+
+                <span class="dificultad facil">✓ FÁCIL</span>
+            </div>
+
+            <!-- EJEMPLO 7 -->
+            <div class="ejemplo-card">
+                <div class="ejemplo-titulo">7️⃣ Agregar Título (Sr./Sra.)</div>
+
+                <div class="resultado-box">
+                    <div class="resultado-label">Resultado:</div>
+                    <div class="resultado-valor">"¡Bienvenido Sr. JUAN!"<br>
+                    userNameDisplay: "Sr. JUAN ESTEBAN"</div>
+                </div>
+
+                <div class="codigo"><span class="variable">usuarioDisplay</span> = <span class="string">`Sr. ${usuarioDisplay}`</span>;</div>
+
+                <span class="dificultad facil">✓ FÁCIL</span>
+            </div>
+
+            <!-- EJEMPLO 8 -->
+            <div class="ejemplo-card">
+                <div class="ejemplo-titulo">8️⃣ Agregar Número de Código</div>
+
+                <div class="resultado-box">
+                    <div class="resultado-label">Resultado:</div>
+                    <div class="resultado-valor">"[7] JUAN ESTEBAN"</div>
+                </div>
+
+                <div class="codigo"><span class="variable">usuarioDisplay</span> = <span class="string">`[7] ${usuarioDisplay}`</span>;</div>
+
+                <div class="info">💡 El número 7 es el COD_TERC de la base de datos</div>
+
+                <span class="dificultad facil">✓ FÁCIL</span>
+            </div>
+
+            <!-- EJEMPLO 9 -->
+            <div class="ejemplo-card">
+                <div class="ejemplo-titulo">9️⃣ Agregar Emoji</div>
+
+                <div class="resultado-box">
+                    <div class="resultado-label">Resultado:</div>
+                    <div class="resultado-valor">"👋 ¡Bienvenido, JUAN!"</div>
+                </div>
+
+                <div class="codigo"><span class="variable">welcomeMessage</span> = <span class="string">`👋 ¡Bienvenido, ${primerNombre}!`</span>;</div>
+
+                <span class="dificultad facil">✓ FÁCIL</span>
+            </div>
+
+            <!-- EJEMPLO 10 -->
+            <div class="ejemplo-card">
+                <div class="ejemplo-titulo">🔟 Cambiar Color del Nombre</div>
+
+                <div class="resultado-box">
+                    <div class="resultado-label">Cambios CSS:</div>
+                    <div class="resultado-valor">color: var(--cm-blue);<br>
+                    font-weight: 700;</div>
+                </div>
+
+                <div class="codigo">&lt;<span class="keyword">div</span> id=<span class="string">"userNameDisplay"</span> <br/>
+&nbsp;&nbsp;style=<span class="string">"color: var(--cm-blue);"</span>&gt;</div>
+
+                <div class="busqueda"><strong>Busca en línea 316:</strong><br>
+                id="userNameDisplay"</div>
+
+                <span class="dificultad facil">✓ FÁCIL</span>
+            </div>
+        </div>
+
+        <!-- TABLA COMPARATIVA -->
+        <div style="margin-top: 40px; background: white; border-radius: 12px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
+            <h2 style="color: #333; margin-bottom: 20px;">📊 Tabla Comparativa de Resultados</h2>
+
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                    <thead>
+                        <tr style="background: #667eea; color: white;">
+                            <th style="padding: 12px; text-align: left;">Opción</th>
+                            <th style="padding: 12px; text-align: left;">welcomeMessage</th>
+                            <th style="padding: 12px; text-align: left;">userNameDisplay</th>
+                            <th style="padding: 12px; text-align: left;">cfgUsuario</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="border-bottom: 1px solid #eee;">
+                            <td style="padding: 12px;"><strong>Original</strong></td>
+                            <td style="padding: 12px;">"¡Bienvenido, JUAN!"</td>
+                            <td style="padding: 12px;">"JUAN ESTEBAN"</td>
+                            <td style="padding: 12px;">"JUAN"</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #eee; background: #f5f5f5;">
+                            <td style="padding: 12px;"><strong>Solo Primer Nombre</strong></td>
+                            <td style="padding: 12px;">"¡Bienvenido, JUAN!"</td>
+                            <td style="padding: 12px;">"JUAN"</td>
+                            <td style="padding: 12px;">"JUAN"</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #eee;">
+                            <td style="padding: 12px;"><strong>Nombre Completo</strong></td>
+                            <td style="padding: 12px;">"¡Bienvenido, JUAN ESTEBAN!"</td>
+                            <td style="padding: 12px;">"JUAN ESTEBAN"</td>
+                            <td style="padding: 12px;">"JUAN"</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #eee; background: #f5f5f5;">
+                            <td style="padding: 12px;"><strong>Solo Apellidos</strong></td>
+                            <td style="padding: 12px;">"¡Bienvenido, CALLE!"</td>
+                            <td style="padding: 12px;">"CALLE PALMETT"</td>
+                            <td style="padding: 12px;">"CALLE"</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #eee;">
+                            <td style="padding: 12px;"><strong>Capitalizado</strong></td>
+                            <td style="padding: 12px;">"¡Bienvenido, Juan!"</td>
+                            <td style="padding: 12px;">"Juan Esteban"</td>
+                            <td style="padding: 12px;">"Juan"</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #eee; background: #f5f5f5;">
+                            <td style="padding: 12px;"><strong>Con Título</strong></td>
+                            <td style="padding: 12px;">"¡Bienvenido Sr. JUAN!"</td>
+                            <td style="padding: 12px;">"Sr. JUAN ESTEBAN"</td>
+                            <td style="padding: 12px;">"Sr. JUAN"</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- GUÍA RÁPIDA -->
+        <div style="margin-top: 40px; background: white; border-radius: 12px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
+            <h2 style="color: #333; margin-bottom: 20px;">⚡ Guía Rápida de Búsqueda</h2>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
+                <div style="background: #e8f4f8; padding: 15px; border-radius: 8px; border-left: 4px solid #17a2b8;">
+                    <strong style="color: #0c5460;">Busca: "welcomeMessage"</strong><br>
+                    <span style="font-size: 12px; color: #0c5460;">Para editar el mensaje de bienvenida</span>
+                </div>
+
+                <div style="background: #e8f4f8; padding: 15px; border-radius: 8px; border-left: 4px solid #17a2b8;">
+                    <strong style="color: #0c5460;">Busca: "userNameDisplay"</strong><br>
+                    <span style="font-size: 12px; color: #0c5460;">Para editar el nombre mostrado</span>
+                </div>
+
+                <div style="background: #e8f4f8; padding: 15px; border-radius: 8px; border-left: 4px solid #17a2b8;">
+                    <strong style="color: #0c5460;">Busca: "CORRECCIÓN #2 MEJORADA"</strong><br>
+                    <span style="font-size: 12px; color: #0c5460;">Para editar la lógica de reordenamiento</span>
+                </div>
+
+                <div style="background: #e8f4f8; padding: 15px; border-radius: 8px; border-left: 4px solid #17a2b8;">
+                    <strong style="color: #0c5460;">Busca: "cfgUsuario"</strong><br>
+                    <span style="font-size: 12px; color: #0c5460;">Para editar el campo de usuario</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- PIE DE PÁGINA -->
+        <div style="text-align: center; margin-top: 40px; color: white;">
+            <p style="font-size: 12px;">📝 Guía de Edición - index_novedades.html</p>
+            <p style="font-size: 11px; margin-top: 10px;">Archivo: <strong>EJEMPLOS_EDICION.html</strong></p>
+            <p style="font-size: 11px; margin-top: 5px;">Actualizado: 2026-04-21</p>
+        </div>
+    </div>
+</body>
+</html>
