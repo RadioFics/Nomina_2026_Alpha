@@ -14,7 +14,27 @@
       "Bash(node -c config/database.js)",
       "Bash(node -c controllers/databaseController.js)",
       "Bash(node -c routes/database.js)",
-      "Bash(node -c server.js)"
+      "Bash(node -c server.js)",
+      "Bash(npm install *)",
+      "Bash(npm start *)",
+      "Bash(netstat -ano)",
+      "Bash(powershell -Command \"Get-NetTCPConnection -LocalPort 3000 | Get-Process\")",
+      "Bash(taskkill /PID 20248 /F)",
+      "PowerShell(Stop-Process -Id 20248 -Force)",
+      "PowerShell(npm start)",
+      "PowerShell($process = Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue | Get-Process -ErrorAction SilentlyContinue; if \\($process\\) { Write-Host \"Matando proceso PID: $\\($process.Id\\)\"; Stop-Process -Id $process.Id -Force; Start-Sleep -Seconds 2 } else { Write-Host \"Ningún proceso en puerto 3000\" }; npm start)",
+      "PowerShell(Write-Host \"Buscando todos los procesos Node.js...\" ; Get-Process node -ErrorAction SilentlyContinue | ForEach-Object { Write-Host \"Matando Node.js PID: $\\($_.Id\\)\"; Stop-Process -Id $_.Id -Force }; Start-Sleep -Seconds 3; npm start)",
+      "PowerShell(Stop-Process -Id 32364 -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 3; Get-Process -Id 32364 -ErrorAction SilentlyContinue | ForEach-Object { Write-Host \"Proceso aún activo, reintentando...\"; taskkill /F /PID 32364 2>$null }; Start-Sleep -Seconds 2; npm start)",
+      "Bash(curl -s http://localhost:3000/api/health)",
+      "PowerShell(cd \"c:\\\\Users\\\\Juanes\\\\Documents\\\\GitHub\\\\Nomina_2026_Alpha\"; Write-Host \"Eliminando procesos Node antiguos...\" -ForegroundColor Yellow; Get-Process node -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne $PID } | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; Write-Host \"Iniciando servidor con nuevo sistema de reintentos...\" -ForegroundColor Green; npm start)",
+      "Bash(xargs grep *)",
+      "PowerShell(cd \"c:\\\\Users\\\\Juanes\\\\Documents\\\\GitHub\\\\Nomina_2026_Alpha\"; Get-Process node -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne $PID } | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; npm start)",
+      "Bash(curl -s -X POST http://localhost:3000/api/auth/olvide-contrasena -H 'Content-Type: application/json' -d '{\"email\":\"nomina.collectivemining@gmail.com\"}')",
+      "Bash(node -e ' *)",
+      "Bash(curl -s -X POST http://localhost:3000/api/auth/olvide-contrasena -H 'Content-Type: application/json' -d '{\"email\":\"juane.calle@upb.edu.co\"}')",
+      "Bash(sqlcmd -S \"DESKTOP-VEABB8R\\\\SQLEXPRESS\" -U sa -P \"LetItHappen35*\" -d MineDax -Q \"SELECT COD_USUA, NOM_USUA, LEFT\\(DIR_ELEC,35\\) AS EMAIL, ACT_INAC, ACT_ESTA, IND_BLOQ FROM GN_USUAR\")",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }
