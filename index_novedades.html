@@ -319,6 +319,100 @@
   .alert-success { background: rgba(76,175,130,0.12); border: 1px solid rgba(76,175,130,0.3); color: var(--success); }
   .alert-error { background: rgba(224,85,85,0.12); border: 1px solid rgba(224,85,85,0.3); color: var(--danger); }
 
+  /* ─── BUSCADOR HISTÓRICO DE NOVEDADES ─── */
+  .hist-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px; margin-bottom: 20px;
+  }
+  .hist-card-title {
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 15px;
+    margin-bottom: 16px; color: var(--cm-blue-light); letter-spacing: 0.05em; text-transform: uppercase;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .hist-card-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .hist-filters {
+    display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 14px;
+  }
+  .hist-filters-row2 {
+    display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 12px; margin-bottom: 14px; align-items: flex-end;
+  }
+  .hist-btn {
+    padding: 10px 20px; border-radius: 7px; border: none; cursor: pointer;
+    font-family: 'Barlow', sans-serif; font-weight: 700; font-size: 12px;
+    letter-spacing: 0.06em; text-transform: uppercase; transition: all .2s;
+    white-space: nowrap;
+  }
+  .hist-btn-search { background: var(--cm-blue); color: #fff; }
+  .hist-btn-search:hover { background: var(--cm-blue-light); }
+  .hist-btn-clear { background: rgba(255,255,255,0.06); color: var(--muted); border: 1px solid var(--border); }
+  .hist-btn-clear:hover { color: var(--text); background: rgba(255,255,255,0.1); }
+  .hist-results-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,0.02); border-radius: 8px 8px 0 0;
+  }
+  .hist-results-title { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .hist-count { margin-left: auto; font-size: 11px; color: var(--muted); }
+  .hist-wrap { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .hist-table { width: 100%; border-collapse: collapse; }
+  .hist-table th {
+    text-align: left; padding: 9px 14px; font-size: 10px;
+    text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted);
+    background: rgba(255,255,255,0.02); font-weight: 600;
+    border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  .hist-table td {
+    padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.04);
+    font-size: 12.5px; vertical-align: middle;
+  }
+  .hist-table tr:last-child td { border-bottom: none; }
+  .hist-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .hist-table tr.inactivo td { opacity: .55; }
+  .badge-hist-ocasi { background: rgba(76,175,130,0.15); color: var(--success); }
+  .badge-hist-fija  { background: rgba(224,85,85,0.15);  color: var(--danger); }
+  .badge-hist-ausen { background: rgba(91,155,213,0.15); color: var(--info); }
+  .badge-hist-cambi { background: rgba(155,91,213,0.15); color: #9B5BD5; }
+  .badge-inact { background: rgba(112,111,111,0.2); color: var(--muted); }
+  .badge-act   { background: rgba(76,175,130,0.15); color: var(--success); }
+  .hist-empty { text-align: center; color: var(--muted); padding: 36px; font-size: 13px; }
+  .hist-extra { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /* ─── AUTOCOMPLETE DEL BUSCADOR HISTÓRICO ─── */
+  .hist-autocomplete-wrap { position: relative; }
+  .hist-autocomplete-drop {
+    position: absolute; top: calc(100% + 2px); left: 0; right: 0;
+    background: var(--surface2); border: 1px solid var(--cm-blue);
+    border-radius: 0 0 8px 8px; max-height: 220px; overflow-y: auto;
+    z-index: 1100; display: none; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .hist-autocomplete-drop.show { display: block; }
+  .hist-ac-item {
+    padding: 9px 13px; cursor: pointer;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    display: flex; align-items: center; gap: 12px;
+    transition: background .12s;
+  }
+  .hist-ac-item:last-child { border-bottom: none; }
+  .hist-ac-item:hover { background: rgba(32,167,201,0.15); }
+  .hist-ac-cedula { font-size: 12px; color: var(--cm-blue); font-weight: 700; min-width: 80px; font-family: 'Barlow Condensed', sans-serif; }
+  .hist-ac-nombre { font-size: 13px; color: var(--text); }
+  .hist-ac-cargo  { font-size: 11px; color: var(--muted); margin-left: auto; }
+  .hist-ac-loader { padding: 12px 13px; font-size: 12px; color: var(--muted); text-align: center; }
+
+  /* ─── ACTIVIDAD RECIENTE MEJORADA ─── */
+  .activity-header-row { display: flex; align-items: center; gap: 10px; }
+  .activity-limit-sel {
+    margin-left: auto; background: var(--surface2); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px; padding: 5px 10px; color: var(--text);
+    font-family: 'Barlow', sans-serif; font-size: 12px; cursor: pointer;
+  }
+  .activity-refresh {
+    background: transparent; border: 1px solid var(--border); color: var(--muted);
+    border-radius: 6px; padding: 5px 10px; cursor: pointer; font-size: 12px;
+    font-family: 'Barlow', sans-serif; transition: all .15s;
+  }
+  .activity-refresh:hover { border-color: var(--cm-blue); color: var(--cm-blue); }
+
   /* ─── SQL EXPORT ─── */
   .sql-output {
     background: #1a1a1a; border: 1px solid var(--border); border-radius: var(--radius);
@@ -480,16 +574,118 @@
         </div>
       </div>
 
+      <!-- ── BUSCADOR HISTÓRICO DE NOVEDADES ── -->
+      <div class="hist-card">
+        <div class="hist-card-title">🔍 Trazabilidad Histórica de Novedades</div>
+
+        <div class="hist-filters">
+          <div class="form-group hist-autocomplete-wrap">
+            <label>Buscar (cédula, nombre, concepto, observación)</label>
+            <input type="text" id="hist_q" placeholder="Ej: 1234567 · Juan Pérez · Horas Extra..."
+                   autocomplete="off"
+                   oninput="histAcBuscar(this.value)"
+                   onkeydown="histAcKeyNav(event)">
+            <div id="hist_ac_drop" class="hist-autocomplete-drop"></div>
+          </div>
+          <div class="form-group">
+            <label>Tipo de novedad</label>
+            <select id="hist_tipo">
+              <option value="todos">Todos los tipos</option>
+              <option value="OCASIONAL">Ocasional</option>
+              <option value="FIJA">Fija</option>
+              <option value="AUSENTISMO">Ausentismo</option>
+              <option value="CAMBIO">Cambio</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Período</label>
+            <select id="hist_period">
+              <option value="">Todos los períodos</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Estado</label>
+            <select id="hist_estado">
+              <option value="todos">Activos e inactivos</option>
+              <option value="A">Solo activos</option>
+              <option value="I">Solo inactivos</option>
+            </select>
+          </div>
+          <div class="form-group" style="align-self:flex-end">
+            <label>&nbsp;</label>
+            <div style="display:flex;gap:8px">
+              <button class="hist-btn hist-btn-search" onclick="histBuscar()">Buscar</button>
+              <button class="hist-btn hist-btn-clear"  onclick="histLimpiar()">Limpiar</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="hist-filters-row2">
+          <div class="form-group">
+            <label>Desde (fecha registro)</label>
+            <input type="date" id="hist_desde">
+          </div>
+          <div class="form-group">
+            <label>Hasta (fecha registro)</label>
+            <input type="date" id="hist_hasta">
+          </div>
+          <div class="form-group">
+            <label>Límite de resultados</label>
+            <select id="hist_limite">
+              <option value="50">50</option>
+              <option value="100">100</option>
+              <option value="200" selected>200</option>
+              <option value="500">500</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="hist-wrap" id="histResultsWrap" style="display:none">
+          <div class="hist-results-header">
+            <span class="hist-results-title">Resultados</span>
+            <span class="hist-count" id="histCount"></span>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="hist-table">
+              <thead>
+                <tr>
+                  <th>Tipo</th>
+                  <th>Período</th>
+                  <th>Cédula</th>
+                  <th>Empleado</th>
+                  <th>Concepto</th>
+                  <th>Detalle</th>
+                  <th>Valor / Cantidad</th>
+                  <th>Fecha Registro</th>
+                  <th>Responsable</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody id="tbHistorial"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <div class="table-wrap">
         <div class="table-header">
-          <div class="table-title">Actividad reciente</div>
+          <div class="activity-header-row" style="width:100%">
+            <div class="table-title">Actividad reciente</div>
+            <select class="activity-limit-sel" id="activityLimit" onchange="cargarActividadReciente()">
+              <option value="10" selected>Últimas 10</option>
+              <option value="25">Últimas 25</option>
+              <option value="50">Últimas 50</option>
+              <option value="100">Últimas 100</option>
+            </select>
+            <button class="activity-refresh" onclick="cargarActividadReciente()" title="Actualizar">↺ Actualizar</button>
+          </div>
         </div>
         <table>
           <thead><tr>
-            <th>Módulo</th><th>Empleado</th><th>Tipo</th><th>Fecha Registro</th><th>Estado</th>
+            <th>Tipo</th><th>Cédula</th><th>Empleado</th><th>Concepto</th><th>Período</th><th>Valor</th><th>Fecha Registro</th><th>Responsable</th><th>Estado</th>
           </tr></thead>
           <tbody id="tbActivity">
-            <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px">Sin registros aún</td></tr>
+            <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">Cargando...</td></tr>
           </tbody>
         </table>
       </div>
@@ -2007,6 +2203,270 @@ function calcularQuincenaActual() {
   }
 
   return { quincena, rango, formatoBadge };
+}
+
+// ─── AUTOCOMPLETE DEL BUSCADOR HISTÓRICO ─────────────────────────────────────
+
+let _histAcTimer = null;
+let _histAcIdx   = -1;
+
+function histAcBuscar(val) {
+  clearTimeout(_histAcTimer);
+  const drop = document.getElementById('hist_ac_drop');
+  _histAcIdx = -1;
+
+  if (!val || val.trim().length < 2) {
+    drop.classList.remove('show');
+    return;
+  }
+
+  drop.innerHTML = '<div class="hist-ac-loader">Buscando...</div>';
+  drop.classList.add('show');
+
+  _histAcTimer = setTimeout(async () => {
+    try {
+      const r = await fetch(`/api/maestros/buscar-cedulas?q=${encodeURIComponent(val.trim())}`);
+      if (!r.ok) { drop.classList.remove('show'); return; }
+      const empleados = await r.json();
+
+      if (!empleados.length) {
+        drop.innerHTML = '<div class="hist-ac-loader" style="color:var(--muted)">Sin coincidencias de empleados</div>';
+        return;
+      }
+
+      drop.innerHTML = empleados.map((emp, i) => `
+        <div class="hist-ac-item" data-idx="${i}"
+             onmousedown="histAcSeleccionar('${escH(emp.cedula)}', '${escH(emp.nombre)}')"
+             onmouseover="histAcHover(${i})">
+          <span class="hist-ac-cedula">${escH(emp.cedula)}</span>
+          <span class="hist-ac-nombre">${escH(emp.nombre)}</span>
+        </div>
+      `).join('');
+
+      drop.classList.add('show');
+    } catch (_) { drop.classList.remove('show'); }
+  }, 280);
+}
+
+function histAcHover(idx) {
+  _histAcIdx = idx;
+  document.querySelectorAll('#hist_ac_drop .hist-ac-item').forEach((el, i) => {
+    el.style.background = i === idx ? 'rgba(32,167,201,0.18)' : '';
+  });
+}
+
+function histAcKeyNav(e) {
+  const drop  = document.getElementById('hist_ac_drop');
+  const items = drop.querySelectorAll('.hist-ac-item');
+  if (!drop.classList.contains('show') || !items.length) return;
+
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    _histAcIdx = Math.min(_histAcIdx + 1, items.length - 1);
+    histAcHover(_histAcIdx);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    _histAcIdx = Math.max(_histAcIdx - 1, 0);
+    histAcHover(_histAcIdx);
+  } else if (e.key === 'Enter' && _histAcIdx >= 0) {
+    e.preventDefault();
+    items[_histAcIdx].dispatchEvent(new MouseEvent('mousedown'));
+  } else if (e.key === 'Escape') {
+    drop.classList.remove('show');
+  }
+}
+
+function histAcSeleccionar(cedula, nombre) {
+  document.getElementById('hist_q').value = cedula + ' ' + nombre;
+  document.getElementById('hist_ac_drop').classList.remove('show');
+  _histAcIdx = -1;
+}
+
+// Cerrar dropdown al hacer click fuera
+document.addEventListener('click', e => {
+  if (!e.target.closest('.hist-autocomplete-wrap')) {
+    const drop = document.getElementById('hist_ac_drop');
+    if (drop) drop.classList.remove('show');
+  }
+});
+
+// ─── ACTIVIDAD RECIENTE DESDE BD ─────────────────────────────────────────────
+
+async function cargarActividadReciente() {
+  const limite = document.getElementById('activityLimit')?.value || 10;
+  const tb = document.getElementById('tbActivity');
+
+  try {
+    const r    = await fetch(`/api/novedades/recientes?limite=${limite}`);
+    const rows = await r.json();
+
+    if (!rows.length) {
+      tb.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">Sin registros en la base de datos</td></tr>`;
+      return;
+    }
+
+    const badgeClass = { OCASIONAL:'badge-dev', FIJA:'badge-ded', AUSENTISMO:'badge-aus', CAMBIO:'badge-cam' };
+
+    tb.innerHTML = rows.map(r => {
+      const inact = r.ACT_ESTA === 'I';
+      const periodo = r.PER_ANO
+        ? `${r.PER_ANO}-${String(r.PER_MES).padStart(2,'0')}-Q${r.PER_QNA}`
+        : `#${r.COD_PERIOD}`;
+      const valor = r.VALOR != null
+        ? Number(r.VALOR).toLocaleString('es-CO', { style:'currency', currency:'COP', maximumFractionDigits:0 })
+        : '—';
+      const fechaReg = r.FEC_REGI ? new Date(r.FEC_REGI).toLocaleDateString('es-CO') : '—';
+
+      return `<tr style="${inact ? 'opacity:.55' : ''}">
+        <td><span class="badge ${badgeClass[r.TIPO_NOVED]||'badge-cam'}">${escH(r.TIPO_NOVED||'')}</span></td>
+        <td style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:600;color:var(--cm-blue)">${escH(r.CEDULA||'')}</td>
+        <td>${escH(r.NOMBRE||'')}</td>
+        <td style="font-size:12px;color:var(--muted)">${escH(r.CONCEPTO||'')}</td>
+        <td style="font-size:11.5px">${periodo}</td>
+        <td style="text-align:right;font-family:'Barlow Condensed',sans-serif">${valor}</td>
+        <td style="font-size:11.5px;white-space:nowrap">${fechaReg}</td>
+        <td style="font-size:11.5px;color:var(--muted)">${escH(r.ACT_USUA||'')}</td>
+        <td><span class="badge ${inact ? 'badge-inact' : 'badge-act'}">${inact ? 'Inactivo' : 'Activo'}</span></td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    tb.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--danger);padding:32px">Error cargando actividad: ${e.message}</td></tr>`;
+  }
+}
+
+// ─── BUSCADOR HISTÓRICO DE NOVEDADES ─────────────────────────────────────────
+
+async function histCargarPeriodos() {
+  try {
+    const r = await fetch('/api/novedades/periodos');
+    if (!r.ok) return;
+    const periodos = await r.json();
+    const sel = document.getElementById('hist_period');
+    periodos.forEach(p => {
+      const label = `${p.PER_ANO}-${String(p.PER_MES).padStart(2,'0')}-Q${p.PER_QNA} · ${fmtFecha(p.PER_FINI)} → ${fmtFecha(p.PER_FFIN)}${p.PER_EST==='I' ? ' [Cerrado]' : ''}`;
+      sel.insertAdjacentHTML('beforeend', `<option value="${p.COD_PERIOD}">${label}</option>`);
+    });
+  } catch (_) {}
+}
+
+function fmtFecha(v) {
+  if (!v) return '';
+  const d = new Date(v);
+  return d.toLocaleDateString('es-CO', { day:'2-digit', month:'2-digit', year:'numeric' });
+}
+
+function fmtMoneda(v) {
+  if (v == null || v === '') return '—';
+  return Number(v).toLocaleString('es-CO', { style:'currency', currency:'COP', maximumFractionDigits:0 });
+}
+
+function histClearAuto() { /* permite búsqueda al escribir si se desea */ }
+
+async function histBuscar() {
+  const q       = document.getElementById('hist_q').value.trim();
+  const tipo    = document.getElementById('hist_tipo').value;
+  const period  = document.getElementById('hist_period').value;
+  const estado  = document.getElementById('hist_estado').value;
+  const desde   = document.getElementById('hist_desde').value;
+  const hasta   = document.getElementById('hist_hasta').value;
+  const limite  = document.getElementById('hist_limite').value;
+
+  const params = new URLSearchParams({ tipo, estado, limite });
+  if (q)      params.set('q', q);
+  if (period) params.set('codPeriod', period);
+  if (desde)  params.set('desde', desde);
+  if (hasta)  params.set('hasta', hasta);
+
+  const btn = document.querySelector('.hist-btn-search');
+  btn.textContent = 'Buscando...'; btn.disabled = true;
+
+  try {
+    const r   = await fetch(`/api/novedades/historial?${params}`);
+    const data = await r.json();
+    histRenderizar(data.registros || [], data.total || 0);
+  } catch (e) {
+    document.getElementById('tbHistorial').innerHTML =
+      `<tr><td colspan="10" class="hist-empty" style="color:var(--danger)">Error al buscar: ${e.message}</td></tr>`;
+    document.getElementById('histResultsWrap').style.display = '';
+  } finally {
+    btn.textContent = 'Buscar'; btn.disabled = false;
+  }
+}
+
+function histLimpiar() {
+  ['hist_q','hist_desde','hist_hasta'].forEach(id => document.getElementById(id).value = '');
+  ['hist_tipo','hist_period','hist_estado','hist_limite'].forEach(id => document.getElementById(id).selectedIndex = 0);
+  document.getElementById('histResultsWrap').style.display = 'none';
+}
+
+function histRenderizar(registros, total) {
+  const wrap = document.getElementById('histResultsWrap');
+  const tb   = document.getElementById('tbHistorial');
+  const cnt  = document.getElementById('histCount');
+
+  wrap.style.display = '';
+  cnt.textContent = `${total} registro${total !== 1 ? 's' : ''} encontrado${total !== 1 ? 's' : ''}`;
+
+  if (!registros.length) {
+    tb.innerHTML = `<tr><td colspan="10" class="hist-empty">Sin resultados para los filtros aplicados</td></tr>`;
+    return;
+  }
+
+  tb.innerHTML = registros.map(r => {
+    const tipo     = r.TIPO_NOVED || '';
+    const inactivo = r.ACT_ESTA === 'I';
+
+    const badgeClass = {
+      OCASIONAL:  'badge-hist-ocasi',
+      FIJA:       'badge-hist-fija',
+      AUSENTISMO: 'badge-hist-ausen',
+      CAMBIO:     'badge-hist-cambi'
+    }[tipo] || '';
+
+    const periodo = r.PER_ANO
+      ? `${r.PER_ANO}-${String(r.PER_MES).padStart(2,'0')}-Q${r.PER_QNA}<div class="hist-extra">${fmtFecha(r.PER_FINI)} → ${fmtFecha(r.PER_FFIN)}</div>`
+      : `#${r.COD_PERIOD}`;
+
+    // Detalle específico por tipo
+    let detalle = '—';
+    if (tipo === 'OCASIONAL') {
+      detalle = r.CANTIDAD != null ? `Cant: ${Number(r.CANTIDAD).toLocaleString('es-CO')}` : '—';
+    } else if (tipo === 'FIJA') {
+      const fi = r.FEC_INI_ESP ? fmtFecha(r.FEC_INI_ESP) : '';
+      const ff = r.FEC_FIN_ESP ? fmtFecha(r.FEC_FIN_ESP) : '';
+      const ap = r.APLICACION  ? `<div class="hist-extra">${escH(r.APLICACION)}</div>` : '';
+      detalle  = fi ? `${fi} → ${ff}${ap}` : '—';
+    } else if (tipo === 'AUSENTISMO') {
+      const fi    = r.FEC_INI_ESP ? fmtFecha(r.FEC_INI_ESP) : '';
+      const ff    = r.FEC_FIN_ESP ? fmtFecha(r.FEC_FIN_ESP) : '';
+      const dias  = r.DIAS_TOTAL  != null ? `<div class="hist-extra">${r.DIAS_TOTAL} días${r.DIAGNOSTICO ? ' · '+escH(r.DIAGNOSTICO) : ''}</div>` : '';
+      detalle     = fi ? `${fi} → ${ff}${dias}` : '—';
+    } else if (tipo === 'CAMBIO') {
+      const ant = r.VALOR_ANTE  ? `<div class="hist-extra">Anterior: ${escH(r.VALOR_ANTE)}</div>` : '';
+      detalle   = r.VALOR_NUEVO ? `${escH(r.VALOR_NUEVO)}${ant}` : '—';
+    }
+
+    // Valor/Cantidad
+    let valorCol = '—';
+    if (tipo === 'OCASIONAL' || tipo === 'FIJA') {
+      valorCol = r.VALOR != null ? fmtMoneda(r.VALOR) : '—';
+    }
+
+    const obs = r.OBS_NOVED ? `<div class="hist-extra" title="${escH(r.OBS_NOVED)}">${escH(r.OBS_NOVED).substring(0,40)}${r.OBS_NOVED.length>40?'…':''}</div>` : '';
+
+    return `<tr class="${inactivo ? 'inactivo' : ''}">
+      <td><span class="badge ${badgeClass}">${tipo}</span></td>
+      <td style="font-size:11.5px">${periodo}</td>
+      <td style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:600;color:var(--cm-blue)">${escH(r.CEDULA||'')}</td>
+      <td>${escH(r.NOMBRE||'')}${obs}</td>
+      <td style="font-size:12px">${escH(r.CONCEPTO||'')}</td>
+      <td style="font-size:12px">${detalle}</td>
+      <td style="text-align:right;font-family:'Barlow Condensed',sans-serif;font-size:13px">${valorCol}</td>
+      <td style="font-size:11.5px;white-space:nowrap">${fmtFecha(r.FEC_REGI)}</td>
+      <td style="font-size:11.5px;color:var(--muted)">${escH(r.ACT_USUA||'')}</td>
+      <td><span class="badge ${inactivo ? 'badge-inact' : 'badge-act'}">${inactivo ? 'Inactivo' : 'Activo'}</span></td>
+    </tr>`;
+  }).join('');
 }
 
 // ─── FUNCIÓN PARA MOSTRAR BIENVENIDA Y PERÍODO ──────────────────────────────
@@ -3867,6 +4327,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Inicializar interfaz con período automático y bienvenida personalizada
   inicializarInterfaz();
+
+  // Cargar períodos disponibles para el buscador histórico
+  histCargarPeriodos();
+
+  // Cargar actividad reciente desde BD
+  cargarActividadReciente();
 
   cargarConceptosOcasionales();
   cargarConceptosFijas();

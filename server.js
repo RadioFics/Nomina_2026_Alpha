@@ -3,9 +3,14 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const path = require('path');
 const os = require('os');
+const http = require('http');
+const { execSync } = require('child_process');
 require('dotenv').config();
 
 const app = express();
+
+// Confiar en el primer proxy/router (necesario para req.protocol y req.get('host') correcto)
+app.set('trust proxy', 1);
 
 // Middleware
 app.use(cors());
@@ -32,6 +37,7 @@ const ausentismosRoutes = require('./routes/ausentismos');
 const cambiosRoutes        = require('./routes/cambios');
 const exportarAdeccoRoutes = require('./routes/exportarAdecco');
 const changelogRoutes      = require('./routes/changelog');
+const novedadesRoutes      = require('./routes/novedades');
 
 // Usar rutas
 app.use('/api/auth', authRoutes);
@@ -45,6 +51,7 @@ app.use('/api/ausentismos', ausentismosRoutes);
 app.use('/api/cambios', cambiosRoutes);
 app.use('/api/exportar-adecco', exportarAdeccoRoutes);
 app.use('/api/changelog',      changelogRoutes);
+app.use('/api/novedades',      novedadesRoutes);
 
 // Ruta de prueba
 app.get('/api/health', (req, res) => {
@@ -75,7 +82,10 @@ function getLocalIP() {
 }
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', async () => {
+
+const server = http.createServer(app);
+
+server.listen(PORT, '0.0.0.0', async () => {
   const localIP = getLocalIP();
 
   console.log('\n╔════════════════════════════════════════════════════════════╗');
@@ -112,4 +122,70 @@ app.listen(PORT, '0.0.0.0', async () => {
   try {
     await require('./controllers/cambiosController').ensureDbObjects();
   } catch (_) {}
+
+  // Cierre automático de períodos vencidos al arrancar
+  const { verificarYCerrarPeriodosVencidos } = require('./controllers/novedadesController');
+  try {
+    await verificarYCerrarPeriodosVencidos();
+  } catch (_) {}
+
+  // Verificar cada hora si hay períodos que vencieron durante el día
+  setInterval(verificarYCerrarPeriodosVencidos, 60 * 60 * 1000);
+});
+
+// Función para matar procesos Node en Windows
+function killNodeProcesses() {
+  try {
+    if (os.platform() === 'win32') {
+      execSync('Get-Process node -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne $PID } | Stop-Process -Force',
+               { shell: 'powershell.exe', stdio: 'pipe' });
+    } else {
+      execSync('pkill -f "node" --inverse -u $USER', { stdio: 'pipe' });
+    }
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+// Manejo de errores del servidor con reintentos automáticos e intentos de limpiar puerto
+let retryCount = 0;
+const MAX_RETRIES = 3;
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    retryCount++;
+
+    if (retryCount === 1) {
+      console.log(`\n[⚠️  ADVERTENCIA] Puerto ${PORT} en uso. Intentando limpiar procesos antiguos...\n`);
+      if (killNodeProcesses()) {
+        console.log('[✓] Procesos Node antiguos eliminados. Reintentando...\n');
+        setTimeout(() => {
+          server.close();
+          server.listen(PORT, '0.0.0.0');
+        }, 1000);
+      } else {
+        setTimeout(() => {
+          server.close();
+          server.listen(PORT, '0.0.0.0');
+        }, 2000);
+      }
+    } else if (retryCount < MAX_RETRIES) {
+      const waitTime = 2000;
+      console.log(`[⚠️  REINTENTANDO] Intento ${retryCount}/${MAX_RETRIES}...\n`);
+      setTimeout(() => {
+        server.close();
+        server.listen(PORT, '0.0.0.0');
+      }, waitTime);
+    } else {
+      console.error(`\n[❌ ERROR] No se pudo liberar el puerto ${PORT} después de ${MAX_RETRIES} intentos.`);
+      console.error('\n📋 Soluciones manuales:');
+      console.error(`  1. Ejecuta: .\kill-server.ps1`);
+      console.error(`  2. O: Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force`);
+      console.error(`  3. O usa otro puerto: PORT=3001 npm start\n`);
+      process.exit(1);
+    }
+  } else {
+    throw err;
+  }
 });

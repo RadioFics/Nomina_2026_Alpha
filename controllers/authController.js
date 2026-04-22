@@ -7,6 +7,30 @@ const {
   resetearIntentos,
   JWT_SECRET
 } = require('../middleware/authMiddleware');
+const {
+  enviarEmail,
+  emailBienvenida,
+  emailRecuperacion,
+  emailCambioExitoso,
+  emailVerificacion
+} = require('../config/mailer');
+
+// Bootstrap idempotente: agrega columnas de verificación de email si no existen.
+(async () => {
+  try {
+    await executeQuery(`
+      IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('GN_USUAR') AND name='TOK_VERI')
+        ALTER TABLE GN_USUAR ADD TOK_VERI VARCHAR(255) NULL;
+      IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('GN_USUAR') AND name='VER_EMAIL')
+        ALTER TABLE GN_USUAR ADD VER_EMAIL CHAR(1) DEFAULT 'N' NULL;
+      IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('GN_USUAR') AND name='FEC_VERI')
+        ALTER TABLE GN_USUAR ADD FEC_VERI DATETIME NULL;
+    `);
+    console.log('[auth] ✓ Columnas de verificación de email listas.');
+  } catch (e) {
+    console.error('[auth] ✗ Error en bootstrap de columnas de verificación:', e.message);
+  }
+})();
 
 // ─── Generar abreviatura de usuario (máx 8 chars, char(8)) ───────────────────
 // Algoritmo: primera letra MAYÚSCULA + segunda letra minúscula de cada palabra.
@@ -602,7 +626,7 @@ exports.crearUsuario = async (req, res) => {
 
       SET @NewCodUsua = SCOPE_IDENTITY();
 
-      SELECT @NewCodUsua AS COD_USUA;
+      SELECT @NewCodUsua AS COD_USUA, ISNULL(@NOM_TERC, @email) AS NOM_USUA;
     `;
 
     // Calcular ABR_USUA a partir del nombre: se obtiene del tercero luego del INSERT,
@@ -619,12 +643,39 @@ exports.crearUsuario = async (req, res) => {
     });
 
     const nuevoUsuarioId = resultCrear.recordset[0]?.COD_USUA;
+    const nomUsuario     = resultCrear.recordset[0]?.NOM_USUA || (email || cedula);
+    const emailUsuario   = email || cedula;
 
-    console.log(`[CREATE USER] ✓ Usuario ${cedula} creado`);
+    // Generar token de verificación (24 h) y persistir en BD
+    const { v4: uuidv4 } = require('uuid');
+    const tokVeri = uuidv4();
+    try {
+      await executeQuery(`
+        UPDATE GN_USUAR
+        SET TOK_VERI = @tokVeri, VER_EMAIL = 'N', FEC_VERI = DATEADD(HOUR, 24, GETUTCDATE())
+        WHERE COD_USUA = @codUsuario
+      `, { tokVeri, codUsuario: nuevoUsuarioId });
+    } catch (_) {}
+
+    // Enviar email de verificación + bienvenida (fire-and-forget)
+    const baseUrlAdmin = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+    const verifyLink = `${baseUrlAdmin}/verificar-email.html?token=${tokVeri}`;
+    enviarEmail(emailVerificacion(nomUsuario, emailUsuario, verifyLink))
+      .then(r => {
+        if (r.success) console.log(`[CREATE USER] ✓ Email verificación enviado a: ${emailUsuario}`);
+        else           console.error(`[CREATE USER] ✗ Email verificación: ${r.error}`);
+      });
+    enviarEmail(emailBienvenida(nomUsuario, emailUsuario))
+      .then(r => {
+        if (r.success) console.log(`[CREATE USER] ✓ Email bienvenida enviado a: ${emailUsuario}`);
+        else           console.error(`[CREATE USER] ✗ Email bienvenida: ${r.error}`);
+      });
+
+    console.log(`[CREATE USER] ✓ Usuario ${cedula} creado (ID: ${nuevoUsuarioId})`);
 
     return res.status(201).json({
       status: 'success',
-      message: 'Usuario creado exitosamente',
+      message: 'Usuario creado exitosamente. Se enviaron emails de bienvenida y verificación.',
       usuarioId: nuevoUsuarioId
     });
 
@@ -1111,7 +1162,7 @@ exports.registro = async (req, res) => {
     const verificarUsuarioQuery = `
       SELECT TOP 1 COD_USUA
       FROM GN_USUAR
-      WHERE DIR_ELEC = @email AND ACT_INAC = 'S'
+      WHERE DIR_ELEC = @email AND ACT_ESTA = 'A'
     `;
 
     const usuarioExistente = await executeQuery(verificarUsuarioQuery, { email });
@@ -1186,10 +1237,30 @@ exports.registro = async (req, res) => {
       // No detener por error de log
     }
 
-    // ⚠️ TODO: Enviar email de bienvenida
-    // Por ahora se omite porque config/mailer no existe
-    // TODO: Implementar cuando se configure el servicio de email
-    console.log(`[REGISTRO] Email de bienvenida pendiente de envío a: ${email}`);
+    // Generar token de verificación de email (24 horas)
+    const { v4: uuidv4 } = require('uuid');
+    const tokVeri = uuidv4();
+    try {
+      await executeQuery(`
+        UPDATE GN_USUAR
+        SET TOK_VERI = @tokVeri, VER_EMAIL = 'N', FEC_VERI = DATEADD(HOUR, 24, GETUTCDATE())
+        WHERE COD_USUA = @codUsuario
+      `, { tokVeri, codUsuario: nuevoCodigoUsuario });
+    } catch (_) {}
+
+    // Enviar email de bienvenida + enlace de verificación
+    const baseUrlReg = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+    const verifyLink = `${baseUrlReg}/verificar-email.html?token=${tokVeri}`;
+    enviarEmail(emailVerificacion(tercero.NOM_COMP, email, verifyLink))
+      .then(r => {
+        if (r.success) console.log(`[REGISTRO] ✓ Email de verificación enviado a: ${email}`);
+        else           console.error(`[REGISTRO] ✗ Error email verificación: ${r.error}`);
+      });
+    enviarEmail(emailBienvenida(tercero.NOM_COMP, email))
+      .then(r => {
+        if (r.success) console.log(`[REGISTRO] ✓ Email de bienvenida enviado a: ${email}`);
+        else           console.error(`[REGISTRO] ✗ Error email bienvenida: ${r.error}`);
+      });
 
     console.log(`[REGISTRO] ✓ Usuario creado: ${email} (ID: ${nuevoCodigoUsuario})`);
 
@@ -1246,7 +1317,7 @@ exports.forgotPassword = async (req, res) => {
     const buscarQuery = `
       SELECT TOP 1 COD_USUA, NOM_USUA, DIR_ELEC
       FROM GN_USUAR
-      WHERE DIR_ELEC = @email AND ACT_INAC = 'S'
+      WHERE DIR_ELEC = @email AND ACT_ESTA = 'A'
     `;
 
     const usuarioResult = await executeQuery(buscarQuery, { email });
@@ -1267,7 +1338,7 @@ exports.forgotPassword = async (req, res) => {
     // Guardar token en BD con expiración de 2 horas
     const guardarTokenQuery = `
       UPDATE GN_USUAR
-      SET TOK_RECO = @token, FEC_TOKE = DATEADD(HOUR, 2, GETDATE())
+      SET TOK_RECO = @token, FEC_TOKE = DATEADD(HOUR, 2, GETUTCDATE())
       WHERE COD_USUA = @codUsuario
     `;
 
@@ -1276,15 +1347,20 @@ exports.forgotPassword = async (req, res) => {
       codUsuario: usuario.COD_USUA
     });
 
-    // Generar link de recuperación
-    const resetLink = `${process.env.APP_URL}/reset-password.html?token=${token}`;
+    // Generar link desde la URL del request (funciona en cualquier red)
+    const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+    const resetLink = `${baseUrl}/reset-password.html?token=${token}`;
 
-    // ⚠️ TODO: Enviar email de recuperación
-    // Por ahora se omite porque config/mailer no existe
-    // TODO: Implementar cuando se configure el servicio de email
-    console.log(`[FORGOT PASSWORD] Email de recuperación pendiente a: ${usuario.DIR_ELEC}`);
-    console.log(`[FORGOT PASSWORD] Token: ${token}`);
-    console.log(`[FORGOT PASSWORD] Link: ${resetLink}`);
+    // Enviar email de recuperación
+    const resultadoEmail = await enviarEmail(
+      emailRecuperacion(usuario.NOM_USUA, usuario.DIR_ELEC, resetLink)
+    );
+    if (resultadoEmail.success) {
+      console.log(`[FORGOT PASSWORD] ✓ Email enviado a: ${usuario.DIR_ELEC}`);
+    } else {
+      console.error(`[FORGOT PASSWORD] ✗ Error enviando email: ${resultadoEmail.error}`);
+      console.log(`[FORGOT PASSWORD] Link de recuperación (fallback): ${resetLink}`);
+    }
 
     // Registrar en log
     try {
@@ -1357,7 +1433,7 @@ exports.resetPassword = async (req, res) => {
     const buscarQuery = `
       SELECT TOP 1 COD_USUA, NOM_USUA, DIR_ELEC, FEC_TOKE
       FROM GN_USUAR
-      WHERE TOK_RECO = @token AND ACT_INAC = 'S'
+      WHERE TOK_RECO = @token AND ACT_ESTA = 'A'
     `;
 
     const usuarioResult = await executeQuery(buscarQuery, { token });
@@ -1406,9 +1482,12 @@ exports.resetPassword = async (req, res) => {
       codUsuario: usuario.COD_USUA
     });
 
-    // ⚠️ TODO: Enviar email de confirmación
-    // Por ahora se omite porque config/mailer no existe
-    console.log(`[RESET PASSWORD] Email de confirmación pendiente a: ${usuario.DIR_ELEC}`);
+    // Enviar email de confirmación de cambio
+    enviarEmail(emailCambioExitoso(usuario.NOM_USUA, usuario.DIR_ELEC))
+      .then(r => {
+        if (r.success) console.log(`[RESET PASSWORD] ✓ Email de confirmación enviado a: ${usuario.DIR_ELEC}`);
+        else           console.error(`[RESET PASSWORD] ✗ Error email confirmación: ${r.error}`);
+      });
 
     console.log(`[RESET PASSWORD] ✓ Contraseña restablecida para: ${usuario.DIR_ELEC}`);
 
@@ -1447,7 +1526,7 @@ exports.validarToken = async (req, res) => {
     const buscarQuery = `
       SELECT TOP 1 COD_USUA, NOM_USUA, DIR_ELEC, FEC_TOKE
       FROM GN_USUAR
-      WHERE TOK_RECO = @token AND ACT_INAC = 'S'
+      WHERE TOK_RECO = @token AND ACT_ESTA = 'A'
     `;
 
     const usuarioResult = await executeQuery(buscarQuery, { token });
@@ -1492,5 +1571,64 @@ exports.validarToken = async (req, res) => {
       message: 'Error al validar token',
       error: err.message
     });
+  }
+};
+
+/**
+ * VERIFICAR EMAIL DE CUENTA (Public)
+ * GET /api/auth/verificar-email/:token
+ */
+exports.verificarEmail = async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    if (!token) {
+      return res.status(400).json({ status: 'error', message: 'Token requerido' });
+    }
+
+    const r = await executeQuery(`
+      SELECT TOP 1 COD_USUA, NOM_USUA, DIR_ELEC, FEC_VERI, VER_EMAIL
+      FROM GN_USUAR
+      WHERE TOK_VERI = @token AND ACT_ESTA = 'A'
+    `, { token });
+
+    if (!r.recordset || !r.recordset.length) {
+      return res.status(400).json({ status: 'error', message: 'Token inválido o ya utilizado.' });
+    }
+
+    const usuario = r.recordset[0];
+
+    if (usuario.VER_EMAIL === 'S') {
+      return res.status(200).json({ status: 'success', message: 'El email ya fue verificado anteriormente.', yaVerificado: true });
+    }
+
+    if (usuario.FEC_VERI && new Date() > new Date(usuario.FEC_VERI)) {
+      return res.status(400).json({ status: 'error', message: 'El enlace de verificación ha expirado. Solicita uno nuevo.' });
+    }
+
+    await executeQuery(`
+      UPDATE GN_USUAR
+      SET VER_EMAIL = 'S', TOK_VERI = NULL, FEC_VERI = NULL, FEC_ULCA = GETDATE()
+      WHERE COD_USUA = @codUsuario
+    `, { codUsuario: usuario.COD_USUA });
+
+    try {
+      await executeQuery(`
+        INSERT INTO GN_LOG_ACCE (COD_USUA, TIP_EVEN, EST_EVEN, DES_EVEN, FEC_EVEN)
+        VALUES (@codUsuario, 'VER_EMAIL', 'EXITOSO', 'Email verificado correctamente', GETDATE())
+      `, { codUsuario: usuario.COD_USUA });
+    } catch (_) {}
+
+    console.log(`[VERIFICAR EMAIL] ✓ Email verificado: ${usuario.DIR_ELEC}`);
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'Email verificado correctamente.',
+      usuario: { nombre: usuario.NOM_USUA, email: usuario.DIR_ELEC }
+    });
+
+  } catch (err) {
+    console.error('[VERIFICAR EMAIL ERROR]', err);
+    return res.status(500).json({ status: 'error', message: 'Error al verificar email', error: err.message });
   }
 };

@@ -39,7 +39,8 @@ function buildConfig(source) {
       connectionTimeout: 15000,
       requestTimeout: 30000,
       connectionRetryInterval: 100,
-      maxRetriesOnTransientErrors: 3
+      maxRetriesOnTransientErrors: 3,
+      useUTC: true
     }
   };
 }

@@ -61,6 +61,102 @@ function descripcionCommit(subject) {
 // ─── Catálogo de cambios conocidos por versión ────────────────────────────────
 // Complementa los commits con descripciones elaboradas cuando están disponibles.
 const CATALOG = {
+  'v0.5': {
+    titulo: 'Correcciones críticas — Entrega de emails, tokens y acceso multi-red',
+    resumen: [
+      'Corrección crítica: recuperación de contraseña ahora encuentra usuarios correctamente (ACT_ESTA)',
+      'Fix de entregabilidad: emails llegan a cuentas externas (Outlook, Hotmail, etc.)',
+      'Admin puede crear usuarios y se envía email de verificación automáticamente',
+      'Corrección de zona horaria: tokens de reset/verificación no expiran prematuramente',
+      'Links en emails generados dinámicamente según la red del solicitante',
+      'Nueva página de verificación de email (verificar-email.html) con estados visuales',
+      'Scripts auxiliares para gestión del servidor (kill-server)',
+    ],
+    detalle: [
+      { categoria: 'Seguridad y autenticación', items: [
+        'Bug fix: forgotPassword, resetPassword, validarToken y registro usaban ACT_INAC=\'S\' pero los usuarios reales tienen ACT_ESTA=\'A\'; corregido en todas las consultas',
+        'crearUsuario (admin): ahora genera TOK_VERI (UUID), lo persiste en GN_USUAR con FEC_VERI = GETUTCDATE() + 24h, y envía emails de verificación y bienvenida al nuevo usuario',
+        'verificar-email.html: página con 4 estados visuales (cargando, éxito, ya verificado, error) que consume GET /api/auth/verificar-email/:token',
+        'Ruta pública añadida en routes/auth.js: GET /api/auth/verificar-email/:token → authController.verificarEmail',
+        'Bootstrap idempotente al inicio del servidor: crea columnas TOK_VERI, VER_EMAIL, FEC_VERI en GN_USUAR si no existen',
+      ]},
+      { categoria: 'Email — Entregabilidad', items: [
+        'mailer.js: campo from actualizado a \'"Collective Mining Nómina" <nomina.collectivemining@gmail.com>\' en todas las plantillas (antes solo la dirección cruda era rechazada por filtros anti-spam de Microsoft)',
+        'mailer.js: añadida opción tls: { rejectUnauthorized: false } para compatibilidad en redes corporativas',
+        'Emails enviados correctamente a cuentas Gmail, Outlook, Hotmail y otras externas',
+        'MAIL_PASS con espacios (formato Google App Password) limpiado automáticamente con .replace(/\\s/g, \'\')',
+      ]},
+      { categoria: 'Zona horaria y consistencia de fechas', items: [
+        'database.js: añadido useUTC: true al pool de conexión para que el driver mssql/tedious interprete todos los DATETIME en UTC',
+        'authController.js: todas las expiraciones de token cambiadas de DATEADD(HOUR, N, GETDATE()) a DATEADD(HOUR, N, GETUTCDATE()) — elimina el error "Token expirado" prematuro en zonas UTC-5 (Colombia)',
+        'La comparación en Node.js (new Date() vs new Date(usuario.FEC_TOKE)) ahora es consistente con lo almacenado en BD',
+      ]},
+      { categoria: 'Acceso multi-red', items: [
+        'server.js: app.set(\'trust proxy\', 1) — Express confía en el primer proxy/router para detectar IP y protocolo reales',
+        'forgotPassword, registro y crearUsuario: baseUrl generado dinámicamente como process.env.APP_URL || req.protocol + req.get(\'host\') — los links en emails funcionan desde cualquier red sin reconfigurar el servidor',
+        'Patrón: si APP_URL está definido en .env, se usa como base fija (producción); si no, se auto-detecta del request (desarrollo/LAN)',
+      ]},
+      { categoria: 'Infraestructura y herramientas', items: [
+        'kill-server.js y kill-server.ps1: scripts auxiliares para matar procesos Node.js en caso de conflicto de puerto',
+        'server.js: auto-retry en EADDRINUSE con killNodeProcesses() — mata el proceso previo y reintenta hasta 3 veces',
+        'routes/novedades.js + controllers/novedadesController.js: módulo de trazabilidad histórica con UNION ALL de 4 tablas de novedades',
+        'verificarYCerrarPeriodosVencidos(): función que cierra períodos cuya FEC_FIN < GETDATE() al iniciar servidor y cada hora',
+      ]},
+    ],
+  },
+  'v0.4': {
+    titulo: 'Dashboard, trazabilidad histórica y sistema de emails',
+    resumen: [
+      'Panel de búsqueda histórica (trazabilidad) en Dashboard con UNION ALL de 4 tablas de novedades',
+      'Autocompletado de empleado en búsqueda histórica con teclado y debounce',
+      'Tabla "Actividad reciente" con datos reales de BD y límite configurable',
+      'Cierre automático de períodos vencidos al iniciar y cada hora',
+      'Sistema completo de recuperación de contraseña por email (Gmail SMTP + App Password)',
+      'Verificación de cuenta por email al registrarse con link de 24 h',
+      'Email de confirmación al restablecer contraseña',
+      '"Recuérdame" guarda email y contraseña (cifrado base64 en localStorage)',
+      'Módulo changelog/versiones integrado en la interfaz del sistema',
+      'Estabilidad mejorada del servidor con gestión automática de conflictos de puerto',
+    ],
+    detalle: [
+      { categoria: 'Dashboard — Trazabilidad histórica', items: [
+        'Panel "Búsqueda histórica de novedades" con filtros: empleado, tipo, período, estado, rango de fechas',
+        'UNION ALL dinámico sobre NO_OCASI, NO_FIJAS, NO_AUSEN, NO_CAMBI filtrado por parámetros opcionales',
+        'Autocompletado de empleado con debounce 300ms sobre /api/maestros/buscar-cedulas, navegación por teclado (↑↓Enter)',
+        'Tabla de resultados adaptativa: coloca de alta las columnas relevantes al tipo de novedad',
+        'Selector de cantidad de resultados (25 / 50 / 100 / 200) y botón de actualizar con timestamp',
+        'Tabla "Actividad reciente" alimentada desde /api/novedades/recientes con datos reales de BD',
+        'Selector configurable 10 / 25 / 50 / 100 registros recientes',
+      ]},
+      { categoria: 'Gestión automática de períodos', items: [
+        'verificarYCerrarPeriodosVencidos(): detecta NO_PERIOD con PER_FFIN < GETDATE() y PER_EST=\'A\', los cierra a \'I\'',
+        'Se ejecuta al arrancar el servidor y cada hora mediante setInterval',
+        'Los períodos cerrados automáticamente quedan registrados en consola con detalle de fecha de cierre',
+        'Endpoint manual POST /api/novedades/periodo/:codPeriod/cerrar para cierre forzado por admin',
+      ]},
+      { categoria: 'Sistema de emails (Gmail SMTP)', items: [
+        'config/mailer.js: transporter Nodemailer con Gmail, App Password con limpieza de espacios automática',
+        'Plantilla emailBienvenida: email de bienvenida al crear cuenta',
+        'Plantilla emailRecuperacion: link de reset con token UUID, expira en 2 horas',
+        'Plantilla emailCambioExitoso: confirmación tras restablecer contraseña',
+        'Plantilla emailVerificacion: link de verificación de cuenta, expira en 24 horas',
+        'Función enviarEmail() centralizada con logging de éxito/error',
+      ]},
+      { categoria: 'Autenticación y seguridad', items: [
+        '"Recuérdame" en login guarda email y contraseña usando btoa(unescape(encodeURIComponent(password))) en localStorage',
+        'Restauración automática del email y contraseña al cargar la página de login',
+        'forgotPassword: genera UUID, persiste TOK_RECO / FEC_TOKE (+2h) y envía email con link',
+        'resetPassword: valida token, expira si FEC_TOKE < ahora, hashea nueva contraseña y limpia token',
+        'Columnas TOK_VERI, VER_EMAIL, FEC_VERI añadidas a GN_USUAR vía bootstrap idempotente al arrancar',
+      ]},
+      { categoria: 'Estabilidad del servidor', items: [
+        'http.createServer(app) con manejo de evento \'error\'',
+        'Auto-retry en EADDRINUSE: mata procesos Node.js previos con execSync y reintenta hasta 3 veces',
+        'Servidor escucha en 0.0.0.0 (todas las interfaces) para acceso desde LAN',
+        'Log de IPs de red local al arrancar para identificar la dirección de acceso',
+      ]},
+    ],
+  },
   'v0.1': {
     titulo: 'Lanzamiento inicial — Base del sistema',
     resumen: [

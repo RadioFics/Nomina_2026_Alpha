@@ -1,17 +1,21 @@
 const nodemailer = require('nodemailer');
 
 // Configuración de Nodemailer para Gmail
+// MAIL_PASS puede tener espacios (formato Google), se limpian automáticamente.
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
     user: process.env.MAIL_USER,
-    pass: process.env.MAIL_PASS,
+    pass: (process.env.MAIL_PASS || '').replace(/\s/g, ''),
   },
+  tls: { rejectUnauthorized: false },
 });
+
+const FROM_NAME = `"Collective Mining Nómina" <${process.env.MAIL_USER}>`;
 
 // Plantilla de email de bienvenida
 const emailBienvenida = (nombreUsuario, email) => ({
-  from: process.env.MAIL_USER,
+  from: FROM_NAME,
   to: email,
   subject: '¡Bienvenido a Collective Mining - Sistema de Nómina!',
   html: `
@@ -60,7 +64,7 @@ const emailBienvenida = (nombreUsuario, email) => ({
 
 // Plantilla de email de recuperación de contraseña
 const emailRecuperacion = (nombreUsuario, email, resetLink) => ({
-  from: process.env.MAIL_USER,
+  from: FROM_NAME,
   to: email,
   subject: 'Restablecer contraseña - Sistema de Nómina Collective Mining',
   html: `
@@ -111,7 +115,7 @@ const emailRecuperacion = (nombreUsuario, email, resetLink) => ({
 
 // Plantilla de confirmación de cambio de contraseña
 const emailCambioExitoso = (nombreUsuario, email) => ({
-  from: process.env.MAIL_USER,
+  from: FROM_NAME,
   to: email,
   subject: 'Contraseña actualizada - Sistema de Nómina Collective Mining',
   html: `
@@ -147,6 +151,66 @@ const emailCambioExitoso = (nombreUsuario, email) => ({
   `,
 });
 
+// Plantilla de verificación de cuenta
+const emailVerificacion = (nombreUsuario, email, verificationLink) => ({
+  from: FROM_NAME,
+  to: email,
+  subject: 'Verifica tu cuenta - Sistema de Nómina Collective Mining',
+  html: `
+    <div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0E0E0E; padding: 40px; color: #F0EDE8; border-radius: 10px; border: 1px solid rgba(201,168,76,0.18);">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <h1 style="font-family: 'Syne', sans-serif; font-size: 28px; color: #C9A84C; margin: 0;">Collective Mining</h1>
+        <p style="color: #8A857A; margin: 10px 0 0 0;">Sistema de Nómina</p>
+      </div>
+
+      <h2 style="font-family: 'Syne', sans-serif; color: #C9A84C; font-size: 20px; margin-top: 0;">Confirma tu cuenta</h2>
+
+      <p style="line-height: 1.6; color: #F0EDE8; margin: 20px 0;">
+        Hola ${nombreUsuario},
+      </p>
+
+      <p style="line-height: 1.6; color: #F0EDE8; margin: 20px 0;">
+        Tu cuenta en el Sistema de Nómina de Collective Mining ha sido creada. Para confirmarla y activar todas las funcionalidades, haz clic en el siguiente botón.
+      </p>
+
+      <p style="line-height: 1.6; color: #F0EDE8; margin: 20px 0;">
+        <strong>Este enlace de verificación expirará en 24 horas.</strong>
+      </p>
+
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${verificationLink}" style="background: #C9A84C; color: #0E0E0E; padding: 14px 36px; text-decoration: none; border-radius: 6px; font-family: 'Syne', sans-serif; font-weight: 700; font-size: 16px; display: inline-block;">
+          ✓ Verificar mi cuenta
+        </a>
+      </div>
+
+      <div style="background: #1E1E1E; padding: 15px; border-radius: 8px; border-left: 4px solid #C9A84C; margin: 20px 0;">
+        <p style="margin: 0 0 8px 0; color: #8A857A; font-size: 12px;">Tu email de acceso:</p>
+        <p style="margin: 0; color: #C9A84C; font-weight: 600; font-size: 15px;">${email}</p>
+      </div>
+
+      <p style="line-height: 1.6; color: #8A857A; font-size: 12px; margin: 30px 0;">
+        Si no puedes hacer clic en el botón, copia y pega este enlace en tu navegador:
+      </p>
+      <p style="word-break: break-all; color: #C9A84C; font-size: 11px; margin: 10px 0; padding: 10px; background: #1E1E1E; border-radius: 6px;">
+        ${verificationLink}
+      </p>
+
+      <p style="line-height: 1.6; color: #8A857A; font-size: 12px; margin: 20px 0;">
+        Si no creaste esta cuenta, ignora este mensaje de forma segura.
+      </p>
+
+      <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(201,168,76,0.18); text-align: center;">
+        <p style="color: #8A857A; font-size: 12px; margin: 5px 0;">
+          Este es un email automático. No responda a este mensaje.
+        </p>
+        <p style="color: #8A857A; font-size: 12px; margin: 5px 0;">
+          © 2026 Collective Mining. Todos los derechos reservados.
+        </p>
+      </div>
+    </div>
+  `,
+});
+
 // Función para enviar emails
 const enviarEmail = async (opciones) => {
   try {
@@ -165,4 +229,5 @@ module.exports = {
   emailBienvenida,
   emailRecuperacion,
   emailCambioExitoso,
+  emailVerificacion,
 };

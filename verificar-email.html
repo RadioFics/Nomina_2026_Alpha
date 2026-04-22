@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verificar Email · Collective Mining</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold: #C9A84C;
+    --gold-light: #E8C96A;
+    --dark: #0E0E0E;
+    --surface: #1A1A1A;
+    --text: #F0EDE8;
+    --muted: #8A857A;
+    --success: #4CAF82;
+    --danger: #E05555;
+    --border: rgba(201,168,76,0.18);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--dark);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 48px 40px;
+    max-width: 480px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+  }
+
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--gold);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .logo-sub { font-size: 12px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 36px; }
+
+  .icon {
+    font-size: 56px;
+    margin-bottom: 20px;
+    display: block;
+  }
+
+  .title {
+    font-family: 'Syne', sans-serif;
+    font-size: 22px;
+    font-weight: 800;
+    margin-bottom: 12px;
+    color: var(--text);
+  }
+
+  .desc {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--muted);
+    margin-bottom: 28px;
+  }
+
+  .user-info {
+    background: rgba(201,168,76,0.08);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 20px;
+    margin-bottom: 28px;
+    text-align: left;
+  }
+  .user-info-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 4px; }
+  .user-info-name  { font-size: 15px; font-weight: 600; color: var(--gold); }
+  .user-info-email { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+  .btn {
+    display: inline-block; padding: 13px 32px; border-radius: 8px;
+    font-family: 'DM Sans', sans-serif; font-weight: 600; font-size: 14px;
+    text-decoration: none; cursor: pointer; border: none;
+    transition: all .2s; letter-spacing: 0.04em;
+  }
+  .btn-gold { background: var(--gold); color: var(--dark); }
+  .btn-gold:hover { background: var(--gold-light); }
+  .btn-outline { background: transparent; color: var(--muted); border: 1px solid rgba(255,255,255,0.1); }
+  .btn-outline:hover { color: var(--text); border-color: rgba(255,255,255,0.25); }
+
+  .divider { height: 1px; background: var(--border); margin: 28px 0; }
+
+  /* estados */
+  #stateLoading, #stateSuccess, #stateAlready, #stateError { display: none; }
+  #stateLoading.show, #stateSuccess.show, #stateAlready.show, #stateError.show { display: block; }
+
+  .spinner {
+    width: 44px; height: 44px; margin: 0 auto 20px;
+    border: 3px solid rgba(201,168,76,0.2);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="logo">Collective Mining</div>
+  <div class="logo-sub">Sistema de Nómina</div>
+
+  <!-- CARGANDO -->
+  <div id="stateLoading">
+    <div class="spinner"></div>
+    <div class="title">Verificando tu cuenta...</div>
+    <div class="desc">Por favor espera un momento.</div>
+  </div>
+
+  <!-- ÉXITO -->
+  <div id="stateSuccess">
+    <span class="icon">✅</span>
+    <div class="title">¡Email verificado!</div>
+    <div class="desc" id="successDesc">Tu cuenta ha sido verificada correctamente. Ya puedes utilizar todas las funcionalidades del sistema.</div>
+    <div class="user-info" id="userInfoBox" style="display:none">
+      <div class="user-info-label">Cuenta verificada</div>
+      <div class="user-info-name" id="uiNombre"></div>
+      <div class="user-info-email" id="uiEmail"></div>
+    </div>
+    <a href="/login.html" class="btn btn-gold">Ir al inicio de sesión</a>
+  </div>
+
+  <!-- YA VERIFICADO -->
+  <div id="stateAlready">
+    <span class="icon">ℹ️</span>
+    <div class="title">Ya verificado</div>
+    <div class="desc">Este email ya fue verificado anteriormente. Puedes iniciar sesión con normalidad.</div>
+    <a href="/login.html" class="btn btn-gold">Iniciar sesión</a>
+  </div>
+
+  <!-- ERROR -->
+  <div id="stateError">
+    <span class="icon">❌</span>
+    <div class="title" id="errorTitle">Enlace inválido</div>
+    <div class="desc" id="errorDesc">El enlace de verificación es inválido o ha expirado. Puedes solicitar uno nuevo desde la pantalla de registro.</div>
+    <div style="display:flex; flex-direction:column; gap:10px; align-items:center">
+      <a href="/login.html" class="btn btn-gold">Ir al inicio de sesión</a>
+    </div>
+  </div>
+</div>
+
+<script>
+  function show(id) {
+    ['stateLoading','stateSuccess','stateAlready','stateError'].forEach(s => {
+      const el = document.getElementById(s);
+      if (el) el.classList.toggle('show', s === id);
+    });
+  }
+
+  async function verificar() {
+    show('stateLoading');
+
+    const params = new URLSearchParams(window.location.search);
+    const token  = params.get('token');
+
+    if (!token) {
+      document.getElementById('errorTitle').textContent = 'Enlace incompleto';
+      document.getElementById('errorDesc').textContent  = 'No se encontró el token de verificación en el enlace.';
+      show('stateError');
+      return;
+    }
+
+    try {
+      const r    = await fetch(`/api/auth/verificar-email/${encodeURIComponent(token)}`);
+      const data = await r.json();
+
+      if (data.yaVerificado) {
+        show('stateAlready');
+        return;
+      }
+
+      if (data.status === 'success') {
+        if (data.usuario) {
+          document.getElementById('uiNombre').textContent = data.usuario.nombre || '';
+          document.getElementById('uiEmail').textContent  = data.usuario.email  || '';
+          document.getElementById('userInfoBox').style.display = '';
+        }
+        show('stateSuccess');
+      } else {
+        document.getElementById('errorTitle').textContent = 'Verificación fallida';
+        document.getElementById('errorDesc').textContent  = data.message || 'Enlace inválido o expirado.';
+        show('stateError');
+      }
+    } catch (e) {
+      document.getElementById('errorTitle').textContent = 'Error de conexión';
+      document.getElementById('errorDesc').textContent  = 'No se pudo conectar con el servidor. Verifica tu conexión e intenta de nuevo.';
+      show('stateError');
+    }
+  }
+
+  window.addEventListener('DOMContentLoaded', verificar);
+</script>
+</body>
+</html>

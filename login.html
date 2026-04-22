@@ -737,6 +737,10 @@
 
           if (remember) {
             localStorage.setItem('rememberEmail', email);
+            localStorage.setItem('rememberPass', btoa(unescape(encodeURIComponent(password))));
+          } else {
+            localStorage.removeItem('rememberEmail');
+            localStorage.removeItem('rememberPass');
           }
 
           mostrarMensaje('¡Bienvenido! Redirigiendo...', 'success');
@@ -841,12 +845,20 @@
       statusMessage.className = `status-message show ${tipo}`;
     }
 
-    // Pre-fill email if remembered
+    // Pre-fill credentials if remembered
     window.addEventListener('DOMContentLoaded', () => {
       const rememberEmail = localStorage.getItem('rememberEmail');
+      const rememberPass  = localStorage.getItem('rememberPass');
       if (rememberEmail) {
-        document.getElementById('loginEmail').value = rememberEmail;
-        document.getElementById('rememberMe').checked = true;
+        document.getElementById('loginEmail').value    = rememberEmail;
+        document.getElementById('rememberMe').checked  = true;
+      }
+      if (rememberPass) {
+        try {
+          document.getElementById('loginPassword').value = decodeURIComponent(escape(atob(rememberPass)));
+        } catch (_) {
+          localStorage.removeItem('rememberPass');
+        }
       }
     });
   </script>

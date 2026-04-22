@@ -38,6 +38,12 @@ router.post('/restablecer-contrasena', authController.resetPassword);
 router.get('/validar-token/:token', authController.validarToken);
 
 /**
+ * Ruta pública - VERIFICAR EMAIL DE CUENTA
+ * GET /api/auth/verificar-email/:token
+ */
+router.get('/verificar-email/:token', authController.verificarEmail);
+
+/**
  * Ruta protegida - LOGOUT
  * POST /api/auth/logout
  */
