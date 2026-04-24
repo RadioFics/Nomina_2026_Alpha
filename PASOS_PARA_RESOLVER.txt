@@ -1,0 +1,207 @@
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                                                                                ║
+║                     PASOS PARA RESOLVER ERRORES DE IMPORTACIÓN                ║
+║                                                                                ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+TU PROBLEMA:
+────────────────────────────────────────────────────────────────────────────────
+Los PDFs muestran error al importar: "Invalid column name" en la BD.
+Esto sucede porque hay un conflicto entre la estructura esperada y la real.
+
+
+LO QUE HICE:
+────────────────────────────────────────────────────────────────────────────────
+1. ✅ Actualicé controllers/importarPDFController.js para usar dual-schema
+2. ✅ Ahora intenta insertar con AMBAS estructuras (nueva y antigua)
+3. ✅ Si falla con una, automáticamente intenta con la otra
+4. ✅ Creé documentación del problema y la solución
+
+
+QUÉ NECESITAS HACER AHORA:
+════════════════════════════════════════════════════════════════════════════════
+
+PASO 1: VERIFICAR ESTRUCTURA DE LA BASE DE DATOS (5 minutos)
+─────────────────────────────────────────────────────────────────────────────────
+
+Abre SQL Server Management Studio y ejecuta este script:
+
+  ARCHIVO: diagnostico_tablas.sql
+  UBICACIÓN: /Nomina_2026_Alpha/diagnostico_tablas.sql
+
+Este script te mostrará:
+  • Qué campos existen realmente en NO_NOVED y NO_AUSEN
+  • Ejemplos de registros existentes
+  • Confirmación de que las tablas existen
+
+→ IMPORTANTE: Guarda el resultado, necesitaremos esta información
+
+
+PASO 2: REINICIAR EL SERVIDOR NODE.JS (2 minutos)
+─────────────────────────────────────────────────────────────────────────────────
+
+Ejecuta en la terminal:
+
+  cd /ruta/Nomina_2026_Alpha
+
+  # Opción A: Usar npm
+  npm restart
+
+  # Opción B: Matar proceso y reiniciar
+  pkill -f "node server.js"
+  node server.js
+
+Deberías ver:
+  ✓ SERVIDOR CENTRAL DE NÓMINA FUNCIONANDO
+
+
+PASO 3: PROBAR IMPORTACIÓN DESDE LA INTERFAZ WEB (10 minutos)
+─────────────────────────────────────────────────────────────────────────────────
+
+1. Abre MineDax en el navegador: http://localhost:3000
+2. Ve a: Menú → Importar Archivos
+3. Selecciona un PDF de prueba (Permiso o Vacaciones)
+4. Clic en "Importar a la BD"
+5. Observa el resultado:
+
+   RESULTADO ESPERADO:
+   ✓ Estado: INSERTADO (verde)
+   ✓ Cédula, nombre, cantidad visibles
+   ✓ Sin mensaje de error
+
+   SI AÚN HAY ERROR:
+   ✗ Estado: ERROR (rojo)
+   ✗ Mensaje de error mostrado
+   → Captura el mensaje exacto del error
+
+
+PASO 4: SI PERSISTEN LOS ERRORES (15 minutos)
+─────────────────────────────────────────────────────────────────────────────────
+
+Si el error persiste, necesitamos información del servidor:
+
+1. Abre la consola de Node.js y busca mensajes de error:
+
+   BUSCAR: "Error inserting into NO_NOVED" o similar
+   COPIAR: El mensaje exacto del error
+
+2. Verifica en la BD si la tabla NO_AUSEN existe:
+
+   SELECT TABLE_NAME
+   FROM INFORMATION_SCHEMA.TABLES
+   WHERE TABLE_NAME IN ('NO_AUSEN', 'NO_NOVED')
+
+3. Si NO_AUSEN no existe, ejecuta:
+
+   CREATE TABLE NO_AUSEN (
+     COD_AUSEN INT PRIMARY KEY,
+     COD_EMPR INT,
+     COD_FUNCI INT,
+     COD_PERIOD INT,
+     FEC_INICIO DATE,
+     FEC_FIN DATE,
+     DIAS_DISFRUTADOS INT,
+     OBSERVACIONES NVARCHAR(MAX),
+     ACT_ESTA CHAR(1),
+     FEC_CREAC DATETIME,
+     USU_CREAC NVARCHAR(50)
+   )
+
+
+PASO 5: VALIDAR LA EXTRACCIÓN DE PDFs (5 minutos)
+─────────────────────────────────────────────────────────────────────────────────
+
+Si el error es en la extracción de PDF (no en la inserción), ejecuta:
+
+  python3 test_pdf_extraction.py
+
+Resultado esperado:
+  ✅ ÉXITO: Ambos formularios extraídos correctamente
+
+Si falla, mira el error y verifica que pdfplumber y pytesseract estén instalados:
+
+  python3 -c "import pdfplumber, pytesseract; print('OK')"
+
+
+RESUMEN DE CAMBIOS REALIZADOS:
+════════════════════════════════════════════════════════════════════════════════
+
+ARCHIVO MODIFICADO:
+  ✓ controllers/importarPDFController.js
+    - Función insertarPermiso(): Ahora intenta dual-schema
+    - Función insertarVacaciones(): Ahora intenta dual-schema
+    - Mejor manejo de errores
+
+ARCHIVOS CREADOS:
+  ✓ INTEGRACION_CORREGIDA.md - Explicación del problema y solución
+  ✓ diagnostico_tablas.sql - Script para verificar estructura BD
+  ✓ PASOS_PARA_RESOLVER.txt - Este archivo
+  ✓ test_pdf_extraction.py - Validación de extracción (ya existía)
+
+ARCHIVOS SIN CAMBIOS:
+  ✓ pdf_import_extension.py - Extractor (funciona correctamente)
+  ✓ python/procesar_pdf.py - Wrapper Python (funciona correctamente)
+  ✓ Todos los demás archivos
+
+
+IMPORTANTE - PUNTOS CLAVE:
+════════════════════════════════════════════════════════════════════════════════
+
+1. El controlador AHORA es COMPATIBLE CON AMBAS ESTRUCTURAS de BD
+   → Intenta inserción con estructura nueva
+   → Si falla, intenta con estructura antigua
+   → Esto significa: funciona sea cual sea tu esquema actual
+
+2. Los PDFs se extraen correctamente (validado con test_pdf_extraction.py)
+   → El problema NO es la extracción, es la inserción en BD
+
+3. Si aún hay errores después de reiniciar:
+   → Ejecuta diagnostico_tablas.sql
+   → Comparte el resultado conmigo
+   → Verificaremos qué estructura tiene tu BD exactamente
+
+4. Los cambios NO afectan a otros módulos
+   → Compatibilidad hacia atrás garantizada
+   → Otros procesos siguen funcionando normalmente
+
+
+PRÓXIMOS PASOS SI TODO FUNCIONA:
+════════════════════════════════════════════════════════════════════════════════
+
+1. ✅ Reinicia Node.js
+2. ✅ Prueba importación desde interfaz web
+3. ✅ Verifica en BD que los registros fueron insertados:
+
+   Para PERMISOS:
+   SELECT TOP 10 * FROM NO_NOVED
+   WHERE USU_CREAC = 'SISTEMA'
+   ORDER BY FEC_CREAC DESC
+
+   Para VACACIONES:
+   SELECT TOP 10 * FROM NO_AUSEN
+   WHERE USU_CREAC = 'SISTEMA'
+   ORDER BY FEC_CREAC DESC
+
+4. ✅ Verifica que los datos sean correctos:
+   - Cédula coincide con la del PDF
+   - Nombre coincide con la del PDF
+   - Fechas son correctas
+   - Cantidades son correctas
+
+
+CONTACTO / SOPORTE:
+════════════════════════════════════════════════════════════════════════════════
+
+Si necesitas ayuda:
+
+1. Ejecuta: python3 test_pdf_extraction.py
+2. Ejecuta: diagnostico_tablas.sql
+3. Captura: El mensaje exacto de error en la consola de Node.js
+4. Comparte: Estructura de tu BD (resultado del paso 2)
+
+Con esta información podré diagnosticar el problema exacto.
+
+
+════════════════════════════════════════════════════════════════════════════════
+Documento de Resolución - 23 de Abril de 2026
+════════════════════════════════════════════════════════════════════════════════

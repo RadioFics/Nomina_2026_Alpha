@@ -1,0 +1,77 @@
+================================================================================
+REGISTRO DE CAMBIOS - INTEGRACIÓN PDF MINEDAX
+Fecha: 23 de Abril de 2026
+================================================================================
+
+ARCHIVOS CREADOS
+================================================================================
+
+1. routes/importarPDF.js
+   Descripción: Rutas REST para importación de PDFs
+   Tamaño: ~24 líneas
+   Funcionalidad:
+     - POST /api/pdf/importar → ctl.importarPDFs
+     - GET /api/pdf/periodo-actual → ctl.obtenerPeriodoActual
+   Patrón: Sigue el mismo patrón que routes/ausentismos.js
+
+2. controllers/importarPDFController.js
+   Descripción: Lógica principal de importación de PDFs
+   Tamaño: ~360 líneas
+   Funciones principales:
+     - resolverPeriodoActual(codEmpr)
+     - buscarCedula(cedula, codEmpr)
+     - resolverCodFunciPorCedula(cedula, codEmpr)
+     - procesarPDFConPython(rutaArchivo)
+     - insertarPermiso()
+     - insertarVacaciones()
+     - exports.importarPDFs
+     - exports.obtenerPeriodoActual
+
+3. python/procesar_pdf.py
+   Descripción: Wrapper Python para procesar PDFs
+   Tamaño: ~100 líneas
+   Entrada: python3 procesar_pdf.py /ruta/archivo.pdf
+   Salida: JSON a stdout (capturado por Node.js)
+
+4. INTEGRACION_PDF_COMPLETADA.md
+   Descripción: Documentación técnica completa
+
+5. GUIA_RAPIDA_PRUEBA.txt
+   Descripción: 13 pasos para probar la integración
+
+
+ARCHIVOS MODIFICADOS
+================================================================================
+
+1. server.js (2 líneas nuevas)
+   - Agregar require de importarPDFRoutes
+   - Registrar ruta /api/pdf
+
+2. index_novedades.html (8 cambios)
+   - Cambiar "Importar Excel" a "Importar Archivos"
+   - Agregar .pdf a accept de input file
+   - Actualizar descripción para incluir PDF
+   - Actualizar JavaScript ejecutarImportMasiva() para detectar tipos
+   - Actualizar mostrarResultadoImport() para soportar PDF
+   - Actualizar renderDetalleImport() para mostrar tipoNovedad
+
+
+RESUMEN
+================================================================================
+
+Archivos nuevos: 6
+  - 3 código (routes, controller, python)
+  - 3 documentación
+
+Archivos modificados: 2
+  - server.js: +2 líneas
+  - index_novedades.html: +8 cambios estratégicos
+
+Total líneas nuevas: ~550
+Total líneas modificadas: 12
+
+Riesgo: BAJO (no se elimina código existente)
+
+Status: ✅ LISTO PARA IMPLEMENTAR
+
+================================================================================

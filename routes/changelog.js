@@ -61,6 +61,79 @@ function descripcionCommit(subject) {
 // ─── Catálogo de cambios conocidos por versión ────────────────────────────────
 // Complementa los commits con descripciones elaboradas cuando están disponibles.
 const CATALOG = {
+  'v0.7': {
+    titulo: 'Importación de PDFs — Permisos y Vacaciones desde formularios CM',
+    resumen: [
+      'Nuevo módulo de importación de PDFs: soporta formularios CM-TH-FR-003 (Permisos) y CM-TH-SV-001 (Vacaciones)',
+      'Extracción automática de datos desde PDFs mediante motor Python (pdfplumber)',
+      'Detección automática del tipo de formulario por contenido del documento',
+      'Inserción directa en NO_NOVED y NO_AUSEN con validación de duplicados y reactivación de registros inactivos',
+      'Módulo de importación unificado en la interfaz: acepta Excel y PDFs en la misma pantalla',
+      'Corrección de vista vw_NO_AUSEN_PERIODO: cambiado INNER JOIN a LEFT JOIN para incluir permisos sin fila en NO_AUSEN',
+      'README.md actualizado con documentación técnica del importador de PDFs',
+      'Scripts SQL auxiliares para diagnóstico, limpieza de duplicados y correcciones de esquema',
+      'SERVIDOR-INSTRUCCIONES.md: guía ampliada con instrucciones de despliegue multi-red',
+    ],
+    detalle: [
+      { categoria: 'Importación de PDFs', items: [
+        'Nuevo archivo routes/importarPDF.js: rutas POST /api/pdf/importar y GET /api/pdf/periodo-actual',
+        'Nuevo controlador controllers/importarPDFController.js: orquesta extracción Python → validación → inserción en BD',
+        'Extractor Python (pdf_import_module.js + python/): usa pdfplumber para extraer campos de formularios CM-TH-FR-003 y CM-TH-SV-001',
+        'Permisos (CM-TH-FR-003): extrae cédula, nombre, cargo, fechas, horas, motivo y jefe inmediato → inserta en NO_NOVED con COD_CONC=68 (Permiso Remunerado)',
+        'Vacaciones (CM-TH-SV-001): extrae cédula, fechas inicio/fin, días → inserta en NO_NOVED (COD_CONC=63) y NO_AUSEN',
+        'Lógica de duplicados: reactiva registro inactivo (ACT_ESTA=\'I\') si ya existe; marca como acumulado si ya está activo',
+        'Registra siempre en el período activo actual (PER_EST=\'A\') para evitar rechazo por trigger TR_NO_NOVED_PERIODO_CERRADO',
+        'Soporte hasta 20 archivos simultáneos, 50 MB cada uno, con multer en memoria',
+      ]},
+      { categoria: 'Interfaz — Módulo de Importar Archivos', items: [
+        'index_novedades.html: sección "Importar Archivos" ahora acepta .xlsx, .xls y .pdf en la misma zona de arrastrar-y-soltar',
+        'Detección automática de tipo de archivo al seleccionar: Excel va a /api/ocasionales/importar-excel, PDFs a /api/pdf/importar',
+        'Resumen de resultados unificado: muestra insertados, acumulados, reactivados y errores por archivo',
+        'Contador de resultados históricos mejorado: indica "Mostrando N de M registros" cuando se supera el límite configurado',
+        'Opción "↺ Reactivados" añadida al filtro de estado en búsqueda histórica',
+        'Autocompletado de empleado en búsqueda histórica: dispara búsqueda automáticamente al seleccionar del dropdown',
+      ]},
+      { categoria: 'Base de datos — Correcciones de esquema', items: [
+        'ausentismosController.js: vista vw_NO_AUSEN_PERIODO reconstruida con DROP + CREATE (elimina dependencia de IF OBJECT_ID NULL)',
+        'JOIN de NO_AUSEN cambiado de INNER a LEFT JOIN para incluir novedades de tipo AUSENTISMO que aún no tienen fila en NO_AUSEN',
+        'Filtro WHERE c.TIP_NATU = \'AUSENTISMO\' añadido para acotar la vista a novedades del tipo correcto',
+        'ensureDbObjects() acepta parámetro force=true para forzar recreación de la vista en cada arranque',
+        'Scripts nuevos: scripts/fix_vista_ausen_y_laura_noved2640.sql, scripts/limpiar_duplicados_excel_noved.sql, scripts/importar_novedades_pdf_feb2026.sql',
+        'diagnostico_tablas.sql: script de diagnóstico de esquema y datos de tablas de novedades',
+      ]},
+      { categoria: 'Servidor y rutas', items: [
+        'server.js: nueva ruta /api/pdf → importarPDFRoutes registrada junto al resto de módulos',
+        'SERVIDOR-INSTRUCCIONES.md ampliado: secciones de troubleshooting de puerto, acceso multi-red, verificación de estado y configuración de BD',
+        '.env: MAIL_USER actualizado al correo corporativo nomina.collectivemining@gmail.com, APP_URL apunta a IP de red interna',
+        'README.md reescrito con descripción técnica del importador PDF: mapeo de campos, validación de duplicados y pasos de instalación Python',
+        'requirements.txt añadido: dependencias Python para el motor de extracción de PDFs (pdfplumber, pyodbc, etc.)',
+      ]},
+    ],
+  },
+  'v0.6': {
+    titulo: 'Página de login rediseñada y guía de servidor',
+    resumen: [
+      'Login rediseñado con layout de dos paneles: branding Collective Mining a la izquierda, formulario a la derecha',
+      'Diseño con líneas topográficas decorativas alineadas a la identidad visual de la empresa',
+      'Tipografía Barlow / Barlow Condensed y paleta de colores corporativa (#20A7C9)',
+      'Nuevo archivo SERVIDOR-INSTRUCCIONES.md: guía de inicio, solución de conflictos de puerto y acceso multi-red',
+      'Permisos de Claude ampliados para operaciones de servidor, SQL y git en el contexto del proyecto',
+    ],
+    detalle: [
+      { categoria: 'Interfaz — Página de Login', items: [
+        'login.html completamente rediseñado: layout flex de dos columnas (40% branding / 60% formulario)',
+        'Panel izquierdo: gradiente lineal cm-blue → dark con líneas topográficas via CSS pseudo-elementos ::before / ::after',
+        'Variables CSS: --coal (#2B2B2B), --cm-blue (#20A7C9), --cm-blue-light (#4DC4E0), --dark (#222222), --surface, --border',
+        'Formulario con campos email y contraseña, checkbox "Recuérdame", enlace "¿Olvidaste tu contraseña?" y botón de acceso',
+        'Responsive: panel izquierdo se colapsa en pantallas estrechas; formulario ocupa el 100% en móvil',
+        'Animaciones sutiles de entrada (fade-in + translateY) en tarjeta del formulario y logo',
+      ]},
+      { categoria: 'Documentación y configuración', items: [
+        'SERVIDOR-INSTRUCCIONES.md creado: secciones de inicio normal, solución de error EADDRINUSE, uso de kill-server.ps1 / kill-server.js, cambio de puerto, verificación de salud (/api/health) y configuración de BD via .env',
+        '.claude/settings.local.json: ampliados los permisos allow con comandos npm install/start, netstat, taskkill, PowerShell para gestión de procesos, curl para pruebas de endpoints, sqlcmd para consultas directas a MineDax y comandos git add/commit',
+      ]},
+    ],
+  },
   'v0.5': {
     titulo: 'Correcciones críticas — Entrega de emails, tokens y acceso multi-red',
     resumen: [

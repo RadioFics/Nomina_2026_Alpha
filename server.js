@@ -38,6 +38,7 @@ const cambiosRoutes        = require('./routes/cambios');
 const exportarAdeccoRoutes = require('./routes/exportarAdecco');
 const changelogRoutes      = require('./routes/changelog');
 const novedadesRoutes      = require('./routes/novedades');
+const importarPDFRoutes    = require('./routes/importarPDF');
 
 // Usar rutas
 app.use('/api/auth', authRoutes);
@@ -52,6 +53,7 @@ app.use('/api/cambios', cambiosRoutes);
 app.use('/api/exportar-adecco', exportarAdeccoRoutes);
 app.use('/api/changelog',      changelogRoutes);
 app.use('/api/novedades',      novedadesRoutes);
+app.use('/api/pdf',            importarPDFRoutes);
 
 // Ruta de prueba
 app.get('/api/health', (req, res) => {
@@ -107,6 +109,31 @@ server.listen(PORT, '0.0.0.0', async () => {
   console.log(`     4. Los cambios se sincronizarán en tiempo real`);
 
   console.log(`\n  ✅ Verifica en: http://localhost:${PORT}/api/health\n`);
+
+  // Asegurar que la conexión a BD está lista ANTES de los bootstraps
+  const { getConnection } = require('./config/database');
+  const maxWaitTime = 30000; // 30 segundos máximo
+  const startTime = Date.now();
+
+  let connectionReady = false;
+  while (!connectionReady && Date.now() - startTime < maxWaitTime) {
+    try {
+      const pool = await getConnection();
+      if (pool && pool.connected) {
+        connectionReady = true;
+        console.log('[DB] Pool de conexión listo para bootstraps');
+      } else {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    } catch (err) {
+      console.error('[DB] Error intentando conectar:', err.message);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  }
+
+  if (!connectionReady) {
+    console.error('[DB] Timeout esperando conexión. Los bootstraps pueden fallar.');
+  }
 
   // Bootstrap DB objects DESPUÉS de que el servidor arrancó y el pool está listo.
   // Se ejecutan en secuencia para que el pool esté activo antes de cada llamada.

@@ -1,0 +1,214 @@
+================================================================================
+GUÍA RÁPIDA DE PRUEBA - INTEGRACIÓN PDF
+================================================================================
+
+PASO 1: VERIFICAR ARCHIVOS CREADOS
+================================================================================
+
+Ejecutar en terminal:
+
+  ls -la routes/importarPDF.js
+  ls -la controllers/importarPDFController.js
+  ls -la python/procesar_pdf.py
+
+Resultado esperado: Los 3 archivos deben existir
+
+
+PASO 2: VERIFICAR CAMBIOS EN server.js
+================================================================================
+
+Comando:
+  grep -n "importarPDFRoutes\|/api/pdf" server.js
+
+Resultado esperado:
+  Línea X: const importarPDFRoutes    = require('./routes/importarPDF');
+  Línea Y: app.use('/api/pdf',            importarPDFRoutes);
+
+
+PASO 3: VERIFICAR CAMBIOS EN index_novedades.html
+================================================================================
+
+Comando:
+  grep -n "Importar Archivos\|accept=.*pdf" index_novedades.html
+
+Resultado esperado:
+  - Una línea con "Importar Archivos" en el sidebar
+  - Una línea con accept=".xlsx,.xls,.pdf"
+
+
+PASO 4: PREPARAR BASE DE DATOS
+================================================================================
+
+En SQL Server, ejecutar para verificar que existe período actual:
+
+  SELECT TOP 1 COD_PERIOD, PER_MES, PER_ANO, PER_FINI, PER_FFIN
+  FROM dbo.NO_PERIOD
+  WHERE COD_EMPR = 1
+    AND PER_EST  = 'A'
+    AND ACT_ESTA = 'A'
+    AND CONVERT(date, GETDATE()) BETWEEN PER_FINI AND PER_FFIN
+  ORDER BY PER_FINI DESC;
+
+Resultado esperado: Una fila (período activo actual)
+
+
+PASO 5: VERIFICAR EMPLEADO PARA PRUEBA
+================================================================================
+
+En SQL Server, buscar un empleado activo:
+
+  SELECT TOP 1 t.COD_TERC, t.NUM_IDEN, t.NOM_TERCE, f.COD_FUNCI
+  FROM dbo.GN_FUNCI f
+  INNER JOIN dbo.GN_TERCE t ON t.COD_TERC = f.COD_TERC
+  WHERE f.COD_EMPR  = 1
+    AND t.ACT_ESTA  = 'A'
+    AND f.ACT_ESTA  = 'A'
+  ORDER BY f.COD_FUNCI DESC;
+
+Guardar: COD_FUNCI y NUM_IDEN (cédula) para referencia
+
+
+PASO 6: PREPARAR PDF DE PRUEBA
+================================================================================
+
+Se requiere un PDF que contenga:
+  - Formulario Permiso: Debe incluir "CM-TH-FR-003" o "PERMISO"
+    Campos: Cédula (10 dígitos), Nombre, Fecha, Horas
+
+  - O Formulario Vacaciones: Debe incluir "CM-TH-SV-001" o "VACACIONES"
+    Campos: Cédula (10 dígitos), Nombre, Fecha Inicio, Fecha Fin, Días
+
+Si no tienes PDFs de prueba, usar los de la carpeta:
+  /sessions/cool-gallant-rubin/mnt/uploads/
+
+Archivos disponibles:
+  - 19- Solicitud de permiso Laura Velasquez.pdf
+  - 27- Solicitud de vacaciones Camilo Aricapa.pdf
+
+
+PASO 7: INICIAR SERVIDOR (si está detenido)
+================================================================================
+
+En terminal:
+  cd /ruta/a/Nomina_2026_Alpha
+  node server.js
+
+Resultado esperado:
+  ╔════════════════════════════════════════════════════════════╗
+  ║         ✓ SERVIDOR CENTRAL DE NÓMINA FUNCIONANDO          ║
+  ╚════════════════════════════════════════════════════════════╝
+
+
+PASO 8: ACCEDER A LA INTERFAZ
+================================================================================
+
+En navegador:
+  http://localhost:3000
+
+Login (si está activo) e ir a:
+  Menú → Importar Archivos
+
+Deberías ver:
+  - Título: "Importar Novedades Masivas"
+  - Zona de drag & drop con ícono 📊
+  - Descripción: "Formatos soportados: .xlsx, .xls, .pdf"
+
+
+PASO 9: PRUEBA 1 - IMPORTAR UN PDF SOLO
+================================================================================
+
+1. En "Importar Archivos", hacer clic en zona de drop
+2. Seleccionar archivo PDF (ej: permiso Laura Velasquez.pdf)
+3. Se debe mostrar: "✅ Archivo listo"
+4. Clic en botón azul "⬆ Importar a la BD"
+5. Esperar barra de progreso 100%
+
+Resultado esperado:
+  - Tabla "Detalle por registro" muestra:
+    * Archivo: nombre del PDF
+    * Cédula: extraída (ej: 1234567890)
+    * Nombre: extraído (ej: Laura Velasquez)
+    * Concepto: tipo novedad (PERMISO o VACACIONES)
+    * Cantidad: horas o días
+    * Estado: ✓ Insertado (verde)
+
+
+PASO 10: PRUEBA 2 - IMPORTAR EXCEL + PDF JUNTOS
+================================================================================
+
+1. Seleccionar un archivo Excel (.xlsx)
+2. Mantener Ctrl presionado, seleccionar un PDF
+3. Se debe mostrar: "📦 2 archivos listos"
+4. Clic en "⬆ Importar a la BD"
+5. Esperar procesamiento
+
+Resultado esperado:
+  - Tabla muestra ambos archivos
+  - Estadísticas combinadas (Excel + PDF)
+  - Cada fila indica su tipo de archivo
+
+
+PASO 11: VERIFICAR EN BASE DE DATOS
+================================================================================
+
+Para Permisos (PDF tipo PERMISO):
+
+  SELECT TOP 5 COD_NOVED, COD_EMPR, COD_FUNCI, FEC_NOVED, CANTIDAD, USU_CREAC
+  FROM dbo.NO_NOVED
+  WHERE USU_CREAC = 'SISTEMA'
+  ORDER BY FEC_CREAC DESC;
+
+Resultado esperado: Nuevas filas con USU_CREAC = 'SISTEMA'
+
+
+Para Vacaciones (PDF tipo VACACIONES):
+
+  SELECT TOP 5 COD_AUSEN, COD_EMPR, COD_FUNCI, FEC_INICIO, FEC_FIN, DIAS_DISFRUTADOS, USU_CREAC
+  FROM dbo.NO_AUSEN
+  WHERE USU_CREAC = 'SISTEMA'
+  ORDER BY FEC_CREAC DESC;
+
+Resultado esperado: Nuevas filas con USU_CREAC = 'SISTEMA'
+
+
+PASO 12: VERIFICAR LOGS DE CONSOLA (Node.js)
+================================================================================
+
+En terminal donde corre Node.js, buscar:
+  - "python3" siendo ejecutado
+  - JSON siendo parseado
+  - "INSERT INTO" siendo ejecutado
+  - Errores de conexión (si los hay)
+
+
+PASO 13: CASOS DE ERROR - PRUEBAS NEGATIVAS
+================================================================================
+
+1. Seleccionar PDF sin cédula válida:
+   Resultado: Error "No se pudo extraer cédula del PDF"
+
+2. Seleccionar PDF con cédula inexistente:
+   Resultado: Error "Empleado no encontrado: XXXXX"
+
+3. Sin período activo:
+   Resultado: Error "No hay período actual activo"
+
+4. PDF sin formato reconocido:
+   Resultado: Error "Formulario PDF no reconocido"
+
+
+================================================================================
+CONCLUSIÓN
+================================================================================
+
+Si todos los PASOS funcionan correctamente, la integración PDF está lista.
+
+Ahora puedes:
+  ✓ Importar archivos Excel como antes (sin cambios)
+  ✓ Importar PDFs de Permisos y Vacaciones
+  ✓ Ver ambos tipos en la misma tabla
+  ✓ Mezclar Excel y PDF en una sola importación
+
+¡Integración completada exitosamente!
+
+================================================================================

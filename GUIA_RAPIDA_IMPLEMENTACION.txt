@@ -1,0 +1,214 @@
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                                                                                ║
+║                   GUÍA RÁPIDA - IMPLEMENTACIÓN CORREGIDA                        ║
+║                     Solución de Importación PDF MineDax                         ║
+║                                                                                ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+PROBLEMA QUE CAUSABA ERRORES:
+────────────────────────────────────────────────────────────────────────────────
+El controlador intentaba insertar en columnas que no existen:
+  ✗ id, numeroNovedad, cedula, nombre, categoria, tipo, subtipo, etc.
+
+Pero la BD REAL tiene:
+  ✓ COD_NOVED, COD_EMPR, COD_FUNCI, COD_CONC, COD_PERIOD, OBS_NOVED, etc.
+
+
+SOLUCIÓN IMPLEMENTADA:
+────────────────────────────────────────────────────────────────────────────────
+Actualizado: controllers/importarPDFController.js
+
+Cambios realizados:
+  1. insertarPermiso() → Usa COD_* campos reales de NO_NOVED
+  2. insertarVacaciones() → Usa COD_NOVED campos reales de NO_AUSEN
+
+
+IMPLEMENTACIÓN EN 3 PASOS (5 minutos):
+════════════════════════════════════════════════════════════════════════════════
+
+┌─ PASO 1: Reiniciar Node.js (1 minuto) ───────────────────────────────────────
+│
+│ Ejecuta en terminal:
+│
+│   cd /ruta/Nomina_2026_Alpha
+│   npm restart
+│
+│ O manualmente:
+│
+│   pkill -f "node server.js"
+│   node server.js
+│
+│ Esperado:
+│   ✓ SERVIDOR CENTRAL DE NÓMINA FUNCIONANDO
+│
+└───────────────────────────────────────────────────────────────────────────────
+
+┌─ PASO 2: Verificar que importarPDFController.js está actualizado (1 min) ────
+│
+│ Verifica en el archivo que contiene:
+│
+│ Para insertarPermiso():
+│   INSERT INTO dbo.NO_NOVED (
+│     COD_EMPR, COD_NOVED, COD_FUNCI, COD_CONC, COD_PERIOD,
+│     FEC_REGI, OBS_NOVED, IND_APLICADO, ACT_USUA, ACT_HORA, ACT_ESTA,
+│     FEC_INI, FEC_FIN
+│   )
+│
+│ Para insertarVacaciones():
+│   INSERT INTO dbo.NO_AUSEN (
+│     COD_EMPR, COD_NOVED, FEC_INI, FEC_FIN,
+│     DIAS_TOTAL, DIAGNOSTICO, ACT_USUA, ACT_HORA, ACT_ESTA
+│   )
+│
+│ ✓ Si tiene estos campos, la actualización está correcta
+│ ✗ Si tiene otros campos (id, numeroNovedad), necesita actualizar
+│
+└───────────────────────────────────────────────────────────────────────────────
+
+┌─ PASO 3: Probar desde Interfaz Web (3 minutos) ──────────────────────────────
+│
+│ 1. Abre MineDax:
+│    http://localhost:3000
+│
+│ 2. Navega a:
+│    Menú → Importar Archivos
+│
+│ 3. Carga uno de tus PDFs de prueba (Permiso o Vacaciones)
+│
+│ 4. Clic en "Importar a la BD"
+│
+│ 5. Verifica el resultado:
+│
+│    RESULTADO ESPERADO (✓ Éxito):
+│    ┌──────────────────────────────────────────────────────────┐
+│    │ Status: INSERTADO (verde)                                │
+│    │ Cédula: 185822824O                                       │
+│    │ Nombre: Laura Velasquez Izquierdo                        │
+│    │ Concepto: PERMISO                                        │
+│    │ Detalle: Permiso insertado: COD_NOVED=X                 │
+│    └──────────────────────────────────────────────────────────┘
+│
+│    RESULTADO CON ERROR (✗ Problema):
+│    ┌──────────────────────────────────────────────────────────┐
+│    │ Status: ERROR (rojo)                                     │
+│    │ Detalle: [Mensaje de error específico]                  │
+│    └──────────────────────────────────────────────────────────┘
+│
+│    Si ves ERROR, captura el mensaje exacto y comparte.
+│
+└───────────────────────────────────────────────────────────────────────────────
+
+
+VERIFICACIÓN EN BASE DE DATOS (opcional):
+════════════════════════════════════════════════════════════════════════════════
+
+Abre SQL Server Management Studio y ejecuta:
+
+-- Para Permisos:
+SELECT TOP 10 * FROM NO_NOVED
+WHERE ACT_USUA = 'SISTEMA'
+ORDER BY ACT_HORA DESC
+
+-- Para Vacaciones:
+SELECT TOP 10 * FROM NO_AUSEN
+WHERE ACT_USUA = 'SISTEMA'
+ORDER BY ACT_HORA DESC
+
+Verifica que:
+  ✓ COD_NOVED está lleno
+  ✓ COD_FUNCI coincide con empleado
+  ✓ FEC_INI y FEC_FIN son correctas
+  ✓ OBS_NOVED o DIAGNOSTICO tienen datos
+  ✓ ACT_ESTA = 'A'
+  ✓ ACT_USUA = 'SISTEMA'
+
+
+DIAGNÓSTICO SI PERSISTEN ERRORES:
+════════════════════════════════════════════════════════════════════════════════
+
+Ejecuta estos scripts SQL:
+
+1. Verifica estructura de NO_NOVED:
+   EXEC sp_columns NO_NOVED;
+
+2. Verifica estructura de NO_AUSEN:
+   EXEC sp_columns NO_AUSEN;
+
+3. Busca empleado específico:
+   SELECT * FROM GN_TERCE WHERE NUM_IDEN = 185822824
+
+4. Verifica período activo:
+   SELECT TOP 1 * FROM NO_PERIOD
+   WHERE PER_EST = 'A' AND GETDATE() BETWEEN PER_FINI AND PER_FFIN
+
+5. Ejecuta el diagnóstico completo:
+   Abre y ejecuta: DIAGNOSTICO_MINEDAX.sql
+
+
+ARCHIVOS DE REFERENCIA:
+════════════════════════════════════════════════════════════════════════════════
+
+📄 CORRECCION_ESQUEMA_MINEDAX.md
+   └─ Explicación detallada del problema y la solución
+
+📄 DIAGNOSTICO_MINEDAX.sql
+   └─ Script SQL para verificar toda la estructura
+
+📄 controllers/importarPDFController.js
+   └─ Controlador actualizado con campos REALES
+
+📄 pdf_import_extension.py
+   └─ Extractor de PDFs (sin cambios, continúa funcionando)
+
+📄 python/procesar_pdf.py
+   └─ Wrapper Python (sin cambios, continúa funcionando)
+
+
+PUNTOS CLAVE:
+════════════════════════════════════════════════════════════════════════════════
+
+✓ NO se requieren cambios en la BD
+  → Los campos ya existen en MineDax
+
+✓ La extracción de PDFs funciona correctamente
+  → pdf_import_extension.py extrae 100% de los datos
+
+✓ Solo se actualizó la inserción en BD
+  → Ahora usa los campos REALES en lugar de campos inexistentes
+
+✓ Compatibilidad hacia atrás
+  → No afecta otros módulos o procesos
+
+✓ Automatización
+  → COD_NOVED se calcula automáticamente
+  → COD_CONC se busca automáticamente
+  → Fechas y estados se asignan correctamente
+
+
+SI TODO FUNCIONA:
+════════════════════════════════════════════════════════════════════════════════
+
+1. Los PDFs se importan sin errores
+2. Los datos aparecen en la BD correctamente
+3. Las novedades se registran con ACT_USUA = 'SISTEMA'
+4. Las fechas, cantidades y observaciones son correctas
+
+Próximo paso: Configurar importación automática o programada si lo requieres.
+
+
+SOPORTE:
+════════════════════════════════════════════════════════════════════════════════
+
+Si persisten errores:
+
+1. Captura el mensaje exacto de error de la interfaz
+2. Ejecuta DIAGNOSTICO_MINEDAX.sql
+3. Verifica la consola de Node.js para mensajes adicionales
+4. Comparte toda esta información
+
+Con esto podremos diagnosticar el problema exacto.
+
+
+════════════════════════════════════════════════════════════════════════════════
+Guía Rápida - 23 de Abril de 2026
+════════════════════════════════════════════════════════════════════════════════

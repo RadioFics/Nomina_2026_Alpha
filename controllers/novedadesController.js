@@ -132,7 +132,7 @@ async function buscarHistorial(req, res) {
     // Joins comunes a las 4 partes del UNION
     const JOINS = `
       LEFT JOIN dbo.GN_FUNCI  f ON f.COD_EMPR = n.COD_EMPR AND f.COD_FUNCI = n.COD_FUNCI
-      LEFT JOIN dbo.GN_TERCE  t ON t.COD_TERC = f.COD_TERC
+      LEFT JOIN dbo.GN_TERCE  t ON t.COD_EMPR = n.COD_EMPR AND t.COD_TERC  = f.COD_TERC
       LEFT JOIN dbo.NO_CONCE  c ON c.COD_EMPR = n.COD_EMPR AND c.COD_CONC  = n.COD_CONC
       LEFT JOIN dbo.NO_PERIOD p ON p.COD_EMPR = n.COD_EMPR AND p.COD_PERIOD = n.COD_PERIOD
     `;
@@ -240,23 +240,34 @@ async function buscarHistorial(req, res) {
     if (partes.length === 0)
       return res.status(400).json({ error: 'Tipo de novedad inválido' });
 
-    const unionQuery = `
-      SELECT TOP (@limite) * FROM (
-        ${partes.join('\n UNION ALL \n')}
-      ) AS historial
-      ORDER BY ACT_HORA DESC
-    `;
-
-    const params = { codEmpr, limite };
+    const params = { codEmpr };
     if (codPeriod) params.codPeriod = codPeriod;
     if (desde) params.desde = desde;
     if (hasta) params.hasta = hasta;
     if (q)    params.q = `%${q}%`;
 
-    const result = await executeQuery(unionQuery, params);
+    // Ejecutar primero un COUNT para obtener el total real sin límite
+    const countQuery = `
+      SELECT COUNT(*) AS total FROM (
+        ${partes.join('\n UNION ALL \n')}
+      ) AS historial
+    `;
+    const countResult = await executeQuery(countQuery, params);
+    const totalReal = countResult.recordset[0]?.total || 0;
+
+    // Luego traer los registros con límite (usando TOP hardcodeado para evitar
+    // problemas de tipo con @limite en subqueries UNION ALL de mssql)
+    const limiteNum = Number(limite);
+    const dataQuery = `
+      SELECT TOP ${limiteNum} * FROM (
+        ${partes.join('\n UNION ALL \n')}
+      ) AS historial
+      ORDER BY ACT_HORA DESC
+    `;
+    const result = await executeQuery(dataQuery, params);
 
     res.json({
-      total: result.recordset.length,
+      total: totalReal,
       registros: result.recordset || []
     });
 
@@ -273,10 +284,12 @@ async function buscarHistorial(req, res) {
 async function listarPeriodos(req, res) {
   try {
     const codEmpr = Number(req.query.codEmpr) || DEFAULT_COD_EMPR;
+    // Se incluyen TODOS los períodos (activos e inactivos) para que el buscador
+    // histórico pueda filtrar novedades de cualquier quincena, no solo la vigente.
     const r = await executeQuery(`
       SELECT COD_PERIOD, PER_ANO, PER_MES, PER_QNA, PER_FINI, PER_FFIN, PER_EST
       FROM dbo.NO_PERIOD
-      WHERE COD_EMPR = @codEmpr AND ACT_ESTA = 'A'
+      WHERE COD_EMPR = @codEmpr
       ORDER BY PER_FINI DESC
     `, { codEmpr });
     res.json(r.recordset || []);

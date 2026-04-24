@@ -61,42 +61,71 @@ let pool = null;
 let isConnecting = false;
 
 async function getConnection() {
+  // Si ya se está conectando, esperar a que termine
   if (isConnecting) {
     let attempts = 0;
-    while (pool === null && attempts < 50) {
+    while ((pool === null || !pool.connected) && attempts < 100) {
       await new Promise(resolve => setTimeout(resolve, 100));
       attempts++;
     }
+    if (pool && pool.connected) {
+      return pool;
+    }
   }
 
-  if (!pool) {
-    isConnecting = true;
-    try {
-      pool = new sql.ConnectionPool(runtimeConfig);
+  // Si hay un pool conectado, devolverlo
+  if (pool && pool.connected) {
+    return pool;
+  }
 
-      pool.on('error', (err) => {
-        console.error('[DB] Error en pool:', err.message);
-        pool = null;
-        isConnecting = false;
-      });
+  // Reconectar si es necesario
+  isConnecting = true;
+  try {
+    // Cerrar pool anterior si existe pero no está conectado
+    if (pool && !pool.connected) {
+      try {
+        await pool.close();
+      } catch (_) {}
+      pool = null;
+    }
 
-      await pool.connect();
-      isConnecting = false;
-      console.log(`[DB] Conectado: ${runtimeConfig.server} / ${runtimeConfig.database}`);
-    } catch (err) {
+    pool = new sql.ConnectionPool(runtimeConfig);
+
+    pool.on('error', (err) => {
+      console.error('[DB] Error en pool:', err.message);
       pool = null;
       isConnecting = false;
+    });
+
+    await pool.connect();
+    isConnecting = false;
+    console.log(`[DB] Conectado: ${runtimeConfig.server} / ${runtimeConfig.database}`);
+    return pool;
+  } catch (err) {
+    pool = null;
+    isConnecting = false;
+    throw err;
+  }
+}
+
+async function executeQuery(query, params = {}, retries = 2) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const conn = await getConnection();
+      const request = conn.request();
+      Object.keys(params).forEach(key => request.input(key, params[key]));
+      return request.query(query);
+    } catch (err) {
+      // Si es "Connection is closed" y hay reintentos, esperar y reintentar
+      if (err.message?.includes('closed') && attempt < retries) {
+        console.log(`[DB] Reintentando query (intento ${attempt + 1}/${retries})...`);
+        pool = null; // Forzar reconexión
+        await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+        continue;
+      }
       throw err;
     }
   }
-  return pool;
-}
-
-async function executeQuery(query, params = {}) {
-  const conn = await getConnection();
-  const request = conn.request();
-  Object.keys(params).forEach(key => request.input(key, params[key]));
-  return request.query(query);
 }
 
 // ──────────────────────────────────────────────────────────────────

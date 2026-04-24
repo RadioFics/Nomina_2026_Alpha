@@ -513,7 +513,7 @@
     <div class="nav-divider"></div>
     <div class="aside-label">Configuración</div>
     <div class="nav-item" data-page="importar" onclick="navigate('importar')">
-      <span class="nav-icon">↑</span> Importar Excel
+      <span class="nav-icon">↑</span> Importar Archivos
     </div>
     <div class="nav-item" data-page="conexion" onclick="navigate('conexion')">
       <span class="nav-icon">⊟</span> Conexión BD
@@ -1462,18 +1462,18 @@
       </div>
     </div>
 
-    <!-- ===== IMPORTAR EXCEL ===== -->
+    <!-- ===== IMPORTAR ARCHIVOS (EXCEL + PDF) ===== -->
     <div class="page" id="page-importar">
       <div class="page-title">Importar <span>Novedades Masivas</span></div>
-      <div class="page-desc">Carga el formato de novedades (hoja "Reporte Final") para registrar masivamente en la base de datos</div>
+      <div class="page-desc">Carga archivos Excel o PDFs de solicitudes (Permisos CM-TH-FR-003, Vacaciones CM-TH-SV-001) para registrar masivamente en la base de datos</div>
 
       <!-- Zona de carga -->
       <div class="upload-zone" onclick="document.getElementById('fileInput').click()" id="dropZone"
            style="position:relative;">
         <div class="upload-icon" id="uploadIcon">📊</div>
         <div class="upload-label" id="uploadLabel">Arrastra uno o varios archivos aquí, o haz clic</div>
-        <div class="upload-sub" id="uploadSub">Formatos soportados: .xlsx, .xls · Múltiples archivos permitidos · Máx 50 MB c/u</div>
-        <input type="file" id="fileInput" accept=".xlsx,.xls" multiple onchange="seleccionarArchivoImport(event)">
+        <div class="upload-sub" id="uploadSub">Formatos soportados: .xlsx, .xls, .pdf · Múltiples archivos permitidos · Máx 50 MB c/u</div>
+        <input type="file" id="fileInput" accept=".xlsx,.xls,.pdf" multiple onchange="seleccionarArchivoImport(event)">
       </div>
 
       <!-- Lista de archivos seleccionados + botón importar -->
@@ -1559,6 +1559,7 @@
                 <option value="">Todos los estados</option>
                 <option value="INSERTADO">✓ Insertados</option>
                 <option value="ACUMULADO">⊕ Acumulados</option>
+                <option value="REACTIVADO">↺ Reactivados</option>
                 <option value="ERROR">✕ Errores</option>
               </select>
               <input class="table-search" placeholder="🔍 Buscar empleado..." style="width:180px;"
@@ -2277,9 +2278,12 @@ function histAcKeyNav(e) {
 }
 
 function histAcSeleccionar(cedula, nombre) {
-  document.getElementById('hist_q').value = cedula + ' ' + nombre;
+  // Poner solo la cédula en el campo para que el LIKE funcione con precisión
+  document.getElementById('hist_q').value = cedula;
   document.getElementById('hist_ac_drop').classList.remove('show');
   _histAcIdx = -1;
+  // Disparar búsqueda automáticamente al seleccionar del autocomplete
+  histBuscar();
 }
 
 // Cerrar dropdown al hacer click fuera
@@ -2405,7 +2409,12 @@ function histRenderizar(registros, total) {
   const cnt  = document.getElementById('histCount');
 
   wrap.style.display = '';
-  cnt.textContent = `${total} registro${total !== 1 ? 's' : ''} encontrado${total !== 1 ? 's' : ''}`;
+  // Si el total real es mayor que los registros mostrados, indicar ambos
+  if (total > registros.length) {
+    cnt.textContent = `Mostrando ${registros.length} de ${total} registro${total !== 1 ? 's' : ''} encontrado${total !== 1 ? 's' : ''} (aumenta el límite para ver más)`;
+  } else {
+    cnt.textContent = `${total} registro${total !== 1 ? 's' : ''} encontrado${total !== 1 ? 's' : ''}`;
+  }
 
   if (!registros.length) {
     tb.innerHTML = `<tr><td colspan="10" class="hist-empty">Sin resultados para los filtros aplicados</td></tr>`;
@@ -4054,7 +4063,7 @@ function cancelarImport() {
   document.getElementById('fileInput').value = '';
   document.getElementById('uploadIcon').textContent = '📊';
   document.getElementById('uploadLabel').textContent = 'Arrastra uno o varios archivos aquí, o haz clic';
-  document.getElementById('uploadSub').textContent = 'Formatos soportados: .xlsx, .xls · Múltiples archivos permitidos · Máx 50 MB c/u';
+  document.getElementById('uploadSub').textContent = 'Formatos soportados: .xlsx, .xls, .pdf · Múltiples archivos permitidos · Máx 50 MB c/u';
   document.getElementById('importFileInfo').style.display = 'none';
   document.getElementById('importResult').style.display = 'none';
   document.getElementById('importGuia').style.display = 'block';
@@ -4076,6 +4085,10 @@ async function ejecutarImportMasiva() {
     const u = JSON.parse(localStorage.getItem('usuario'));
     if (u && u.nombre) usuario = u.nombre;
   } catch (_) {}
+
+  // Detectar tipos de archivos
+  const excelFiles = _importFiles.filter(f => f.name.match(/\.(xlsx?|csv)$/i));
+  const pdfFiles = _importFiles.filter(f => f.name.match(/\.pdf$/i));
 
   // Deshabilitar botón y mostrar progreso
   const btn = document.getElementById('btnImportar');
@@ -4100,33 +4113,80 @@ async function ejecutarImportMasiva() {
   }, 300);
 
   try {
-    const formData = new FormData();
-    for (const f of _importFiles) {
-      formData.append('archivos[]', f);
-    }
-    formData.append('usuario', usuario);
-
     const token = localStorage.getItem('authToken');
     const headers = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    const resp = await fetch('/api/ocasionales/importar-excel', {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
+    let resultadosFinales = {
+      success: true,
+      periodo: null,
+      archivos: [],
+      resumen: { totalArchivos: totalArchivos, procesados: 0, totalFilas: 0, insertados: 0, acumulados: 0, reactivados: 0, conErrores: 0, errores: 0 }
+    };
+
+    // Procesar archivos Excel (mantener funcionalidad existente)
+    if (excelFiles.length > 0) {
+      const formDataExcel = new FormData();
+      for (const f of excelFiles) {
+        formDataExcel.append('archivos[]', f);
+      }
+      formDataExcel.append('usuario', usuario);
+
+      const respExcel = await fetch('/api/ocasionales/importar-excel', {
+        method: 'POST',
+        headers,
+        body: formDataExcel,
+      });
+
+      if (respExcel.ok || respExcel.status === 207) {
+        const dataExcel = await respExcel.json();
+        if (dataExcel.archivos) resultadosFinales.archivos.push(...dataExcel.archivos);
+        if (dataExcel.resumen) {
+          resultadosFinales.resumen.procesados += dataExcel.resumen.procesados || 0;
+          resultadosFinales.resumen.insertados += dataExcel.resumen.insertados || 0;
+          resultadosFinales.resumen.errores += dataExcel.resumen.errores || 0;
+        }
+      }
+    }
+
+    // Procesar archivos PDF (nueva funcionalidad)
+    if (pdfFiles.length > 0) {
+      const formDataPDF = new FormData();
+      for (const f of pdfFiles) {
+        formDataPDF.append('archivos[]', f);
+      }
+
+      const respPDF = await fetch('/api/pdf/importar', {
+        method: 'POST',
+        headers,
+        body: formDataPDF,
+      });
+
+      if (respPDF.ok) {
+        const dataPDF = await respPDF.json();
+        if (dataPDF.archivos) resultadosFinales.archivos.push(...dataPDF.archivos);
+        if (dataPDF.periodo) resultadosFinales.periodo = dataPDF.periodo;
+        if (dataPDF.resumen) {
+          resultadosFinales.resumen.procesados  += dataPDF.resumen.procesados  || 0;
+          resultadosFinales.resumen.insertados  += dataPDF.resumen.insertados  || 0;
+          resultadosFinales.resumen.acumulados  += dataPDF.resumen.acumulados  || 0;
+          resultadosFinales.resumen.reactivados += dataPDF.resumen.reactivados || 0;
+          resultadosFinales.resumen.conErrores  += dataPDF.resumen.conErrores  || dataPDF.resumen.errores || 0;
+          resultadosFinales.resumen.errores     += dataPDF.resumen.errores     || dataPDF.resumen.conErrores || 0;
+        }
+      }
+    }
 
     clearInterval(progTimer);
     barEl.style.width = '100%';
     await new Promise(r => setTimeout(r, 400));
 
-    const data = await resp.json();
     document.getElementById('importProgress').style.display = 'none';
 
-    if (!resp.ok && resp.status !== 207) {
-      mostrarResultadoImport(null, data.error || data.details || 'Error desconocido');
+    if (resultadosFinales.archivos.length === 0) {
+      mostrarResultadoImport(null, 'No se procesaron archivos');
     } else {
-      mostrarResultadoImport(data, null);
+      mostrarResultadoImport(resultadosFinales, null);
       cargarOcasionalesDelPeriodo();
     }
   } catch (err) {
@@ -4167,8 +4227,13 @@ function mostrarResultadoImport(data, errorMsg) {
   const gr = data.globalResumen || data.resumen || {};
   const archivos = data.archivos || [];
   const totalArch = archivos.length || 1;
-  const archivosConError = archivos.filter(a => !a.ok || (a.resumen && a.resumen.conErrores > 0)).length;
-  const hayErr = archivosConError > 0 || gr.conErrores > 0;
+  // Detectar errores: formato Excel usa a.ok; formato PDF usa a.estado === 'ERROR'
+  const archivosConError = archivos.filter(a =>
+    (a.ok === false) ||
+    (a.resumen && a.resumen.conErrores > 0) ||
+    (a.estado === 'ERROR')
+  ).length;
+  const hayErr = archivosConError > 0 || (gr.conErrores || gr.errores || 0) > 0;
 
   // Banner
   const banner = document.getElementById('importResultBanner');
@@ -4208,8 +4273,27 @@ function mostrarResultadoImport(data, errorMsg) {
   _importDetalle = [];
   if (archivos.length > 0) {
     for (const arch of archivos) {
-      if (!arch.ok && arch.error) {
-        // Archivo que falló completamente
+      // Detectar si es PDF o Excel por la estructura
+      const esPDF = arch.tipoNovedad !== undefined;
+
+      if (esPDF) {
+        // Formato PDF: usar tipoNovedad como "concepto"
+        // Mapear estado correctamente: INSERTADO, ACUMULADO, REACTIVADO → sus estados;
+        // cualquier otra cosa que no sea éxito → ERROR
+        const estadoPDF = ['INSERTADO','ACUMULADO','REACTIVADO'].includes(arch.estado)
+          ? arch.estado : 'ERROR';
+        _importDetalle.push({
+          _archivo: arch.archivo,
+          estado: estadoPDF,
+          cedula: arch.cedula || '—',
+          nombre: arch.nombre || '—',
+          codConc: null,
+          tipoNovedad: arch.tipoNovedad || '—',
+          cantidad: arch.cantidad || null,
+          mensaje: estadoPDF !== 'ERROR' ? arch.detalle : arch.error,
+        });
+      } else if (!arch.ok && arch.error) {
+        // Archivo que falló completamente (Excel)
         _importDetalle.push({
           _archivo: arch.archivo,
           estado: 'ERROR',
@@ -4220,6 +4304,7 @@ function mostrarResultadoImport(data, errorMsg) {
           mensaje: `[${arch.archivo}] ${arch.error}`,
         });
       } else if (arch.detalle) {
+        // Formato Excel: usar detalle
         for (const d of arch.detalle) {
           _importDetalle.push({ ...d, _archivo: arch.archivo });
         }
@@ -4250,7 +4335,10 @@ function renderDetalleImport(rows) {
     } else {
       estadoHtml = `<span class="badge badge-ded">✕ Error</span>`;
     }
-    const concNom = d.codConc ? (CONC_NOMBRES[d.codConc] || `Concepto #${d.codConc}`) : '—';
+    // Soportar tanto codConc (Excel) como tipoNovedad (PDF)
+    const concNom = d.codConc
+      ? (CONC_NOMBRES[d.codConc] || `Concepto #${d.codConc}`)
+      : (d.tipoNovedad || '—');
     const cant = d.cantidad != null ? Number(d.cantidad).toFixed(2) : '—';
     const archNom = d._archivo
       ? `<span title="${d._archivo}" style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px;display:inline-block;">${d._archivo}</span>`
