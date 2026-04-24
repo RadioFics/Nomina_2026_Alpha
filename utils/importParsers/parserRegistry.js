@@ -18,6 +18,7 @@
 const parserExcel        = require('./parserExcel');
 const parserPolizaSalud  = require('./parserPolizaSalud');
 const parserPolizaVida   = require('./parserPolizaVida');
+const parserAdecco       = require('./parserAdecco');
 // Para agregar nuevos parsers, importarlos aquí:
 // const parserPDF   = require('./parserPDF');
 // const parserCSV   = require('./parserCSV');
@@ -39,7 +40,8 @@ const parserPolizaVida   = require('./parserPolizaVida');
 const PARSERS = [
   parserPolizaSalud, // más específico (salud) → debe ir PRIMERO para no ser absorbido por el de vida
   parserPolizaVida,  // específico (vida) → antes del parser genérico de Excel
-  parserExcel,
+  parserAdecco,      // ADECCO / Formato Novedades CM → antes del catch-all de Excel
+  parserExcel,       // catch-all genérico → siempre al FINAL
   // parserPDF,
   // parserCSV,
 ];

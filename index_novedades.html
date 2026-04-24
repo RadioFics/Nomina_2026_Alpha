@@ -1481,6 +1481,28 @@
         <div class="form-card" style="padding:16px 20px;">
           <!-- Lista de archivos -->
           <div id="importFileList" style="margin-bottom:14px;"></div>
+
+          <!-- Menú de modo ADECCO (visible solo cuando hay archivos ADECCO) -->
+          <div id="adeccoModoPanel" style="display:none; margin-bottom:16px; padding:14px 16px; background:rgba(32,167,201,0.07); border:1px solid rgba(32,167,201,0.25); border-radius:var(--radius);">
+            <div style="font-size:12px; text-transform:uppercase; letter-spacing:0.07em; color:var(--cm-blue-light); font-weight:700; margin-bottom:10px;">
+              📋 Archivo ADECCO detectado — ¿Qué deseas importar?
+            </div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; padding:8px 14px; border-radius:6px; border:1px solid rgba(255,255,255,0.12); background:var(--surface2);">
+                <input type="radio" name="adeccoModo" value="novedades" checked style="accent-color:var(--cm-blue);">
+                <span>Solo <strong>Novedades</strong><br><small style="color:var(--muted);">Ocasionales, Fijas, Ausentismos, Cambios</small></span>
+              </label>
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; padding:8px 14px; border-radius:6px; border:1px solid rgba(255,255,255,0.12); background:var(--surface2);">
+                <input type="radio" name="adeccoModo" value="empleados" style="accent-color:var(--cm-blue);">
+                <span>Solo <strong>Empleados</strong><br><small style="color:var(--muted);">Sincronizar Maestro Original → BD</small></span>
+              </label>
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; padding:8px 14px; border-radius:6px; border:1px solid rgba(255,255,255,0.12); background:var(--surface2);">
+                <input type="radio" name="adeccoModo" value="ambos" style="accent-color:var(--cm-blue);">
+                <span><strong>Empleados y Novedades</strong><br><small style="color:var(--muted);">Sincroniza empleados primero, luego novedades</small></span>
+              </label>
+            </div>
+          </div>
+
           <div style="display:flex; justify-content:flex-end; gap:10px; align-items:center; border-top:1px solid rgba(255,255,255,0.07); padding-top:12px;">
             <button class="btn btn-secondary" onclick="cancelarImport()" style="padding:8px 16px;">✕ Cancelar</button>
             <button class="btn btn-primary" id="btnImportar" onclick="ejecutarImportMasiva()" style="padding:8px 18px;">
@@ -1559,7 +1581,10 @@
                 <option value="">Todos los estados</option>
                 <option value="INSERTADO">✓ Insertados</option>
                 <option value="ACUMULADO">⊕ Acumulados</option>
+                <option value="ACTUALIZADO">↺ Actualizados</option>
                 <option value="REACTIVADO">↺ Reactivados</option>
+                <option value="INHABILITADO">⊘ Inhabilitados</option>
+                <option value="PENDIENTE">⚠ Pendientes</option>
                 <option value="ERROR">✕ Errores</option>
               </select>
               <input class="table-search" placeholder="🔍 Buscar empleado..." style="width:180px;"
@@ -3993,6 +4018,14 @@ function formatoLegible(bytes) {
   return (bytes / 1048576).toFixed(1) + ' MB';
 }
 
+// Detecta si un nombre de archivo corresponde al formato ADECCO
+function esArchivoAdecco(nombre) {
+  const n = (nombre || '').toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return (n.includes('formato') && (n.includes('novedad') || n.includes('nov'))) ||
+         n.includes('adecco');
+}
+
 function renderListaArchivos() {
   const container = document.getElementById('importFileList');
   if (!container) return;
@@ -4005,7 +4038,7 @@ function renderListaArchivos() {
       <span style="font-size:20px;">${iconoPorArchivo(f.name)}</span>
       <div style="flex:1;min-width:0;">
         <div style="font-weight:600;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.name}</div>
-        <div style="font-size:11px;color:var(--muted);">${formatoLegible(f.size)} · ${f.type || 'desconocido'}</div>
+        <div style="font-size:11px;color:var(--muted);">${formatoLegible(f.size)} · ${f.type || 'desconocido'}${esArchivoAdecco(f.name) ? ' · <span style="color:var(--cm-blue-light)">ADECCO</span>' : ''}</div>
       </div>
       <button onclick="quitarArchivoImport(${i})" title="Quitar este archivo"
         style="background:transparent;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:2px 6px;border-radius:4px;"
@@ -4018,6 +4051,11 @@ function renderListaArchivos() {
     </div>
     ${html}
   `;
+
+  // Mostrar u ocultar el panel de modo ADECCO según si hay archivos Excel ADECCO
+  const tieneAdecco = _importFiles.some(f => f.name.match(/\.xlsx?$/i) && esArchivoAdecco(f.name));
+  const panel = document.getElementById('adeccoModoPanel');
+  if (panel) panel.style.display = tieneAdecco ? 'block' : 'none';
 }
 
 function quitarArchivoImport(idx) {
@@ -4124,13 +4162,20 @@ async function ejecutarImportMasiva() {
       resumen: { totalArchivos: totalArchivos, procesados: 0, totalFilas: 0, insertados: 0, acumulados: 0, reactivados: 0, conErrores: 0, errores: 0 }
     };
 
-    // Procesar archivos Excel (mantener funcionalidad existente)
+    // Leer modo seleccionado para archivos ADECCO
+    const modoRadio = document.querySelector('input[name="adeccoModo"]:checked');
+    const modoAdecco = modoRadio ? modoRadio.value : 'novedades';
+
+    // Procesar archivos Excel
     if (excelFiles.length > 0) {
       const formDataExcel = new FormData();
       for (const f of excelFiles) {
         formDataExcel.append('archivos[]', f);
       }
       formDataExcel.append('usuario', usuario);
+      // Enviar modo solo si hay al menos un archivo ADECCO en el lote
+      const hayAdecco = excelFiles.some(f => esArchivoAdecco(f.name));
+      if (hayAdecco) formDataExcel.append('modo', modoAdecco);
 
       const respExcel = await fetch('/api/ocasionales/importar-excel', {
         method: 'POST',
@@ -4141,10 +4186,25 @@ async function ejecutarImportMasiva() {
       if (respExcel.ok || respExcel.status === 207) {
         const dataExcel = await respExcel.json();
         if (dataExcel.archivos) resultadosFinales.archivos.push(...dataExcel.archivos);
-        if (dataExcel.resumen) {
+        if (dataExcel.globalResumen) {
+          resultadosFinales.resumen.procesados  += dataExcel.globalResumen.procesados  || 0;
+          resultadosFinales.resumen.insertados  += dataExcel.globalResumen.insertados  || 0;
+          resultadosFinales.resumen.acumulados  += dataExcel.globalResumen.acumulados  || 0;
+          resultadosFinales.resumen.conErrores  += dataExcel.globalResumen.conErrores  || 0;
+          resultadosFinales.resumen.errores     += dataExcel.globalResumen.conErrores  || 0;
+        } else if (dataExcel.resumen) {
           resultadosFinales.resumen.procesados += dataExcel.resumen.procesados || 0;
           resultadosFinales.resumen.insertados += dataExcel.resumen.insertados || 0;
-          resultadosFinales.resumen.errores += dataExcel.resumen.errores || 0;
+          resultadosFinales.resumen.errores    += dataExcel.resumen.errores    || 0;
+        }
+        if (dataExcel.periodo) resultadosFinales.periodo = dataExcel.periodo;
+        // Pasar resumen de empleados si viene en la respuesta
+        if (dataExcel.archivos) {
+          for (const a of dataExcel.archivos) {
+            if (a.resumenEmpleados) {
+              resultadosFinales._resumenEmpleados = a.resumenEmpleados;
+            }
+          }
         }
       }
     }
@@ -4269,6 +4329,48 @@ function mostrarResultadoImport(data, errorMsg) {
       ? `${data.periodo.etiqueta}  (${new Date(data.periodo.inicio).toLocaleDateString('es-CO')} – ${new Date(data.periodo.fin).toLocaleDateString('es-CO')})`
       : '—';
 
+  // ── Panel de resumen de empleados (modo empleados/ambos) ─────────────────────
+  let panelEmp = document.getElementById('importResumenEmpleados');
+  const re = data._resumenEmpleados;
+  if (re) {
+    if (!panelEmp) {
+      panelEmp = document.createElement('div');
+      panelEmp.id = 'importResumenEmpleados';
+      panelEmp.className = 'form-card';
+      panelEmp.style.cssText = 'padding:14px 20px; margin-bottom:16px;';
+      document.getElementById('importPeriodoCard').after(panelEmp);
+    }
+    const pendHTML = (re.pendientes && re.pendientes.length > 0)
+      ? `<div style="margin-top:10px;padding:10px 14px;background:rgba(224,85,85,0.08);border:1px solid rgba(224,85,85,0.25);border-radius:6px;">
+           <div style="font-size:12px;font-weight:700;color:var(--danger);margin-bottom:6px;">⚠ ${re.pendientes} empleado(s) omitido(s) por FKs sin resolver</div>
+           <div style="font-size:11px;color:var(--muted);">Estos registros no fueron importados. Verifica que Cargo, Centro Costo, EPS, AFP, Caja y Cesantías existan en las tablas maestras de la BD.</div>
+         </div>` : '';
+    panelEmp.innerHTML = `
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);margin-bottom:10px;">Sincronización de Empleados (Maestro Original)</div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;">
+        <div style="text-align:center;min-width:70px;">
+          <div style="font-size:20px;font-weight:800;color:#4CAF82;">${re.insertados || 0}</div>
+          <div style="font-size:11px;color:var(--muted);">Nuevos</div>
+        </div>
+        <div style="text-align:center;min-width:70px;">
+          <div style="font-size:20px;font-weight:800;color:var(--cm-blue-light);">${re.actualizados || 0}</div>
+          <div style="font-size:11px;color:var(--muted);">Actualizados</div>
+        </div>
+        <div style="text-align:center;min-width:70px;">
+          <div style="font-size:20px;font-weight:800;color:#f5a623;">${re.inhabilitados || 0}</div>
+          <div style="font-size:11px;color:var(--muted);">Inhabilitados</div>
+        </div>
+        <div style="text-align:center;min-width:70px;">
+          <div style="font-size:20px;font-weight:800;color:var(--danger);">${re.omitidos || 0}</div>
+          <div style="font-size:11px;color:var(--muted);">Omitidos</div>
+        </div>
+      </div>
+      ${pendHTML}
+    `;
+  } else if (panelEmp) {
+    panelEmp.remove();
+  }
+
   // Construir detalle global unificado desde todos los archivos
   _importDetalle = [];
   if (archivos.length > 0) {
@@ -4330,6 +4432,14 @@ function renderDetalleImport(rows) {
       estadoHtml = `<span class="badge badge-dev">✓ Insertado</span>`;
     } else if (d.estado === 'ACUMULADO') {
       estadoHtml = `<span class="badge badge-cam">⊕ Acumulado</span>`;
+    } else if (d.estado === 'ACTUALIZADO') {
+      estadoHtml = `<span class="badge" style="background:rgba(32,167,201,0.15);color:#20A7C9;">↺ Actualizado</span>`;
+    } else if (d.estado === 'REACTIVADO') {
+      estadoHtml = `<span class="badge" style="background:rgba(91,155,213,0.15);color:#5B9BD5;">↺ Reactivado</span>`;
+    } else if (d.estado === 'INHABILITADO') {
+      estadoHtml = `<span class="badge" style="background:rgba(245,166,35,0.15);color:#f5a623;">⊘ Inhabilitado</span>`;
+    } else if (d.estado === 'PENDIENTE') {
+      estadoHtml = `<span class="badge" style="background:rgba(224,85,85,0.12);color:#E05555;">⚠ Pendiente</span>`;
     } else if (d.estado === 'AVISO') {
       estadoHtml = `<span class="badge" style="background:rgba(32,167,201,0.15);color:#20A7C9;">ℹ Aviso</span>`;
     } else {
