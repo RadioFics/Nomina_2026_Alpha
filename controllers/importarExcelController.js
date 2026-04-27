@@ -90,16 +90,22 @@ async function resolverCodCcost(nomCcost, codEmpr) {
 }
 
 async function buscarNovedadExistente(codEmpr, codFunci, codConc, codPeriod) {
+  // Busca activos E inactivos: preferimos activos (ORDER BY activo DESC, más reciente DESC).
+  // ES_ACTIVA=true  → acumular sobre el registro vigente (comportamiento previo).
+  // ES_ACTIVA=false → fue anulado; reactivar en lugar de crear un duplicado nuevo.
   const r = await executeQuery(`
-    SELECT TOP 1 n.COD_NOVED, o.CANTIDAD
+    SELECT TOP 1
+      n.COD_NOVED, o.CANTIDAD,
+      CAST(CASE WHEN n.ACT_ESTA='A' AND o.ACT_ESTA='A' THEN 1 ELSE 0 END AS BIT) AS ES_ACTIVA
     FROM dbo.NO_NOVED n
     INNER JOIN dbo.NO_OCASI o ON o.COD_EMPR = n.COD_EMPR AND o.COD_NOVED = n.COD_NOVED
     WHERE n.COD_EMPR   = @codEmpr
       AND n.COD_FUNCI  = @codFunci
       AND n.COD_CONC   = @codConc
       AND n.COD_PERIOD = @codPeriod
-      AND n.ACT_ESTA   = 'A'
-      AND o.ACT_ESTA   = 'A'
+    ORDER BY
+      CASE WHEN n.ACT_ESTA='A' AND o.ACT_ESTA='A' THEN 0 ELSE 1 END,
+      n.COD_NOVED DESC
   `, { codEmpr, codFunci, codConc, codPeriod });
   return r.recordset && r.recordset[0] ? r.recordset[0] : null;
 }
@@ -500,42 +506,47 @@ async function procesarEnBD({ agrupado, codEmpr, periodo, pool, usuario, nombreA
                 : `Cantidad acumulada (total: ${nuevaCant.toFixed(2)}) en NO_NOVED #${existente.COD_NOVED}.`
             });
           } else {
-            // Insertar nueva novedad ocasional
-            const rN = new sql.Request(transaction);
-            rN.input('codEmpr',   sql.SmallInt,      codEmpr);
-            rN.input('codFunci',  sql.Int,           codFunci);
-            rN.input('codConc',   sql.Int,           codConc);
-            rN.input('codPeriod', sql.Int,           periodo.COD_PERIOD);
-            rN.input('obs',       sql.NVarChar(500), `Importado desde "${nombreArchivo}": ${emp.nombre}`);
-            rN.input('actUsua',   sql.NVarChar(50),  usuario);
-            rN.input('codCcost',  sql.Int,           codCcost);
+            // Insertar nueva novedad ocasional.
+            // IMPORTANTE: NO_NOVED y NO_OCASI se insertan en un ÚNICO batch SQL.
+            // Si se usaran dos sql.Request separados (dos round-trips), el trigger
+            // TR_NO_OCASI_VALIDA_CONCEPTO no puede hacer JOIN a la fila de NO_NOVED
+            // recién insertada (visibilidad de scope entre requests distintos en mssql).
+            // Con un batch único todo ocurre en el mismo contexto del servidor y el
+            // trigger encuentra correctamente la fila en NO_NOVED.
+            const rNO = new sql.Request(transaction);
+            rNO.input('codEmpr',   sql.SmallInt,       codEmpr);
+            rNO.input('codFunci',  sql.Int,            codFunci);
+            rNO.input('codConc',   sql.Int,            codConc);
+            rNO.input('codPeriod', sql.Int,            periodo.COD_PERIOD);
+            rNO.input('obs',       sql.NVarChar(500),  `Importado desde "${nombreArchivo}": ${emp.nombre}`);
+            rNO.input('actUsua',   sql.NVarChar(50),   usuario);
+            rNO.input('codCcost',  sql.Int,            codCcost);
+            rNO.input('cantidad',  sql.Decimal(18, 4), cantidad);
+            rNO.input('valor',     sql.Decimal(18, 2), valor);
 
-            const nr = await rN.query(`
+            const nrBatch = await rNO.query(`
+              DECLARE @newNoved INT;
+
               INSERT INTO dbo.NO_NOVED
                 (COD_EMPR, COD_FUNCI, COD_CONC, COD_PERIOD,
                  FEC_REGI, OBS_NOVED, IND_APLICADO, ACT_USUA, ACT_HORA, ACT_ESTA, COD_CCOST)
               VALUES
                 (@codEmpr, @codFunci, @codConc, @codPeriod,
                  CONVERT(date,GETDATE()), @obs, 'N', @actUsua, GETDATE(), 'A', @codCcost);
-              SELECT CAST(SCOPE_IDENTITY() AS INT) AS COD_NOVED;
-            `);
 
-            if (!nr.recordset || nr.recordset[0].COD_NOVED == null)
-              throw new Error('SCOPE_IDENTITY() nulo al insertar en NO_NOVED (OCASIONAL).');
-            const codNoved = nr.recordset[0].COD_NOVED;
+              SET @newNoved = SCOPE_IDENTITY();
 
-            const rO = new sql.Request(transaction);
-            rO.input('codEmpr',  sql.SmallInt,      codEmpr);
-            rO.input('codNoved', sql.Int,           codNoved);
-            rO.input('cantidad', sql.Decimal(18, 4), cantidad);
-            rO.input('valor',    sql.Decimal(18, 2), valor);
-            rO.input('actUsua',  sql.NVarChar(50),  usuario);
-            await rO.query(`
               INSERT INTO dbo.NO_OCASI
                 (COD_EMPR, COD_NOVED, CANTIDAD, VALOR, ACT_USUA, ACT_HORA, ACT_ESTA)
               VALUES
-                (@codEmpr, @codNoved, @cantidad, @valor, @actUsua, SYSDATETIME(), 'A')
+                (@codEmpr, @newNoved, @cantidad, @valor, @actUsua, SYSDATETIME(), 'A');
+
+              SELECT @newNoved AS COD_NOVED;
             `);
+
+            if (!nrBatch.recordset || nrBatch.recordset[0].COD_NOVED == null)
+              throw new Error('SCOPE_IDENTITY() nulo al insertar en NO_NOVED (OCASIONAL).');
+            const codNoved = nrBatch.recordset[0].COD_NOVED;
 
             await transaction.commit();
             resumen.insertados++;
@@ -742,19 +753,20 @@ async function cargarMaestras(codEmpr) {
 
   const [tpdoc, munis, grsan, estciv, cargo, ccost, banco, tpcta,
          eps, afp, caja, cesan, terces, funcis] = await Promise.all([
-    Q(`SELECT COD_TPDOC, ABR_TPDOC, NOM_TPDOC FROM dbo.MAE_TPDOC WHERE ACT_ESTA='A'`),
-    Q(`SELECT COD_MPIO, NOM_MPIO FROM dbo.MAE_MUNI WHERE ACT_ESTA='A'`),
-    Q(`SELECT COD_GRSAN, NOM_GRSAN, FAC_RH FROM dbo.MAE_GRSAN WHERE ACT_ESTA='A'`),
+    Q(`SELECT COD_TPDOC, COD_ABREV AS ABR_TPDOC, NOM_TPDOC FROM dbo.MAE_TPDOC WHERE ACT_ESTA='A'`),
+    Q(`SELECT COD_MUNI AS COD_MPIO, NOM_MUNI AS NOM_MPIO FROM dbo.MAE_MUNI WHERE ACT_ESTA='A'`),
+    Q(`SELECT COD_GRSAN, NOM_GRSAN, COD_LETRA, COD_FCRH FROM dbo.MAE_GRSAN WHERE ACT_ESTA='A'`),
     Q(`SELECT COD_ESTCIV, NOM_ESTCIV FROM dbo.MAE_ESTCIV WHERE ACT_ESTA='A'`),
     Q(`SELECT COD_CARGO, NOM_CARGO FROM dbo.MAE_CARGO WHERE COD_EMPR=@codEmpr AND ACT_ESTA='A'`),
-    Q(`SELECT COD_CCOST, NOM_CCOST, ABR_CCOST FROM dbo.MAE_CCOST WHERE COD_EMPR=@codEmpr AND ACT_ESTA='A'`),
+    Q(`SELECT COD_CCOST, NOM_CCOST, COD_ABREV AS ABR_CCOST FROM dbo.MAE_CCOST WHERE COD_EMPR=@codEmpr AND ACT_ESTA='A'`),
     Q(`SELECT COD_BANCO, NOM_BANCO FROM dbo.MAE_BANCO WHERE ACT_ESTA='A'`),
-    Q(`SELECT COD_TPCTA, NOM_TPCTA, ABR_TPCTA FROM dbo.MAE_TPCTA WHERE ACT_ESTA='A'`),
-    // EPS / AFP / CAJA / CESANTIAS → GN_TERCE vía tablas MAE_
-    Q(`SELECT m.COD_EPS, t.NOM_COMP FROM dbo.MAE_EPS m INNER JOIN dbo.GN_TERCE t ON t.COD_TERC=m.COD_TERC AND t.COD_EMPR=m.COD_EMPR WHERE m.COD_EMPR=@codEmpr AND m.ACT_ESTA='A'`),
-    Q(`SELECT m.COD_AFP, t.NOM_COMP FROM dbo.MAE_AFP m INNER JOIN dbo.GN_TERCE t ON t.COD_TERC=m.COD_TERC AND t.COD_EMPR=m.COD_EMPR WHERE m.COD_EMPR=@codEmpr AND m.ACT_ESTA='A'`),
-    Q(`SELECT m.COD_CAJA, t.NOM_COMP FROM dbo.MAE_CAJA m INNER JOIN dbo.GN_TERCE t ON t.COD_TERC=m.COD_TERC AND t.COD_EMPR=m.COD_EMPR WHERE m.COD_EMPR=@codEmpr AND m.ACT_ESTA='A'`),
-    Q(`SELECT m.COD_CESAN, t.NOM_COMP FROM dbo.MAE_CESAN m INNER JOIN dbo.GN_TERCE t ON t.COD_TERC=m.COD_TERC AND t.COD_EMPR=m.COD_EMPR WHERE m.COD_EMPR=@codEmpr AND m.ACT_ESTA='A'`),
+    Q(`SELECT COD_TPCTA, NOM_TPCTA, COD_ABREV AS ABR_TPCTA FROM dbo.MAE_TPCTA WHERE ACT_ESTA='A'`),
+    // EPS / AFP / CCF (=CAJA en GN_FUNCI) → GN_TERCE vía tablas MAE_
+    // MAE_CEST (cesantías) y MAE_ARL no tienen COD_TERC: se buscan por nombre directo
+    Q(`SELECT m.COD_EPS,  t.NOM_COMP FROM dbo.MAE_EPS m INNER JOIN dbo.GN_TERCE t ON t.COD_TERC=CAST(m.COD_TERC AS int) AND t.COD_EMPR=m.COD_EMPR WHERE m.COD_EMPR=@codEmpr AND m.ACT_ESTA='A'`),
+    Q(`SELECT m.COD_AFP,  t.NOM_COMP FROM dbo.MAE_AFP m INNER JOIN dbo.GN_TERCE t ON t.COD_TERC=CAST(m.COD_TERC AS int) AND t.COD_EMPR=m.COD_EMPR WHERE m.COD_EMPR=@codEmpr AND m.ACT_ESTA='A'`),
+    Q(`SELECT m.COD_CCF AS COD_CAJA, t.NOM_COMP FROM dbo.MAE_CCF m INNER JOIN dbo.GN_TERCE t ON t.COD_TERC=CAST(m.COD_TERC AS int) AND t.COD_EMPR=m.COD_EMPR WHERE m.COD_EMPR=@codEmpr AND m.ACT_ESTA='A'`),
+    Q(`SELECT COD_CEST AS COD_CESAN, NOM_CEST AS NOM_COMP FROM dbo.MAE_CEST WHERE COD_EMPR=@codEmpr AND ACT_ESTA='A'`),
     // Mapa existente de terceros y funcionarios
     Q(`SELECT COD_TERC, NUM_IDEN FROM dbo.GN_TERCE WHERE COD_EMPR=@codEmpr AND ACT_ESTA='A'`),
     Q(`SELECT COD_FUNCI, COD_TERC FROM dbo.GN_FUNCI WHERE COD_EMPR=@codEmpr AND ACT_ESTA='A'`),
@@ -796,16 +808,19 @@ async function cargarMaestras(codEmpr) {
   const bancoMap  = buildFuzzyMap(banco.recordset, 'NOM_BANCO', 'COD_BANCO');
   const tpctaMapN = new Map(tpcta.recordset.map(r => [n(r.NOM_TPCTA), r.COD_TPCTA]));
   const tpctaMapA = new Map(tpcta.recordset.map(r => [n(r.ABR_TPCTA || ''), r.COD_TPCTA]));
-  const epsMap    = buildFuzzyMap(eps.recordset, 'NOM_COMP', 'COD_EPS');
-  const afpMap    = buildFuzzyMap(afp.recordset, 'NOM_COMP', 'COD_AFP');
-  const cajaMap   = buildFuzzyMap(caja.recordset, 'NOM_COMP', 'COD_CAJA');
-  const cesanMap  = buildFuzzyMap(cesan.recordset, 'NOM_COMP', 'COD_CESAN');
+  const epsMap    = buildFuzzyMap(eps.recordset,   'NOM_COMP', 'COD_EPS');
+  const afpMap    = buildFuzzyMap(afp.recordset,   'NOM_COMP', 'COD_AFP');
+  const cajaMap   = buildFuzzyMap(caja.recordset,  'NOM_COMP', 'COD_CAJA');   // MAE_CCF alias COD_CAJA
+  const cesanMap  = buildFuzzyMap(cesan.recordset, 'NOM_COMP', 'COD_CESAN');  // MAE_CEST alias COD_CESAN
 
-  // Mapa grupo sanguíneo: (TIPO, FACTOR) → COD_GRSAN
+  // Mapa grupo sanguíneo: (COD_LETRA trimmed, COD_FCRH trimmed) → COD_GRSAN
+  // MAE_GRSAN almacena COD_LETRA como char(2) con padding (ej: 'O ', 'A ') y
+  // COD_FCRH como char(1) ('+' o '-'). Normalizamos con trim para comparar.
   const grsanMap  = new Map();
   for (const r of grsan.recordset) {
-    const k = n(r.NOM_GRSAN) + '|' + n(r.FAC_RH || '');
-    grsanMap.set(k, r.COD_GRSAN);
+    const letra = String(r.COD_LETRA || '').trim();
+    const fcrh  = String(r.COD_FCRH  || '').trim();
+    if (letra) grsanMap.set(letra.toUpperCase() + '|' + fcrh, r.COD_GRSAN);
   }
 
   // Mapa de terceros por cédula y funcionarios por COD_TERC
@@ -870,12 +885,6 @@ async function sincronizarEmpleados({ maestro, codEmpr, pool, usuario, nombreArc
           epsMap, afpMap, cajaMap, cesanMap,
           grsanMap, tercMap, funciMap, fuzzyGet, n } = mae;
 
-  // Obtener próximos IDs
-  const r1 = await executeQuery(`SELECT ISNULL(MAX(COD_TERC),0)+1 AS NEXT_ID FROM dbo.GN_TERCE WHERE COD_EMPR=@codEmpr`, { codEmpr });
-  const r2 = await executeQuery(`SELECT ISNULL(MAX(COD_FUNCI),0)+1 AS NEXT_ID FROM dbo.GN_FUNCI WHERE COD_EMPR=@codEmpr`, { codEmpr });
-  let nextTerc  = r1.recordset[0].NEXT_ID;
-  let nextFunci = r2.recordset[0].NEXT_ID;
-
   // Cédulas presentes en el Excel (para inhabilitar ausentes)
   const cedulasExcel = new Set(maestro.map(e => e.cedula));
 
@@ -894,8 +903,11 @@ async function sincronizarEmpleados({ maestro, codEmpr, pool, usuario, nombreArc
     const codCiuExp = muniMap.get(n(emp.ciudadExped));
 
     let codGrsan = null;
-    if (emp.grupoSan && emp.factorRh) {
-      const k = n(emp.grupoSan) + '|' + n(emp.factorRh);
+    if (emp.grupoSan || emp.factorRh) {
+      // La key del mapa usa COD_LETRA trimmed (ej: 'O', 'A', 'B', 'AB') + '|' + COD_FCRH ('+' o '-')
+      const letraKey = String(emp.grupoSan || '').trim().toUpperCase();
+      const fcrhKey  = String(emp.factorRh  || '').trim();
+      const k = letraKey + '|' + fcrhKey;
       codGrsan = grsanMap.get(k);
       if (!codGrsan)
         fkErrores.push({ campo: 'Grupo Sanguíneo+RH (MAE_GRSAN)', valor: `${emp.grupoSan} ${emp.factorRh}` });
@@ -913,7 +925,14 @@ async function sincronizarEmpleados({ maestro, codEmpr, pool, usuario, nombreArc
       fkErrores.push({ campo: 'Centro de Costo (MAE_CCOST)', valor: emp.centroCosto });
 
     const codBanco  = fuzzyGet(bancoMap, emp.banco);
-    const codTpcta  = tpctaMapN.get(n(emp.tipoCta)) || tpctaMapA.get(n(emp.tipoCta)) || null;
+    // Normalizar tipo de cuenta: "CONSIG. CTA CORRIENTE" → "Cuenta Corriente"
+    //                            "CONSIG. CTA AHORROS"   → "Cuenta de Ahorros"
+    // Esto permite mapear los labels del Excel ADECCO a los nombres en MAE_TPCTA.
+    let tipoCta = emp.tipoCta || '';
+    const tipCtaNorm = n(tipoCta).replace(/consig\.\s*cta\.?\s*/i, '').trim();
+    if (/corriente/i.test(tipCtaNorm)) tipoCta = 'Cuenta Corriente';
+    else if (/ahorro/i.test(tipCtaNorm)) tipoCta = 'Cuenta de Ahorros';
+    const codTpcta  = tpctaMapN.get(n(tipoCta)) || tpctaMapA.get(n(tipoCta)) || null;
 
     const codEps    = fuzzyGet(epsMap,  emp.eps);
     if (emp.eps && !codEps)
@@ -931,7 +950,8 @@ async function sincronizarEmpleados({ maestro, codEmpr, pool, usuario, nombreArc
     if (emp.cesantias && !codCesan)
       fkErrores.push({ campo: 'Cesantías (MAE_CESAN)', valor: emp.cesantias });
 
-    // Si hay FK críticas sin resolver → pendiente (no insertar)
+    // FK sin resolver → se registran como pendientes pero el UPSERT continúa
+    // (campos no resueltos quedarán NULL; mejor un registro parcial que omitirlo)
     if (fkErrores.length > 0) {
       resumen.pendientes.push({
         cedula:  emp.cedula,
@@ -939,8 +959,6 @@ async function sincronizarEmpleados({ maestro, codEmpr, pool, usuario, nombreArc
         fila:    emp.fila,
         errores: fkErrores,
       });
-      resumen.omitidos++;
-      continue;
     }
 
     // ── Datos calculados ─────────────────────────────────────────────────────
@@ -1002,9 +1020,10 @@ async function sincronizarEmpleados({ maestro, codEmpr, pool, usuario, nombreArc
         resumen.actualizados++;
       } else {
         // INSERT GN_TERCE
+        // GN_TERCE.COD_TERC es IDENTITY → no se inserta explícitamente;
+        // SQL Server lo genera y lo recuperamos con SCOPE_IDENTITY().
         const rI = new sql.Request(transaction);
         rI.input('codEmpr',  sql.SmallInt,      codEmpr);
-        rI.input('codTerc',  sql.Int,           nextTerc);
         rI.input('numIden',  sql.BigInt,        numIden);
         rI.input('codAlt',   sql.NVarChar(8),   emp.codigoAlt ? emp.codigoAlt.substring(0,8) : null);
         rI.input('codTpdoc', sql.SmallInt,      codTpdoc || null);
@@ -1019,22 +1038,22 @@ async function sincronizarEmpleados({ maestro, codEmpr, pool, usuario, nombreArc
         rI.input('dirTerc',  sql.NVarChar(120), emp.direccion ? emp.direccion.substring(0,120) : null);
         rI.input('dirMail',  sql.NVarChar(150), emp.correo ? emp.correo.substring(0,150) : null);
         rI.input('actUsua',  sql.NVarChar(50),  usuario);
-        await rI.query(`
+        const nrTerc = await rI.query(`
           INSERT INTO dbo.GN_TERCE (
-            COD_EMPR, COD_TERC, NUM_IDEN, COD_ALT, COD_TPDOC,
+            COD_EMPR, NUM_IDEN, COD_ALT, COD_TPDOC,
             NOM_COMP, NOM_TERC, SEG_NOMB, APE_TERC, SEG_APEL,
             COD_MPIO, TEL_TERC, TEL_TERC2, DIR_TERC, DIR_MAIL,
             TIP_TERC, TER_EMPL, ACT_USUA, ACT_HORA, ACT_ESTA
           ) VALUES (
-            @codEmpr, @codTerc, @numIden, @codAlt, @codTpdoc,
+            @codEmpr, @numIden, @codAlt, @codTpdoc,
             @nomComp, @nomTerc, @segNomb, @apeTerc, @segApel,
             @codMpio, @tel1, @tel2, @dirTerc, @dirMail,
             'E', '1', @actUsua, GETDATE(), 'A'
-          )
+          );
+          SELECT CAST(SCOPE_IDENTITY() AS INT) AS COD_TERC;
         `);
-        codTerc = nextTerc;
+        codTerc = nrTerc.recordset[0].COD_TERC;
         tercMap.set(emp.cedula, codTerc);
-        nextTerc++;
         resumen.insertados++;
       }
 
@@ -1043,7 +1062,7 @@ async function sincronizarEmpleados({ maestro, codEmpr, pool, usuario, nombreArc
 
       const addFunciParams = (r) => {
         r.input('codEmpr',   sql.SmallInt,      codEmpr);
-        r.input('codTerc',   sql.Int,           codTerc);
+        r.input('codTerc',   sql.Decimal(18,0), codTerc);
         r.input('sexoFunc',  sql.NChar(1),      sexoFunc);
         r.input('codGrsan',  sql.SmallInt,      codGrsan || null);
         r.input('codEstciv', sql.SmallInt,      codEstciv || null);
@@ -1054,7 +1073,7 @@ async function sincronizarEmpleados({ maestro, codEmpr, pool, usuario, nombreArc
         r.input('valHora',   sql.Decimal(18,2), valHora);
         r.input('codTpcta',  sql.SmallInt,      codTpcta || null);
         r.input('codBanco',  sql.SmallInt,      codBanco || null);
-        r.input('numCta',    sql.NVarChar(30),  numCta ? numCta.substring(0,30) : null);
+        r.input('numCta',    sql.BigInt,        numCta ? parseInt(numCta, 10) || null : null);
         r.input('nomSucur',  sql.NVarChar(10),  emp.sucursal ? emp.sucursal.substring(0,10) : null);
         r.input('codCcost',  sql.Int,           codCcost || null);
         r.input('jorSabad',  sql.NVarChar(10),  emp.trabajaSab ? emp.trabajaSab.substring(0,10) : null);
@@ -1105,12 +1124,12 @@ async function sincronizarEmpleados({ maestro, codEmpr, pool, usuario, nombreArc
           WHERE COD_FUNCI=@codFunci AND COD_EMPR=@codEmpr
         `);
       } else {
+        // GN_FUNCI.COD_FUNCI es IDENTITY → SQL Server lo genera automáticamente.
         const rF = new sql.Request(transaction);
         addFunciParams(rF);
-        rF.input('codFunci', sql.Int, nextFunci);
         await rF.query(`
           INSERT INTO dbo.GN_FUNCI (
-            COD_EMPR, COD_FUNCI, COD_TERC,
+            COD_EMPR, COD_TERC,
             SEX_FUNC, COD_GRSAN, COD_ESTCIV, CNT_HIJO,
             FEC_NAC, CIU_EXPED, COD_CARGO, VAL_HORA,
             COD_TPCTA, COD_BANCO, NUM_CTA, NOM_SUCUR,
@@ -1123,7 +1142,7 @@ async function sincronizarEmpleados({ maestro, codEmpr, pool, usuario, nombreArc
             GRA_RIESGO, DIA_VACAC,
             ACT_USUA, ACT_HORA, ACT_ESTA
           ) VALUES (
-            @codEmpr, @codFunci, @codTerc,
+            @codEmpr, @codTerc,
             @sexoFunc, @codGrsan, @codEstciv, @cntHijo,
             @fecNac, @ciuExped, @codCargo, @valHora,
             @codTpcta, @codBanco, @numCta, @nomSucur,
@@ -1137,8 +1156,6 @@ async function sincronizarEmpleados({ maestro, codEmpr, pool, usuario, nombreArc
             @actUsua, GETDATE(), 'A'
           )
         `);
-        funciMap.set(codTerc, nextFunci);
-        nextFunci++;
       }
 
       await transaction.commit();
@@ -1148,7 +1165,7 @@ async function sincronizarEmpleados({ maestro, codEmpr, pool, usuario, nombreArc
         estado:  codTercExistente ? 'ACTUALIZADO' : 'INSERTADO',
         mensaje: codTercExistente
           ? `Empleado actualizado en GN_TERCE #${codTerc} / GN_FUNCI.`
-          : `Empleado insertado. GN_TERCE #${codTerc}, GN_FUNCI #${nextFunci - 1}.`,
+          : `Empleado insertado. GN_TERCE #${codTerc} / GN_FUNCI (ID auto-generado).`,
       });
 
     } catch (err) {
@@ -1171,7 +1188,7 @@ async function sincronizarEmpleados({ maestro, codEmpr, pool, usuario, nombreArc
       const cedBD = String(row.NUM_IDEN);
       if (!cedulasExcel.has(cedBD)) {
         await executeQuery(
-          `UPDATE dbo.GN_FUNCI SET ACT_INAC='I', ACT_USUA=@usuario, ACT_HORA=GETDATE()
+          `UPDATE dbo.GN_FUNCI SET ACT_ESTA='I', ACT_USUA=@usuario, ACT_HORA=GETDATE()
            WHERE COD_EMPR=@codEmpr AND COD_TERC=(
              SELECT COD_TERC FROM dbo.GN_TERCE WHERE COD_EMPR=@codEmpr AND NUM_IDEN=@numIden AND ACT_ESTA='A'
            )`,
@@ -1180,7 +1197,7 @@ async function sincronizarEmpleados({ maestro, codEmpr, pool, usuario, nombreArc
         resumen.inhabilitados++;
         resumen.detalle.push({
           cedula: cedBD, estado: 'INHABILITADO',
-          mensaje: `Empleado no encontrado en el Excel — marcado como inactivo (ACT_INAC='I').`,
+          mensaje: `Empleado no encontrado en el Excel — marcado como inactivo (ACT_ESTA='I').`,
         });
       }
     }
