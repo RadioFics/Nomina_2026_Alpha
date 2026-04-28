@@ -150,12 +150,16 @@ def extraer_permiso(text: str, pdf_path: str) -> dict:
     tn = normalizar(text)   # texto normalizado con espacios simples
 
     # ── Cédula ──────────────────────────────────────────────────────────────
-    # Primera ocurrencia de 10 dígitos seguida de otra información de persona
-    cedula_m = re.search(r'\bCedula:\s*(\d{9,11})\b', tn, re.IGNORECASE)
+    # Soporte 8-11 digitos (antiguo formato colombiano) y puntos separadores.
+    cedula_m = re.search(r'\bCedula:\s*([\d.]{7,13})', tn, re.IGNORECASE)
     if not cedula_m:
-        cedula_m = re.search(r'\b(\d{10})\b', tn)
+        cedula_m = re.search(r'(?:Cedula|Cedula)\s+(\d{7,11})', tn, re.IGNORECASE)
+    if not cedula_m:
+        cedula_m = re.search(r'\b(\d{8,11})\b', tn)
     if cedula_m:
-        data['cedula'] = cedula_m.group(1)
+        ced_raw = cedula_m.group(1).replace('.', '').strip()
+        if ced_raw.isdigit() and 7 <= len(ced_raw) <= 11:
+            data['cedula'] = ced_raw
 
     # ── Nombre ──────────────────────────────────────────────────────────────
     nombre_m = re.search(
@@ -222,15 +226,30 @@ def extraer_permiso(text: str, pdf_path: str) -> dict:
         data['hora_fin']    = horas_m.group(2).strip()
 
     # ── Total horas/días ─────────────────────────────────────────────────────
+    # Acepta numero ('04 Horas'), texto ('dia y medio', 'Ocho'), o vacio.
     total_m = re.search(
-        r'Total\s+de\s+Dias:\s*0*([1-9][0-9]*)\s*(?:Horas|Dias|horas|dias)',
+        r'Total\s+de\s+Dias:\s*(.{1,30}?)(?:\n|MOTIVO|SOLICITANTE|$)',
         tn, re.IGNORECASE
     )
     if total_m:
-        try:
-            data['cantidad'] = int(total_m.group(1))
-        except ValueError:
-            pass
+        raw_total = total_m.group(1).strip()
+        num_m = re.search(r'0*([1-9]\d*(?:\.\d)?)', raw_total)
+        if num_m:
+            try:
+                v = float(num_m.group(1))
+                data['cantidad'] = int(v) if v == int(v) else v
+            except ValueError:
+                pass
+        if not data['cantidad']:
+            _dias_map = [
+                (r'd.a\s+y\s+med', 1.5), (r'medio\s*d.a', 0.5), (r'un\s+d.a', 1),
+                (r'\bdos\b', 2),    (r'\btres\b', 3),   (r'\bcuatro\b', 4),
+                (r'\bcinco\b', 5),  (r'\bseis\b', 6),   (r'\bsiete\b', 7),
+                (r'\bocho\b', 8),   (r'\bnueve\b', 9),  (r'\bdiez\b', 10),
+            ]
+            for _dp, _dv in _dias_map:
+                if re.search(_dp, raw_total.lower()):
+                    data['cantidad'] = _dv; break
 
     # ── Motivo ───────────────────────────────────────────────────────────────
     # El PDF no tiene checkboxes visibles en texto extraíble.
@@ -248,24 +267,33 @@ def extraer_permiso(text: str, pdf_path: str) -> dict:
         ('Otra Causa',    'OTRA'),
         ('Vacaciones',    'VACACIONES'),
     ]
-    # Buscar en las observaciones para mayor precisión
-    obs_lower = tn.lower()
     motivo_detectado = None
-    if 'clases' in obs_lower or 'universidad' in obs_lower or 'estudio' in obs_lower:
-        motivo_detectado = 'ESTUDIO'
-    elif 'compensad' in obs_lower or 'compensatorio' in obs_lower:
-        motivo_detectado = 'COMPENSATORIO'
-    elif 'medico' in obs_lower or 'médico' in obs_lower or 'cita' in obs_lower:
-        motivo_detectado = 'MEDICO'
-    elif 'calamidad' in obs_lower or 'luto' in obs_lower or 'familiar' in obs_lower:
-        motivo_detectado = 'CALAMIDAD'
-    else:
-        # Fallback: primer motivo que aparece en el texto
+    # Prioridad 1: marca 'X' explicita junto al keyword (texto nativo)
+    for kw, cod in motivos_ord:
+        if re.search(rf'{re.escape(kw)}\s+X\b', tn, re.IGNORECASE):
+            motivo_detectado = cod
+            break
+    # Prioridad 2: solo en seccion OBSERVACIONES (al final del form) o Explicacion
+    if not motivo_detectado:
+        _obss = ''
+        _obsm2 = re.search(r'OBSERVACIONES\s+(.+?)$', tn, re.IGNORECASE | re.DOTALL)
+        if not _obsm2:
+            _obsm2 = re.search(r'Explicacion:\s*(.+?)(?:\n|SOLICITANTE|JEFE|$)',
+                               tn, re.IGNORECASE | re.DOTALL)
+        if _obsm2: _obss = _obsm2.group(1).lower()
+        if 'clases' in _obss or 'universidad' in _obss:
+            motivo_detectado = 'ESTUDIO'
+        elif 'compensad' in _obss or 'compensatorio' in _obss or 'voto' in _obss:
+            motivo_detectado = 'COMPENSATORIO'
+        elif 'medico' in _obss or 'medico' in _obss or 'cita' in _obss:
+            motivo_detectado = 'MEDICO'
+        elif 'calamidad' in _obss or 'luto' in _obss:
+            motivo_detectado = 'CALAMIDAD'
+    # Prioridad 3: keyword en texto completo
+    if not motivo_detectado:
         for kw, cod in motivos_ord:
-            if kw.lower() in obs_lower:
-                motivo_detectado = cod
-                break
-    data['motivo'] = motivo_detectado or 'ESTUDIO'
+            if kw.lower() in tn.lower(): motivo_detectado = cod; break
+    data['motivo'] = motivo_detectado or 'COMPENSATORIO'
 
     # ── Tipo de permiso (Remunerado / No remunerado) ─────────────────────────
     # El texto contiene ambas palabras; si "No Remunerado" aparece ANTES que
@@ -304,6 +332,204 @@ def extraer_permiso(text: str, pdf_path: str) -> dict:
     data['success'] = len(data['errores']) == 0
     return data
 
+
+
+# ─── Extractor de Permisos (CM-TH-FR-003, PDF imagen escaneada) ──────────────
+
+def extraer_permiso_ocr(pdf_path):
+    data = {
+        'tipo_novedad': 'PERMISO', 'tipo_archivo': 'pdf',
+        'cedula': None, 'nombre': None, 'cargo': None, 'area': None,
+        'fecha_novedad': None, 'fecha_inicio': None, 'fecha_fin': None,
+        'hora_inicio': None, 'hora_fin': None, 'cantidad': None,
+        'motivo': None, 'es_remunerado': False, 'observaciones': None,
+        'fuente': pdf_path, 'procesado_en': datetime.now().isoformat(),
+        'success': False, 'errores': []
+    }
+    if not HAS_OCR:
+        data['errores'].append('pytesseract no instalado')
+        return data
+
+    _MESES = [
+        (r'en[eoa3]',1),(r'feb',2),(r'mar',3),(r'ab[rln]',4),
+        (r'may',5),(r'jun',6),(r'jul',7),(r'ag[oa]',8),
+        (r'se[pb]',9),(r'oc[t]',10),(r'no[vb]',11),(r'di[c]',12),
+    ]
+
+    def _mes(s):
+        for p, n in _MESES:
+            if re.search(p, s.lower()): return n
+        return None
+
+    def _digs(s): return ''.join(c for c in s if c.isdigit())
+
+    def _fecha_ocr(s):
+        if not s: return None
+        m = re.search(r'(\d{1,2})\s*[-/lL|\\]\s*(\d{1,2})\s*[-/lL|\\]\s*(\d{2,4})', s)
+        if m:
+            d, mo, y = m.group(1), m.group(2), m.group(3)
+            if len(y) == 2: y = '20' + y
+            r = parse_fecha_ddmmyyyy(f'{d}-{mo}-{y}')
+            if r: return r
+        m = re.search(r'(\d{1,2})\s*[-]?\s*([A-Za-z]{2,8})\s*[-]?\s*(\d{2,4})', s)
+        if m:
+            d2, ms, y2 = m.group(1), m.group(2), m.group(3)
+            mn = _mes(ms)
+            if mn:
+                if len(y2) == 2: y2 = '20' + y2
+                r = parse_fecha_ddmmyyyy(f'{d2}-{mn}-{y2}')
+                if r: return r
+        return None
+
+    def _dias_ocr(s):
+        s2 = re.sub(r'onch', 'och', s.lower().strip())
+        s2 = re.sub(r'einc', 'cinc', s2)
+        _m = [
+            (r'medio.d.a|d.a.y.med', 0.5), (r'un.d.a', 1),
+            (r'\bdos\b', 2), (r'\btres\b', 3), (r'\bcuatro\b', 4),
+            (r'\bcinco\b', 5), (r'\bseis\b', 6), (r'\bsiete\b', 7),
+            (r'\bocho\b', 8), (r'\bnueve\b', 9), (r'\bdiez\b', 10),
+        ]
+        for p, v in _m:
+            if re.search(p, s2): return v
+        s3 = s2.replace('o','0').replace('s','5').replace('l','1')
+        nm = re.search(r'\b(\d{1,2})\b', s3)
+        if nm:
+            v = int(nm.group(1))
+            if 1 <= v <= 30: return v
+        return None
+
+    def _clean_tok(raw):
+        toks = []
+        for t in raw.split():
+            if not t or not t[0].isalpha(): continue
+            alpha = sum(1 for c in t if c.isalpha())
+            # >= 3 letras, mayoria de chars son letras, no todo ruido de case
+            if alpha < 3 or alpha < max(3, len(t) // 2): continue
+            toks.append(t)
+        return ' '.join(toks) if len(toks) >= 2 else None
+
+    try:
+        with pdfplumber.open(pdf_path) as pdf:
+            _img = pdf.pages[0].to_image(resolution=250).original
+        tn = re.sub(r'[ \t|]+', ' ', pytesseract.image_to_string(_img, lang='eng')).strip()
+        _t3 = None
+
+        def _300():
+            nonlocal _t3
+            if _t3 is None:
+                with pdfplumber.open(pdf_path) as pdf:
+                    _i3 = pdf.pages[0].to_image(resolution=300).original
+                _t3 = re.sub(r'[ \t|]+', ' ',
+                             pytesseract.image_to_string(_i3, lang='eng')).strip()
+            return _t3
+
+        for _f in [tn, _300()]:
+            if data['nombre']: break
+            _nm = re.search(r'[Nn]ombre:\s*(.{3,55}?)\s*[Cc]edula', _f, re.IGNORECASE)
+            if _nm: data['nombre'] = _clean_tok(_nm.group(1))
+
+        for _f in [tn, _300()]:
+            if data['cedula']: break
+            _cm = re.search(
+                r'[Cc]edula[):\s]+(.{2,22}?)(?:\s{2,}|[A-Z][a-z]|\n|Cargo|Area|$)', _f
+            )
+            if _cm:
+                _cd = _digs(_cm.group(1))
+                if 7 <= len(_cd) <= 11: data['cedula'] = _cd
+
+        _cg = re.search(r'[Cc]argo:\s*(.{3,55}?)\s*[Aa]rea', tn, re.IGNORECASE)
+        if _cg: data['cargo'] = _clean_tok(_cg.group(1))
+        _ar = re.search(r'[Aa]rea:\s*(.{2,35}?)(?:\s{2,}|\n|DATOS|$)', tn, re.IGNORECASE)
+        if _ar:
+            _at = [t for t in _ar.group(1).split()
+                   if sum(1 for c in t if c.isalpha()) >= max(2, len(t)//2)]
+            if _at: data['area'] = ' '.join(_at[:3])
+
+        for _f in [tn, _300()]:
+            if data['fecha_inicio']: break
+            _fb = re.search(
+                r'[Ff]echa\s+[Pp]ermiso.*?[Dd]e:\s*(.{3,28}?)\s*[Hh]asta:\s*(.{3,28}?)(?:\n|[Hh]oras|$)',
+                _f, re.IGNORECASE
+            )
+            if _fb:
+                _fi = _fecha_ocr(_fb.group(1))
+                _ff = _fecha_ocr(_fb.group(2))
+                if _fi:
+                    data['fecha_inicio'] = _fi
+                    data['fecha_novedad'] = _fi
+                if _ff: data['fecha_fin'] = _ff
+                elif _fi: data['fecha_fin'] = _fi
+
+        _hm = re.search(
+            r'[Hh]oras:.*?[Dd]e:\s*([0-9]{1,2}:[0-9]{2}\s*(?:Am|Pm|AM|PM)?)'
+            r'.*?[Hh]asta:\s*([0-9]{1,2}:[0-9]{2}\s*(?:Am|Pm|AM|PM)?)',
+            tn, re.IGNORECASE
+        )
+        if _hm:
+            data['hora_inicio'] = _hm.group(1).strip()
+            data['hora_fin']    = _hm.group(2).strip()
+
+        _tm = re.search(
+            r'[Tt]otal\s+de\s+[Dd]ias:\s*([^\n]{1,28})',
+            tn
+        )
+        if _tm:
+            _rt = _tm.group(1).strip()
+            _nm2 = re.search(r'0*([1-9]\d*(?:\.\d)?)', _rt)
+            if _nm2:
+                try:
+                    v = float(_nm2.group(1))
+                    data['cantidad'] = int(v) if v == int(v) else v
+                except ValueError: pass
+            if not data['cantidad']: data['cantidad'] = _dias_ocr(_rt)
+
+        _mkw = [
+            (r'[Cc]ompensator', 'COMPENSATORIO'), (r'[Ff]uerza [Mm]ayor', 'FUERZA_MAYOR'),
+            (r'[Cc]alamidad', 'CALAMIDAD'), (r'[Mm][eé]dico', 'MEDICO'),
+            (r'[Ee]studio', 'ESTUDIO'), (r'[Oo]tra [Cc]ausa', 'OTRA'),
+        ]
+        for _kp, _cod in _mkw:
+            if re.search(rf'{_kp}.{{0,15}}[xXvV]', tn):
+                data['motivo'] = _cod; break
+        if not data['motivo']:
+            _ex = re.search(r'[Ee]xplicacion:\s*(.+?)(?:\n|SOLICITANTE|$)',
+                            tn, re.IGNORECASE | re.DOTALL)
+            if _ex:
+                _el = _ex.group(1).lower()
+                if 'compensad' in _el or 'familia' in _el: data['motivo'] = 'COMPENSATORIO'
+                elif 'estudio' in _el or 'clase' in _el: data['motivo'] = 'ESTUDIO'
+                elif 'medico' in _el or 'cita' in _el: data['motivo'] = 'MEDICO'
+                elif 'calamidad' in _el or 'luto' in _el: data['motivo'] = 'CALAMIDAD'
+        if not data['motivo']: data['motivo'] = 'COMPENSATORIO'
+
+        if re.search(r'\[[xXvV*]\]\s*[Rr]emunerado', tn):
+            data['es_remunerado'] = True
+        else:
+            _pno  = tn.lower().find('no remunerado')
+            _prem = tn.lower().find('remunerado')
+            if _prem != -1: data['es_remunerado'] = (_pno == -1 or _prem < _pno)
+
+        _obsm = re.search(r'OBSERVACIONES\s+(.+?)(?:\s*$)', tn, re.IGNORECASE | re.DOTALL)
+        if _obsm:
+            _obs = re.sub(r'\s+', ' ', _obsm.group(1)).strip()
+            if len(_obs) > 5: data['observaciones'] = _obs[:500]
+
+    except Exception as e:
+        data['errores'].append(f'Error OCR permiso: {str(e)}')
+        return data
+
+    if not data['nombre']:
+        _fnm = re.search(r'permiso\s+(.+?)\.pdf', os.path.basename(pdf_path), re.IGNORECASE)
+        if _fnm: data['nombre'] = _fnm.group(1).strip()
+
+    if not data['cedula']:    data['errores'].append('Cedula no detectada')
+    if not data['nombre']:    data['errores'].append('Nombre no detectado')
+    if not data['fecha_inicio']: data['errores'].append('Fecha de permiso no detectada')
+    if not data['cantidad']:  data['errores'].append('Total horas/dias no detectado')
+
+    data['success'] = len(data['errores']) == 0
+    return data
 
 # ─── Extractor de Vacaciones (CM-TH-SV-001, PDF imagen escaneada) ─────────────
 
@@ -710,21 +936,34 @@ def procesar_pdf(pdf_path: str) -> dict:
         )
         es_vacaciones = 'CM-TH-SV-001' in text or ('SOLICITUD DE VACACIONES' in text_upper)
 
-        # Fallback por nombre de archivo — aplica aunque haya texto parcial.
-        # Caso tipico: CamScanner inserta un nombre como capa de texto pero no
-        # incluye el codigo CM-TH-SV-001, haciendo que la deteccion falle.
+        # Fallback 1: nombre de archivo
         if not es_permiso and not es_vacaciones:
             nombre_archivo = os.path.basename(pdf_path).lower()
             es_permiso    = 'permiso' in nombre_archivo or 'fr-003' in nombre_archivo
             es_vacaciones = 'vacacion' in nombre_archivo or 'sv-001' in nombre_archivo
 
+        # Fallback 2: OCR rapido del encabezado para PDFs imagen sin texto
+        # Aplica cuando el nombre de archivo tampoco identifica el formulario
+        # (ej. '22- Solicitud dia de la familia Exploracion.pdf')
+        if not es_permiso and not es_vacaciones and es_imagen and HAS_OCR:
+            try:
+                import pytesseract as _pyt
+                with pdfplumber.open(pdf_path) as _pdf:
+                    _hdr_img = _pdf.pages[0].to_image(resolution=150).original
+                _hdr_txt = _pyt.image_to_string(_hdr_img, lang='eng').upper()
+                if 'FR-003' in _hdr_txt or 'SOLICITUD DE PERMISO' in _hdr_txt:
+                    es_permiso = True
+                elif 'SV-001' in _hdr_txt or 'SOLICITUD DE VACACIONES' in _hdr_txt:
+                    es_vacaciones = True
+            except Exception:
+                pass
+
         if es_permiso:
-            if not text.strip():
-                return {
-                    'success': False,
-                    'error': 'PDF de permiso no contiene texto extraible. '
-                             'Verifique que no sea una imagen escaneada.'
-                }
+            if es_imagen or not text.strip():
+                if not HAS_OCR:
+                    return {'success': False,
+                            'error': 'pytesseract no instalado para PDFs escaneados'}
+                return extraer_permiso_ocr(pdf_path)
             return extraer_permiso(text, pdf_path)
 
         elif es_vacaciones:
