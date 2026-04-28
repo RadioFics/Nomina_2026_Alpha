@@ -112,45 +112,54 @@ async function buscarNovedadExistente(codEmpr, codFunci, codConc, codPeriod) {
 
 async function buscarNovedadFijaExistente(codEmpr, codFunci, codConc, codPeriod) {
   const r = await executeQuery(`
-    SELECT TOP 1 n.COD_NOVED, f.VALOR
+    SELECT TOP 1
+      n.COD_NOVED, f.VALOR,
+      CAST(CASE WHEN n.ACT_ESTA='A' AND f.ACT_ESTA='A' THEN 1 ELSE 0 END AS BIT) AS ES_ACTIVA
     FROM dbo.NO_NOVED n
     INNER JOIN dbo.NO_FIJAS f ON f.COD_EMPR = n.COD_EMPR AND f.COD_NOVED = n.COD_NOVED
     WHERE n.COD_EMPR   = @codEmpr
       AND n.COD_FUNCI  = @codFunci
       AND n.COD_CONC   = @codConc
       AND n.COD_PERIOD = @codPeriod
-      AND n.ACT_ESTA   = 'A'
-      AND f.ACT_ESTA   = 'A'
+    ORDER BY
+      CASE WHEN n.ACT_ESTA='A' AND f.ACT_ESTA='A' THEN 0 ELSE 1 END,
+      n.COD_NOVED DESC
   `, { codEmpr, codFunci, codConc, codPeriod });
   return r.recordset && r.recordset[0] ? r.recordset[0] : null;
 }
 
 async function buscarAusentismoExistente(codEmpr, codFunci, codConc, codPeriod) {
   const r = await executeQuery(`
-    SELECT TOP 1 n.COD_NOVED, a.DIAS_TOTAL
+    SELECT TOP 1
+      n.COD_NOVED, a.DIAS_TOTAL,
+      CAST(CASE WHEN n.ACT_ESTA='A' AND a.ACT_ESTA='A' THEN 1 ELSE 0 END AS BIT) AS ES_ACTIVA
     FROM dbo.NO_NOVED n
     INNER JOIN dbo.NO_AUSEN a ON a.COD_EMPR = n.COD_EMPR AND a.COD_NOVED = n.COD_NOVED
     WHERE n.COD_EMPR   = @codEmpr
       AND n.COD_FUNCI  = @codFunci
       AND n.COD_CONC   = @codConc
       AND n.COD_PERIOD = @codPeriod
-      AND n.ACT_ESTA   = 'A'
-      AND a.ACT_ESTA   = 'A'
+    ORDER BY
+      CASE WHEN n.ACT_ESTA='A' AND a.ACT_ESTA='A' THEN 0 ELSE 1 END,
+      n.COD_NOVED DESC
   `, { codEmpr, codFunci, codConc, codPeriod });
   return r.recordset && r.recordset[0] ? r.recordset[0] : null;
 }
 
 async function buscarCambioExistente(codEmpr, codFunci, codConc, codPeriod) {
   const r = await executeQuery(`
-    SELECT TOP 1 n.COD_NOVED, c.VALOR_NUEVO
+    SELECT TOP 1
+      n.COD_NOVED, c.VALOR_NUEVO,
+      CAST(CASE WHEN n.ACT_ESTA='A' AND c.ACT_ESTA='A' THEN 1 ELSE 0 END AS BIT) AS ES_ACTIVA
     FROM dbo.NO_NOVED n
     INNER JOIN dbo.NO_CAMBI c ON c.COD_EMPR = n.COD_EMPR AND c.COD_NOVED = n.COD_NOVED
     WHERE n.COD_EMPR   = @codEmpr
       AND n.COD_FUNCI  = @codFunci
       AND n.COD_CONC   = @codConc
       AND n.COD_PERIOD = @codPeriod
-      AND n.ACT_ESTA   = 'A'
-      AND c.ACT_ESTA   = 'A'
+    ORDER BY
+      CASE WHEN n.ACT_ESTA='A' AND c.ACT_ESTA='A' THEN 0 ELSE 1 END,
+      n.COD_NOVED DESC
   `, { codEmpr, codFunci, codConc, codPeriod });
   return r.recordset && r.recordset[0] ? r.recordset[0] : null;
 }
@@ -158,13 +167,14 @@ async function buscarCambioExistente(codEmpr, codFunci, codConc, codPeriod) {
 // ─── Procesar un archivo ya parseado: insertar/acumular en BD ─────────────────
 async function procesarEnBD({ agrupado, codEmpr, periodo, pool, usuario, nombreArchivo }) {
   const resumen = {
-    totalFilas: 0,
-    procesados: 0,
-    insertados: 0,
-    acumulados: 0,
-    omitidos: 0,
-    errores: [],
-    detalle: [],
+    totalFilas:  0,
+    procesados:  0,
+    insertados:  0,
+    acumulados:  0,
+    reactivados: 0,
+    omitidos:    0,
+    errores:     [],
+    detalle:     [],
   };
 
   // totalFilas viene del parser; aquí sumamos empleados con novedades
@@ -225,14 +235,14 @@ async function procesarEnBD({ agrupado, codEmpr, periodo, pool, usuario, nombreA
           // ── Novedad FIJA → NO_NOVED + NO_FIJAS ──────────────────────────
           const existente = await buscarNovedadFijaExistente(codEmpr, codFunci, codConc, periodo.COD_PERIOD);
 
-          if (existente) {
-            // Actualizar valor acumulado
+          if (existente && existente.ES_ACTIVA) {
+            // Actualizar valor acumulado (registro activo existente)
             const nuevoValor = (Number(existente.VALOR) || 0) + valor;
             const r = new sql.Request(transaction);
-            r.input('codEmpr',  sql.SmallInt,     codEmpr);
-            r.input('codNoved', sql.Int,          existente.COD_NOVED);
+            r.input('codEmpr',  sql.SmallInt,      codEmpr);
+            r.input('codNoved', sql.Int,           existente.COD_NOVED);
             r.input('valor',    sql.Decimal(18,2), nuevoValor);
-            r.input('actUsua',  sql.NVarChar(50), usuario);
+            r.input('actUsua',  sql.NVarChar(50),  usuario);
             await r.query(`
               UPDATE dbo.NO_FIJAS
               SET VALOR = @valor, ACT_USUA = @actUsua, ACT_HORA = SYSDATETIME()
@@ -244,6 +254,30 @@ async function procesarEnBD({ agrupado, codEmpr, periodo, pool, usuario, nombreA
               cedula, nombre: emp.nombre, codConc, valor, tipo,
               estado: 'ACUMULADO',
               mensaje: `Valor acumulado (total: $${nuevoValor.toFixed(2)}) en NO_FIJAS #${existente.COD_NOVED}.`
+            });
+          } else if (existente && !existente.ES_ACTIVA) {
+            // Reactivar novedad fija previamente anulada con el valor nuevo del import
+            const r = new sql.Request(transaction);
+            r.input('codEmpr',  sql.SmallInt,      codEmpr);
+            r.input('codNoved', sql.Int,           existente.COD_NOVED);
+            r.input('valor',    sql.Decimal(18,2), valor);
+            r.input('actUsua',  sql.NVarChar(50),  usuario);
+            await r.query(`
+              UPDATE dbo.NO_NOVED
+                SET ACT_ESTA='A', ACT_USUA=@actUsua, ACT_HORA=GETDATE()
+              WHERE COD_EMPR=@codEmpr AND COD_NOVED=@codNoved;
+
+              UPDATE dbo.NO_FIJAS
+                SET ACT_ESTA='A', VALOR=@valor, CANTIDAD=1,
+                    ACT_USUA=@actUsua, ACT_HORA=SYSDATETIME()
+              WHERE COD_EMPR=@codEmpr AND COD_NOVED=@codNoved;
+            `);
+            await transaction.commit();
+            resumen.reactivados++;
+            resumen.detalle.push({
+              cedula, nombre: emp.nombre, codConc, valor, tipo,
+              estado: 'REACTIVADO',
+              mensaje: `Novedad FIJA inactiva reactivada con VALOR=$${valor.toFixed(2)} en NO_NOVED #${existente.COD_NOVED}.`
             });
           } else {
             // Insertar nueva novedad fija
@@ -317,8 +351,8 @@ async function procesarEnBD({ agrupado, codEmpr, periodo, pool, usuario, nombreA
 
           const existente = await buscarAusentismoExistente(codEmpr, codFunci, codConc, periodo.COD_PERIOD);
 
-          if (existente) {
-            // Actualizar días acumulados
+          if (existente && existente.ES_ACTIVA) {
+            // Actualizar días acumulados (registro activo existente)
             const nuevosDias = (Number(existente.DIAS_TOTAL) || 0) + diasTotal;
             const r = new sql.Request(transaction);
             r.input('codEmpr',    sql.SmallInt,      codEmpr);
@@ -342,6 +376,36 @@ async function procesarEnBD({ agrupado, codEmpr, periodo, pool, usuario, nombreA
               cedula, nombre: emp.nombre, codConc, tipo,
               estado:  'ACUMULADO',
               mensaje: `Ausentismo actualizado (${nuevosDias} días) en NO_NOVED #${existente.COD_NOVED}.`
+            });
+          } else if (existente && !existente.ES_ACTIVA) {
+            // Reactivar ausentismo previamente anulado con los nuevos datos del import
+            const r = new sql.Request(transaction);
+            r.input('codEmpr',    sql.SmallInt,      codEmpr);
+            r.input('codNoved',   sql.Int,           existente.COD_NOVED);
+            r.input('fecIni',     sql.Date,          fecIni);
+            r.input('fecFin',     sql.Date,          fecFin);
+            r.input('diasTotal',  sql.Decimal(10,2), diasTotal);
+            r.input('diagnostico',sql.NVarChar(200), diagnostico);
+            r.input('fecProrroga',sql.Date,          fecProrroga);
+            r.input('actUsua',    sql.NVarChar(50),  usuario);
+            await r.query(`
+              UPDATE dbo.NO_NOVED
+                SET ACT_ESTA='A', ACT_USUA=@actUsua, ACT_HORA=GETDATE()
+              WHERE COD_EMPR=@codEmpr AND COD_NOVED=@codNoved;
+
+              UPDATE dbo.NO_AUSEN
+                SET ACT_ESTA='A',
+                    FEC_INI=@fecIni, FEC_FIN=@fecFin, DIAS_TOTAL=@diasTotal,
+                    DIAGNOSTICO=@diagnostico, FEC_PRORRG=@fecProrroga,
+                    ACT_USUA=@actUsua, ACT_HORA=SYSDATETIME()
+              WHERE COD_EMPR=@codEmpr AND COD_NOVED=@codNoved;
+            `);
+            await transaction.commit();
+            resumen.reactivados++;
+            resumen.detalle.push({
+              cedula, nombre: emp.nombre, codConc, tipo,
+              estado:  'REACTIVADO',
+              mensaje: `Ausentismo inactivo reactivado (${diasTotal} días) en NO_NOVED #${existente.COD_NOVED}.`
             });
           } else {
             // Insertar nueva novedad de ausentismo
@@ -401,8 +465,8 @@ async function procesarEnBD({ agrupado, codEmpr, periodo, pool, usuario, nombreA
 
           const existente = await buscarCambioExistente(codEmpr, codFunci, codConc, periodo.COD_PERIOD);
 
-          if (existente) {
-            // Actualizar el valor nuevo del cambio
+          if (existente && existente.ES_ACTIVA) {
+            // Actualizar el valor nuevo del cambio (registro activo existente)
             const r = new sql.Request(transaction);
             r.input('codEmpr',    sql.SmallInt,      codEmpr);
             r.input('codNoved',   sql.Int,           existente.COD_NOVED);
@@ -421,6 +485,31 @@ async function procesarEnBD({ agrupado, codEmpr, periodo, pool, usuario, nombreA
               cedula, nombre: emp.nombre, codConc, tipo,
               estado:  'ACUMULADO',
               mensaje: `Cambio actualizado → "${valorNuevo}" en NO_NOVED #${existente.COD_NOVED}.`
+            });
+          } else if (existente && !existente.ES_ACTIVA) {
+            // Reactivar cambio previamente anulado con el nuevo valor del import
+            const r = new sql.Request(transaction);
+            r.input('codEmpr',    sql.SmallInt,      codEmpr);
+            r.input('codNoved',   sql.Int,           existente.COD_NOVED);
+            r.input('fecIni',     sql.Date,          fecIni);
+            r.input('valorNuevo', sql.NVarChar(200), valorNuevo);
+            r.input('actUsua',    sql.NVarChar(50),  usuario);
+            await r.query(`
+              UPDATE dbo.NO_NOVED
+                SET ACT_ESTA='A', ACT_USUA=@actUsua, ACT_HORA=GETDATE()
+              WHERE COD_EMPR=@codEmpr AND COD_NOVED=@codNoved;
+
+              UPDATE dbo.NO_CAMBI
+                SET ACT_ESTA='A', FEC_INI=@fecIni, VALOR_NUEVO=@valorNuevo,
+                    ACT_USUA=@actUsua, ACT_HORA=SYSDATETIME()
+              WHERE COD_EMPR=@codEmpr AND COD_NOVED=@codNoved;
+            `);
+            await transaction.commit();
+            resumen.reactivados++;
+            resumen.detalle.push({
+              cedula, nombre: emp.nombre, codConc, tipo,
+              estado:  'REACTIVADO',
+              mensaje: `Cambio inactivo reactivado → "${valorNuevo}" en NO_NOVED #${existente.COD_NOVED}.`
             });
           } else {
             // Insertar nueva novedad de cambio
@@ -473,14 +562,14 @@ async function procesarEnBD({ agrupado, codEmpr, periodo, pool, usuario, nombreA
           // ── Novedad OCASIONAL → NO_NOVED + NO_OCASI ──────────────────────
           const existente = await buscarNovedadExistente(codEmpr, codFunci, codConc, periodo.COD_PERIOD);
 
-          if (existente) {
-            // Acumular cantidad (o valor si es formato nuevo)
+          if (existente && existente.ES_ACTIVA) {
+            // Acumular cantidad/valor sobre el registro activo existente
             const nuevaCant = (Number(existente.CANTIDAD) || 0) + cantidad;
             const r = new sql.Request(transaction);
-            r.input('codEmpr',  sql.SmallInt,      codEmpr);
-            r.input('codNoved', sql.Int,           existente.COD_NOVED);
+            r.input('codEmpr',  sql.SmallInt,       codEmpr);
+            r.input('codNoved', sql.Int,            existente.COD_NOVED);
             r.input('cantidad', sql.Decimal(18, 4), nuevaCant);
-            r.input('actUsua',  sql.NVarChar(50),  usuario);
+            r.input('actUsua',  sql.NVarChar(50),   usuario);
             // Si el parser nuevo envía valor monetario, también actualizarlo
             if (valor > 0) {
               r.input('valor', sql.Decimal(18, 2), valor);
@@ -504,6 +593,35 @@ async function procesarEnBD({ agrupado, codEmpr, periodo, pool, usuario, nombreA
               mensaje: valor > 0
                 ? `Valor acumulado ($${valor.toFixed(2)}) en NO_NOVED #${existente.COD_NOVED}.`
                 : `Cantidad acumulada (total: ${nuevaCant.toFixed(2)}) en NO_NOVED #${existente.COD_NOVED}.`
+            });
+          } else if (existente && !existente.ES_ACTIVA) {
+            // Reactivar novedad ocasional anulada con los valores del import.
+            // Ambas actualizaciones van en un batch único para que el trigger
+            // TR_NO_OCASI_VALIDA_CONCEPTO vea NO_NOVED.ACT_ESTA='A' al dispararse.
+            const rRe = new sql.Request(transaction);
+            rRe.input('codEmpr',  sql.SmallInt,       codEmpr);
+            rRe.input('codNoved', sql.Int,            existente.COD_NOVED);
+            rRe.input('cantidad', sql.Decimal(18, 4), cantidad);
+            rRe.input('valor',    sql.Decimal(18, 2), valor);
+            rRe.input('actUsua',  sql.NVarChar(50),   usuario);
+            await rRe.query(`
+              UPDATE dbo.NO_NOVED
+                SET ACT_ESTA='A', ACT_USUA=@actUsua, ACT_HORA=GETDATE()
+              WHERE COD_EMPR=@codEmpr AND COD_NOVED=@codNoved;
+
+              UPDATE dbo.NO_OCASI
+                SET ACT_ESTA='A', CANTIDAD=@cantidad, VALOR=@valor,
+                    ACT_USUA=@actUsua, ACT_HORA=SYSDATETIME()
+              WHERE COD_EMPR=@codEmpr AND COD_NOVED=@codNoved;
+            `);
+            await transaction.commit();
+            resumen.reactivados++;
+            resumen.detalle.push({
+              cedula, nombre: emp.nombre, codConc, cantidad, valor, tipo,
+              estado: 'REACTIVADO',
+              mensaje: valor > 0
+                ? `Novedad inactiva reactivada con VALOR=$${valor.toFixed(2)} en NO_NOVED #${existente.COD_NOVED}.`
+                : `Novedad inactiva reactivada (CANTIDAD=${cantidad}) en NO_NOVED #${existente.COD_NOVED}.`
             });
           } else {
             // Insertar nueva novedad ocasional.
@@ -619,12 +737,13 @@ async function importarDesdeExcel(req, res) {
 
     // Acumuladores globales
     const globalResumen = {
-      totalFilas: 0,
-      procesados: 0,
-      insertados: 0,
-      acumulados: 0,
-      omitidos:   0,
-      conErrores: 0,
+      totalFilas:  0,
+      procesados:  0,
+      insertados:  0,
+      acumulados:  0,
+      reactivados: 0,
+      omitidos:    0,
+      conErrores:  0,
     };
 
     const resultadosArchivos = [];
@@ -707,23 +826,25 @@ async function importarDesdeExcel(req, res) {
 
       resultadoArchivo.ok      = true;
       resultadoArchivo.resumen = {
-        totalFilas: resumen.totalFilas,
-        procesados: resumen.procesados,
-        insertados: resumen.insertados,
-        acumulados: resumen.acumulados,
-        omitidos:   resumen.omitidos,
-        conErrores: resumen.errores.length,
+        totalFilas:  resumen.totalFilas,
+        procesados:  resumen.procesados,
+        insertados:  resumen.insertados,
+        acumulados:  resumen.acumulados,
+        reactivados: resumen.reactivados,
+        omitidos:    resumen.omitidos,
+        conErrores:  resumen.errores.length,
       };
       resultadoArchivo.detalle = resumen.detalle;
       resultadoArchivo.errores = resumen.errores;
 
       // Acumular en totales globales
-      globalResumen.totalFilas += resumen.totalFilas;
-      globalResumen.procesados += resumen.procesados;
-      globalResumen.insertados += resumen.insertados;
-      globalResumen.acumulados += resumen.acumulados;
-      globalResumen.omitidos   += resumen.omitidos;
-      globalResumen.conErrores += resumen.errores.length;
+      globalResumen.totalFilas  += resumen.totalFilas;
+      globalResumen.procesados  += resumen.procesados;
+      globalResumen.insertados  += resumen.insertados;
+      globalResumen.acumulados  += resumen.acumulados;
+      globalResumen.reactivados += resumen.reactivados;
+      globalResumen.omitidos    += resumen.omitidos;
+      globalResumen.conErrores  += resumen.errores.length;
 
       resultadosArchivos.push(resultadoArchivo);
     }
@@ -1250,7 +1371,7 @@ async function importarDesdeExcelConModo(req, res) {
       }
     }
 
-    const globalResumen = { totalFilas: 0, procesados: 0, insertados: 0, acumulados: 0, omitidos: 0, conErrores: 0 };
+    const globalResumen = { totalFilas: 0, procesados: 0, insertados: 0, acumulados: 0, reactivados: 0, omitidos: 0, conErrores: 0 };
     const resultadosArchivos = [];
 
     for (const fileOrig of archivosSubidos) {
@@ -1360,12 +1481,13 @@ async function importarDesdeExcelConModo(req, res) {
               resNov.detalle.unshift({ estado: 'AVISO', mensaje: adv });
           }
           resultadoArchivo.resumenNovedades = {
-            totalFilas: resNov.totalFilas,
-            procesados: resNov.procesados,
-            insertados: resNov.insertados,
-            acumulados: resNov.acumulados,
-            omitidos:   resNov.omitidos,
-            conErrores: resNov.errores.length,
+            totalFilas:  resNov.totalFilas,
+            procesados:  resNov.procesados,
+            insertados:  resNov.insertados,
+            acumulados:  resNov.acumulados,
+            reactivados: resNov.reactivados,
+            omitidos:    resNov.omitidos,
+            conErrores:  resNov.errores.length,
           };
           for (const d of resNov.detalle)  resultadoArchivo.detalle.push(d);
           for (const e of resNov.errores)  resultadoArchivo.errores.push(e);
@@ -1373,6 +1495,7 @@ async function importarDesdeExcelConModo(req, res) {
           globalResumen.procesados  += resNov.procesados;
           globalResumen.insertados  += resNov.insertados;
           globalResumen.acumulados  += resNov.acumulados;
+          globalResumen.reactivados += resNov.reactivados;
           globalResumen.omitidos    += resNov.omitidos;
           globalResumen.conErrores  += resNov.errores.length;
         } catch (novErr) {
@@ -1401,4 +1524,113 @@ async function importarDesdeExcelConModo(req, res) {
   });
 }
 
-module.exports = { importarDesdeExcel, importarDesdeExcelConModo };
+// ─── Endpoint: POST /api/ocasionales/limpiar-duplicados ───────────────────────
+// Elimina de la BD los registros inactivos duplicados en NO_OCASI / NO_NOVED:
+// Para cada grupo (COD_EMPR, COD_FUNCI, COD_CONC, COD_PERIOD) que tenga más de
+// un registro inactivo, conserva únicamente el de mayor COD_NOVED (el más reciente)
+// y borra físicamente los demás (sub-tabla primero, luego cabecera huérfana).
+//
+// Query param ?preview=true  → solo cuenta, no borra (dry-run).
+//
+// IMPORTANTE: solo afecta registros donde TANTO NO_NOVED.ACT_ESTA='I' COMO
+// NO_OCASI.ACT_ESTA='I'. Registros activos jamás se tocan.
+async function limpiarDuplicadosInactivos(req, res) {
+  const codEmpr  = DEFAULT_COD_EMPR;
+  const preview  = String(req.query.preview || '').toLowerCase() === 'true';
+
+  // CTE reutilizable: grupos con más de 1 inactivo y el COD_NOVED a conservar
+  const CTE = `
+    WITH DupGroups AS (
+      SELECT n.COD_EMPR, n.COD_FUNCI, n.COD_CONC, n.COD_PERIOD,
+             MAX(n.COD_NOVED) AS KEEP_NOVED,
+             COUNT(*)         AS CNT
+      FROM dbo.NO_NOVED n
+      INNER JOIN dbo.NO_OCASI o
+             ON o.COD_EMPR = n.COD_EMPR AND o.COD_NOVED = n.COD_NOVED
+      WHERE n.ACT_ESTA = 'I'
+        AND o.ACT_ESTA = 'I'
+        AND n.COD_EMPR = @codEmpr
+      GROUP BY n.COD_EMPR, n.COD_FUNCI, n.COD_CONC, n.COD_PERIOD
+      HAVING COUNT(*) > 1
+    )
+  `;
+
+  try {
+    // ── Paso 1: contar cuántos registros se eliminarían ──────────────────────
+    const rCount = await executeQuery(`
+      ${CTE}
+      SELECT SUM(dg.CNT - 1) AS TOTAL_EXTRAS,
+             COUNT(*)         AS TOTAL_GRUPOS
+      FROM DupGroups dg
+    `, { codEmpr });
+
+    const row         = rCount.recordset[0];
+    const totalExtras = row.TOTAL_EXTRAS || 0;
+    const totalGrupos = row.TOTAL_GRUPOS || 0;
+
+    if (totalExtras === 0) {
+      return res.json({
+        success: true,
+        preview,
+        mensaje:       'No se encontraron registros inactivos duplicados para limpiar.',
+        grupos:        0,
+        eliminados:    0,
+      });
+    }
+
+    if (preview) {
+      return res.json({
+        success:    true,
+        preview:    true,
+        mensaje:    `Preview: se eliminarían ${totalExtras} registros de ${totalGrupos} grupos duplicados inactivos.`,
+        grupos:     totalGrupos,
+        eliminados: totalExtras,
+      });
+    }
+
+    // ── Paso 2: borrar NO_OCASI duplicadas (conserva la de KEEP_NOVED) ───────
+    const rDelOcasi = await executeQuery(`
+      ${CTE}
+      DELETE o
+      FROM dbo.NO_OCASI o
+      INNER JOIN dbo.NO_NOVED n
+             ON n.COD_EMPR = o.COD_EMPR AND n.COD_NOVED = o.COD_NOVED
+      INNER JOIN DupGroups dg
+             ON  dg.COD_EMPR   = n.COD_EMPR
+             AND dg.COD_FUNCI  = n.COD_FUNCI
+             AND dg.COD_CONC   = n.COD_CONC
+             AND dg.COD_PERIOD = n.COD_PERIOD
+      WHERE n.COD_NOVED <> dg.KEEP_NOVED
+        AND n.ACT_ESTA   = 'I'
+        AND o.ACT_ESTA   = 'I'
+    `, { codEmpr });
+
+    const ocasiEliminadas = rDelOcasi.rowsAffected ? rDelOcasi.rowsAffected[0] : 0;
+
+    // ── Paso 3: borrar NO_NOVED huérfanas (sin hijo en NO_OCASI) ─────────────
+    // Tras el paso 2, los NO_NOVED de los duplicados ya no tienen hijo.
+    await executeQuery(`
+      DELETE FROM dbo.NO_NOVED
+      WHERE ACT_ESTA = 'I'
+        AND COD_EMPR = @codEmpr
+        AND NOT EXISTS (
+          SELECT 1 FROM dbo.NO_OCASI o
+          WHERE o.COD_EMPR  = dbo.NO_NOVED.COD_EMPR
+            AND o.COD_NOVED = dbo.NO_NOVED.COD_NOVED
+        )
+    `, { codEmpr });
+
+    return res.json({
+      success:    true,
+      preview:    false,
+      mensaje:    `Limpieza completada: ${ocasiEliminadas} registros eliminados en ${totalGrupos} grupos duplicados inactivos (OCASIONAL).`,
+      grupos:     totalGrupos,
+      eliminados: ocasiEliminadas,
+    });
+
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+module.exports = { importarDesdeExcel, importarDesdeExcelConModo, limpiarDuplicadosInactivos };

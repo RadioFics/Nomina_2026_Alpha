@@ -6,7 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const ctl = require('../controllers/ocasionalesController');
-const { importarDesdeExcel, importarDesdeExcelConModo } = require('../controllers/importarExcelController');
+const { importarDesdeExcel, importarDesdeExcelConModo, limpiarDuplicadosInactivos } = require('../controllers/importarExcelController');
 
 // Período vigente por fecha de hoy (lee NO_PERIOD)
 router.get('/periodo-actual', ctl.obtenerPeriodoActual);
@@ -24,6 +24,11 @@ router.post('/importar-excel', importarDesdeExcelConModo);
 // Anulación lógica masiva (body: { codNoveds: [1,2,...] })
 // Usa POST /anular-batch para evitar cualquier colisión con DELETE /:codNoved
 router.post('/anular-batch', ctl.anularOcasionalBatch);
+
+// Limpieza de duplicados inactivos en NO_OCASI / NO_NOVED.
+// ?preview=true  → solo cuenta cuántos se eliminarían (dry-run, sin borrar).
+// Sin parámetro  → ejecuta la limpieza real.
+router.post('/limpiar-duplicados', limpiarDuplicadosInactivos);
 
 // Crear registro (NO_NOVED + NO_OCASI en una transacción)
 router.post('/', ctl.crearOcasional);

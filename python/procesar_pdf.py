@@ -357,8 +357,9 @@ def extraer_vacaciones_ocr(pdf_path: str) -> dict:
             pil_img = page.to_image(resolution=250).original
 
         # OCR — lang='eng' porque 'spa' traindata no está instalado
+        # Los pipes '|' son artefactos OCR de separadores de tabla — se eliminan
         raw = pytesseract.image_to_string(pil_img, lang='eng')
-        tn  = normalizar(raw)
+        tn  = re.sub(r'[ \t|]+', ' ', raw).strip()
 
         # ── Cédula ──────────────────────────────────────────────────────────
         # Buscar en contexto "Cedula de Ciudadania No. XXXXXXXXXX"
@@ -399,12 +400,65 @@ def extraer_vacaciones_ocr(pdf_path: str) -> dict:
         if cargo_m:
             data['cargo'] = cargo_m.group(1).strip()
 
-        # ── Fechas: "DD MM [|] YYYY DD MM YYYY" ─────────────────────────────
+        # ── Fechas: "DD MM YYYY DD MM YYYY" (pipes ya eliminados de tn) ──────
         fechas_m = re.search(
-            r'(\d{1,2})\s+(\d{1,2})\s*[|]?\s*(20\d{2})\s+'
+            r'(\d{1,2})\s+(\d{1,2})\s+(20\d{2})\s+'
             r'(\d{1,2})\s+(\d{1,2})\s+(20\d{2})',
             tn
         )
+        # Fallback 300 dpi: algunas disposiciones de tabla (col. derecha) se
+        # capturan mejor a mayor resolución (ej. Paula Naranjo, doble columna).
+        # También se usa para cédula/nombre cuando 250dpi da texto ilegible
+        # (ej. Verónica Castro — CamScanner de baja calidad).
+        if not fechas_m or not data['cedula'] or not data['nombre']:
+            with pdfplumber.open(pdf_path) as pdf:
+                pil_img_300 = pdf.pages[0].to_image(resolution=300).original
+            raw_300  = pytesseract.image_to_string(pil_img_300, lang='eng')
+            tn_300   = re.sub(r'[ \t|]+', ' ', raw_300).strip()
+
+            if not fechas_m:
+                fechas_m = re.search(
+                    r'(\d{1,2})\s+(\d{1,2})\s+(20\d{2})\s+'
+                    r'(\d{1,2})\s+(\d{1,2})\s+(20\d{2})',
+                    tn_300
+                )
+
+            # Cédula fallback con texto 300 dpi
+            if not data['cedula']:
+                ced_300 = re.search(
+                    r'(?:Cedula|Cédula|cedula).*?(?:Ciudadania|Ciudadanía).*?No\.?\s*(\d{9,11})',
+                    tn_300, re.IGNORECASE
+                )
+                if not ced_300:
+                    for m in re.finditer(r'\b(\d{9,10})\b', tn_300):
+                        c = m.group(1)
+                        if not c.startswith('0108') and not c.startswith('2023') and not c.startswith('2026'):
+                            ced_300 = m
+                            break
+                if ced_300:
+                    data['cedula'] = ced_300.group(1)
+
+            # Nombre fallback con texto 300 dpi
+            if not data['nombre']:
+                nom_300 = re.search(
+                    r'Completes?\s*\|?\s*([A-Z][A-Z\s]{5,50}?)(?=\s*Cedula|\s*$)',
+                    tn_300, re.IGNORECASE
+                )
+                if not nom_300:
+                    nom_300 = re.search(
+                        r'(?:Nombre|Apellidos).*?Completos?\s+([A-Z][A-Z\s]{5,50}?)(?=\s*Cedula)',
+                        tn_300, re.IGNORECASE
+                    )
+                if not nom_300:
+                    # Último recurso: nombre antes de "Cedula de Ciudadania"
+                    nom_300 = re.search(
+                        r'([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑa-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑa-záéíóúñ]+){1,4})'
+                        r'\s+(?:Cedula|Cédula)',
+                        tn_300, re.IGNORECASE
+                    )
+                if nom_300:
+                    data['nombre'] = nom_300.group(1).strip()
+
         if fechas_m:
             d1, m1, y1, d2, m2, y2 = fechas_m.groups()
             try:
@@ -416,14 +470,26 @@ def extraer_vacaciones_ocr(pdf_path: str) -> dict:
                 data['errores'].append('Fechas inválidas en el período solicitado')
 
         # ── Días disfrutados ─────────────────────────────────────────────────
+        # Acepta dígitos Y letras que OCR confunde con dígitos (o→0, s/S→5, l/I→1)
         dias_m = re.search(
-            r'disfrutados[:\s]*[\[\(]?\s*(\d{1,2})\s*[\]\)|]?',
+            r'disfrutados[:\s]*[\[\(]?\s*([0-9oOlIsS]{1,3})\s*[\]\)|]?',
             tn, re.IGNORECASE
         )
+        if not dias_m:
+            dias_m = re.search(
+                r'disfrutados[:\s]*[\[\(]?\s*([0-9oOlIsS]{1,3})\s*[\]\)|]?',
+                tn_300 if 'tn_300' in dir() else '', re.IGNORECASE
+            )
         if dias_m:
-            cantidad = corregir_digito_ocr(dias_m.group(1))
-            if cantidad and 1 <= cantidad <= 31:
-                data['cantidad'] = cantidad
+            # Normalizar letras→dígitos antes de convertir
+            raw_dias = (dias_m.group(1)
+                        .replace('o', '0').replace('O', '0')
+                        .replace('s', '5').replace('S', '5')
+                        .replace('l', '1').replace('I', '1').replace('i', '1'))
+            if raw_dias.isdigit():
+                cantidad = int(raw_dias)
+                if 1 <= cantidad <= 31:
+                    data['cantidad'] = cantidad
 
         # Corrección OCR: el dígito "9" se confunde frecuentemente con "3"
         # Si OCR dice 3 y las fechas dan 9 laborables → corregir a 9
@@ -446,7 +512,161 @@ def extraer_vacaciones_ocr(pdf_path: str) -> dict:
         data['errores'].append(f'Error OCR: {str(e)}')
         return data
 
+    # ── Nombre desde filename como último recurso ────────────────────────────
+    # Patrón consistente: "XX- Solicitud de vacaciones <Nombre Apellido>.pdf"
+    if not data['nombre']:
+        fname_m = re.search(
+            r'vacaciones\s+(.+?)\.pdf',
+            os.path.basename(pdf_path), re.IGNORECASE
+        )
+        if fname_m:
+            data['nombre'] = fname_m.group(1).strip()
+
     # ── Validaciones ────────────────────────────────────────────────────────
+    if not data['cedula']:
+        data['errores'].append('Cédula no detectada')
+    if not data['nombre']:
+        data['errores'].append('Nombre no detectado')
+    if not data['fecha_inicio']:
+        data['errores'].append('Fecha inicio no detectada')
+    if not data['fecha_fin']:
+        data['errores'].append('Fecha fin no detectada')
+    if not data['cantidad']:
+        data['errores'].append('Días de vacaciones no detectados')
+
+    data['success'] = len(data['errores']) == 0
+    return data
+
+
+# ─── Extractor de Vacaciones (CM-TH-SV-001, PDF con texto nativo) ────────────
+
+def extraer_vacaciones_texto(text: str, pdf_path: str) -> dict:
+    """
+    Extrae datos de vacaciones (CM-TH-SV-001) desde PDF con texto nativo.
+
+    pdfplumber puede ordenar el stream de modo que el valor de una celda
+    aparezca ANTES de su etiqueta. Esta funcion maneja ambos ordenes usando
+    \s+ (que captura tanto espacios como saltos de linea).
+
+    Normaliza cedulas con puntos de miles: 75.079.022 → "75079022".
+    """
+    data = {
+        'tipo_novedad': 'VACACIONES',
+        'tipo_archivo': 'pdf',
+        'cedula':       None,
+        'nombre':       None,
+        'cargo':        None,
+        'area':         None,
+        'fecha_inicio': None,
+        'fecha_fin':    None,
+        'cantidad':     None,
+        'observaciones': None,
+        'fuente':       pdf_path,
+        'procesado_en': datetime.now().isoformat(),
+        'success':      False,
+        'errores':      []
+    }
+
+    # Normalizar: colapsa espacios y tabs; conserva saltos de linea
+    tn = re.sub(r'[ \t]+', ' ', text).strip()
+
+    # ── Nombre ──────────────────────────────────────────────────────────────
+    # Caso A: "Nombre y Apellidos Completos  NOMBRE"  (label antes valor)
+    nombre_m = re.search(
+        r'(?:Nombre\s+y\s+Apellidos|Apellidos\s+Completos)\s+(?:Completos\s+)?'
+        r'([A-Za-záéíóúñÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s]{4,60}?)'
+        r'(?=\s{2,}|Cedula|Cédula|\d|$)',
+        tn, re.IGNORECASE
+    )
+    if not nombre_m:
+        # Caso B: valor en linea ANTERIOR a la etiqueta
+        # \s+ captura newlines entre valor y etiqueta
+        nombre_m = re.search(
+            r'([A-Za-záéíóúñÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s]{4,60}?)\s+Nombre\s+y\s+Apellidos',
+            tn, re.IGNORECASE
+        )
+    if nombre_m:
+        data['nombre'] = nombre_m.group(1).strip()
+
+    # ── Cedula ───────────────────────────────────────────────────────────────
+    # Soporta formato con puntos de miles: 75.079.022 → "75079022"
+    # Caso A: "Cedula de Ciudadania No.  NUMERO"  (label antes valor)
+    ced_m = re.search(
+        r'(?:Cedula|Cédula).*?(?:Ciudadan[ií]a).*?No\.?\s*([\d.]{6,15})',
+        tn, re.IGNORECASE
+    )
+    if not ced_m:
+        # Caso B: valor en linea ANTERIOR a la etiqueta
+        ced_m = re.search(
+            r'([\d.]{6,15})\s+Cedula\s+de\s+Ciudadan',
+            tn, re.IGNORECASE
+        )
+    if ced_m:
+        cedula_raw = ced_m.group(1).replace('.', '').strip()
+        if cedula_raw.isdigit():
+            data['cedula'] = cedula_raw
+
+    # ── Cargo ─────────────────────────────────────────────────────────────────
+    # Caso A: "Cargo  CARGO AQUI"  (label antes valor)
+    cargo_m = re.search(
+        r'\bCargo\s+([A-Za-záéíóúñÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s,]{2,60}?)'
+        r'(?=\s{2,}|Periodo|$)',
+        tn, re.IGNORECASE
+    )
+    if not cargo_m:
+        # Caso B: valor antes de etiqueta
+        cargo_m = re.search(
+            r'([A-Za-záéíóúñÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s,]{2,60}?)\s+Cargo\b',
+            tn, re.IGNORECASE
+        )
+    if cargo_m:
+        data['cargo'] = cargo_m.group(1).strip()
+
+    # ── Fechas: despues de encabezados "DD MM AA DD MM AA" ───────────────────
+    fechas_m = re.search(
+        r'(?:DD\s+MM\s+AA\s*){1,2}\s*'
+        r'(\d{1,2})\s+(\d{1,2})\s+(20\d{2})\s+'
+        r'(\d{1,2})\s+(\d{1,2})\s+(20\d{2})',
+        tn, re.IGNORECASE
+    )
+    if fechas_m:
+        d1, m1, y1, d2, m2, y2 = fechas_m.groups()
+        try:
+            fi = date(int(y1), int(m1), int(d1))
+            ff = date(int(y2), int(m2), int(d2))
+            data['fecha_inicio'] = fi.isoformat()
+            data['fecha_fin']    = ff.isoformat()
+        except ValueError:
+            data['errores'].append('Fechas invalidas en el periodo solicitado')
+
+    # ── Dias disfrutados ──────────────────────────────────────────────────────
+    dias_m = re.search(
+        r'(?:Dias|Días).*?disfrutados:?\s*(\d{1,3})',
+        tn, re.IGNORECASE
+    )
+    if dias_m:
+        try:
+            cantidad = int(dias_m.group(1))
+            if 1 <= cantidad <= 90:
+                data['cantidad'] = cantidad
+        except ValueError:
+            pass
+
+    # Fallback: calcular dias laborables (L-V) si el campo no se pudo extraer
+    if not data['cantidad'] and data['fecha_inicio'] and data['fecha_fin']:
+        data['cantidad'] = calcular_dias_laborables(data['fecha_inicio'], data['fecha_fin'])
+
+    # ── Observaciones ─────────────────────────────────────────────────────────
+    obs_m = re.search(
+        r'Observaciones\s+(.+?)(?:\s+Firma|\s+Actividades|$)',
+        tn, re.IGNORECASE | re.DOTALL
+    )
+    if obs_m:
+        obs = re.sub(r'\s+', ' ', obs_m.group(1)).strip()
+        if len(obs) > 5:
+            data['observaciones'] = obs[:500]
+
+    # ── Validaciones ──────────────────────────────────────────────────────────
     if not data['cedula']:
         data['errores'].append('Cédula no detectada')
     if not data['nombre']:
@@ -466,20 +686,16 @@ def extraer_vacaciones_ocr(pdf_path: str) -> dict:
 
 def procesar_pdf(pdf_path: str) -> dict:
     """
-    Detecta automáticamente el tipo de formulario y extrae los datos.
-    Soporta texto nativo (permisos) e imágenes escaneadas (vacaciones).
+    Detecta automaticamente el tipo de formulario y extrae los datos.
+    Soporta texto nativo (permisos, Mauricio Cruz) e imagenes escaneadas (vacaciones OCR).
     """
     if not HAS_PDFPLUMBER:
-        return {
-            'success': False,
-            'error': 'pdfplumber no instalado (pip install pdfplumber)'
-        }
+        return {'success': False, 'error': 'pdfplumber no instalado (pip install pdfplumber)'}
 
     if not os.path.isfile(pdf_path):
         return {'success': False, 'error': f'Archivo no encontrado: {pdf_path}'}
 
     try:
-        # Leer texto del PDF
         with pdfplumber.open(pdf_path) as pdf:
             page = pdf.pages[0]
             text = page.extract_text() or ''
@@ -487,17 +703,17 @@ def procesar_pdf(pdf_path: str) -> dict:
 
         text_upper = text.upper()
 
-        # ── Detectar por código de formulario ───────────────────────────────
+        # ── Detectar por codigo de formulario ─────────────────────────────────
         es_permiso    = 'CM-TH-FR-003' in text or (
             'FORMATO SOLICITUD DE PERMISO' in text_upper and
             'DATOS DE PERMISO' in text_upper
         )
-        es_vacaciones = 'CM-TH-SV-001' in text or (
-            'SOLICITUD DE VACACIONES' in text_upper
-        )
+        es_vacaciones = 'CM-TH-SV-001' in text or ('SOLICITUD DE VACACIONES' in text_upper)
 
-        # Si es imagen y no hay texto, intentar detectar por nombre de archivo
-        if not text.strip() and not es_permiso and not es_vacaciones:
+        # Fallback por nombre de archivo — aplica aunque haya texto parcial.
+        # Caso tipico: CamScanner inserta un nombre como capa de texto pero no
+        # incluye el codigo CM-TH-SV-001, haciendo que la deteccion falle.
+        if not es_permiso and not es_vacaciones:
             nombre_archivo = os.path.basename(pdf_path).lower()
             es_permiso    = 'permiso' in nombre_archivo or 'fr-003' in nombre_archivo
             es_vacaciones = 'vacacion' in nombre_archivo or 'sv-001' in nombre_archivo
@@ -506,12 +722,16 @@ def procesar_pdf(pdf_path: str) -> dict:
             if not text.strip():
                 return {
                     'success': False,
-                    'error': 'PDF de permiso no contiene texto extraíble. '
+                    'error': 'PDF de permiso no contiene texto extraible. '
                              'Verifique que no sea una imagen escaneada.'
                 }
             return extraer_permiso(text, pdf_path)
 
         elif es_vacaciones:
+            # PDFs con texto nativo suficiente (chars > 0 y texto > 50 chars):
+            # usar extractor de texto — mas preciso y rapido que OCR.
+            if not es_imagen and len(text.strip()) > 50:
+                return extraer_vacaciones_texto(text, pdf_path)
             return extraer_vacaciones_ocr(pdf_path)
 
         else:
@@ -519,8 +739,9 @@ def procesar_pdf(pdf_path: str) -> dict:
                 'success': False,
                 'error': (
                     'Formulario PDF no reconocido. '
+                    'Formulario PDF no reconocido. '
                     'Use CM-TH-FR-003 (Permiso) o CM-TH-SV-001 (Vacaciones). '
-                    f'Texto extraído: {text[:200]!r}'
+                    f'Texto extraido: {text[:200]!r}'
                 )
             }
 
@@ -528,7 +749,7 @@ def procesar_pdf(pdf_path: str) -> dict:
         return {'success': False, 'error': f'Error procesando PDF: {str(e)}'}
 
 
-# ─── Main ─────────────────────────────────────────────────────────────────────
+# ─── Main ───────────────────────────────────────────────────────────────────────
 
 def main():
     if len(sys.argv) < 2:
@@ -539,16 +760,8 @@ def main():
         sys.exit(0)
 
     pdf_path = sys.argv[1]
-    resultado = procesar_pdf(pdf_path)
-
-    # Aplanar errores a un string si existen
-    if resultado.get('errores') and not resultado.get('error'):
-        if not resultado['success']:
-            resultado['error'] = '; '.join(resultado['errores'])
-    resultado.pop('errores', None)
-
-    print(json.dumps(resultado, ensure_ascii=False, default=str))
-    sys.exit(0)
+    result = procesar_pdf(pdf_path)
+    print(json.dumps(result, ensure_ascii=False, default=str))
 
 
 if __name__ == '__main__':
