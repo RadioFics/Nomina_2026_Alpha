@@ -27,7 +27,7 @@ except ImportError:
 
 try:
     import pytesseract
-    from PIL import Image
+    from PIL import Image, ImageEnhance
 
     # Rutas típicas de Tesseract en Windows — se prueba en orden hasta encontrar una válida
     import platform, shutil
@@ -42,11 +42,49 @@ try:
                 pytesseract.pytesseract.tesseract_cmd = _ruta
                 break
 
+    # Detectar si el paquete de idioma español está disponible
+    try:
+        _langs_disponibles = pytesseract.get_languages(config='')
+        _LANG_OCR = 'spa+eng' if 'spa' in _langs_disponibles else 'eng'
+    except Exception:
+        _LANG_OCR = 'eng'
+
     HAS_OCR = True
 except ImportError:
     HAS_OCR = False
+    _LANG_OCR = 'eng'
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
+
+def _preprocesar_img(pil_img):
+    """
+    Normaliza una imagen escaneada para mejorar la precisión de Tesseract:
+      1. Escala de grises
+      2. Contraste ×2 (compensa escaneos apagados de CamScanner)
+      3. Binarización simple con umbral 140 (texto negro sobre fondo blanco)
+    Retorna la imagen preprocesada en modo RGB.
+    """
+    try:
+        img = pil_img.convert('L')
+        img = ImageEnhance.Contrast(img).enhance(2.0)
+        img = img.point(lambda x: 0 if x < 140 else 255, '1')
+        return img.convert('RGB')
+    except Exception:
+        return pil_img
+
+
+def _ocr_img(pil_img, config='--oem 3 --psm 6'):
+    """Ejecuta Tesseract sobre una imagen PIL y normaliza el resultado."""
+    raw = pytesseract.image_to_string(pil_img, lang=_LANG_OCR, config=config)
+    return re.sub(r'[ \t|]+', ' ', raw).strip()
+
+
+def _normalizar_digitos_ocr(s: str) -> str:
+    """Sustituye confusiones comunes de OCR en campos numéricos (l→1, O→0, S→5)."""
+    return s.replace('l', '1').replace('I', '1').replace('i', '1') \
+            .replace('O', '0').replace('o', '0') \
+            .replace('S', '5').replace('s', '5')
+
 
 def normalizar(text: str) -> str:
     """Colapsa espacios y saltos de línea múltiples en uno solo."""
@@ -577,113 +615,110 @@ def extraer_vacaciones_ocr(pdf_path: str) -> dict:
         )
         return data
 
+    # ── Configuración Tesseract ──────────────────────────────────────────────
+    # PSM 6: asume bloque uniforme de texto — mejor para formularios tabulados.
+    # PSM 4: asume columna de texto — alternativa para formularios de 2 columnas.
+    _CFG_FORM  = '--oem 3 --psm 6'
+    _CFG_COL   = '--oem 3 --psm 4'
+
+    # ── Helper interno: extrae texto de imagen con preprocessing + Tesseract ──
+    def _leer(pil_img, cfg=_CFG_FORM):
+        return _ocr_img(_preprocesar_img(pil_img), config=cfg)
+
+    # ── Helper interno: busca cédula en un texto OCR dado ──────────────────
+    _EXCLUIR_PREFIJOS = ('0108', '2023', '2024', '2025', '2026', '2027')
+
+    def _buscar_cedula(texto):
+        m = re.search(
+            r'(?:Cedula|Cédula|cedula).*?(?:Ciudadan[ií]a).*?No\.?\s*([\d\s]{9,14})',
+            texto, re.IGNORECASE
+        )
+        if m:
+            digitos = re.sub(r'\s', '', _normalizar_digitos_ocr(m.group(1)))
+            if digitos.isdigit() and 9 <= len(digitos) <= 11:
+                return digitos
+        # Fallback: primer bloque de 9-10 dígitos que no sea fecha ni código de form
+        for candidato_m in re.finditer(r'\b([0-9oOlIsS]{9,11})\b', texto):
+            raw = _normalizar_digitos_ocr(candidato_m.group(1))
+            if raw.isdigit() and not any(raw.startswith(p) for p in _EXCLUIR_PREFIJOS):
+                return raw
+        return None
+
+    # ── Helper interno: busca nombre en un texto OCR dado ──────────────────
+    def _buscar_nombre(texto):
+        # Patrón A: "Completos | NOMBRE APELLIDO"
+        m = re.search(
+            r'Completes?\s*\|?\s*([A-Za-záéíóúñÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s]{5,55}?)'
+            r'(?=\s*(?:Cedula|Cédula|cedula)|\s*$)',
+            texto, re.IGNORECASE
+        )
+        if m:
+            return m.group(1).strip()
+        # Patrón B: "Nombre y Apellidos ... NOMBRE"
+        m = re.search(
+            r'(?:Nombre|Apellidos).*?Completos?\s+([A-Za-záéíóúñÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s]{5,55}?)'
+            r'(?=\s*(?:Cedula|Cédula))',
+            texto, re.IGNORECASE
+        )
+        if m:
+            return m.group(1).strip()
+        # Patrón C (CamScanner): texto antes de "Cedula de Ciudadania"
+        m = re.search(
+            r'([A-Za-záéíóúñÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ]+(?:\s+[A-Za-záéíóúñÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ]+){1,4})'
+            r'\s+(?:Cedula|Cédula)',
+            texto, re.IGNORECASE
+        )
+        if m:
+            return m.group(1).strip()
+        return None
+
+    # ── Helper interno: busca "DD MM YYYY DD MM YYYY" en un texto OCR dado ─
+    def _buscar_fechas(texto):
+        return re.search(
+            r'(\d{1,2})\s+(\d{1,2})\s+(20\d{2})\s+'
+            r'(\d{1,2})\s+(\d{1,2})\s+(20\d{2})',
+            texto
+        )
+
     try:
+        # ── Pasada 1: 300 DPI + preprocesamiento (equilibrio calidad/velocidad) ──
         with pdfplumber.open(pdf_path) as pdf:
-            page = pdf.pages[0]
-            pil_img = page.to_image(resolution=250).original
+            pil_300 = pdf.pages[0].to_image(resolution=300).original
+        tn = _leer(pil_300, _CFG_FORM)
 
-        # OCR — lang='eng' porque 'spa' traindata no está instalado
-        # Los pipes '|' son artefactos OCR de separadores de tabla — se eliminan
-        raw = pytesseract.image_to_string(pil_img, lang='eng')
-        tn  = re.sub(r'[ \t|]+', ' ', raw).strip()
+        data['cedula'] = _buscar_cedula(tn)
+        data['nombre'] = _buscar_nombre(tn)
+        fechas_m       = _buscar_fechas(tn)
 
-        # ── Cédula ──────────────────────────────────────────────────────────
-        # Buscar en contexto "Cedula de Ciudadania No. XXXXXXXXXX"
-        ced_m = re.search(
-            r'(?:Cedula|Cédula|cedula).*?(?:Ciudadania|Ciudadanía).*?No\.?\s*(\d{9,11})',
-            tn, re.IGNORECASE
-        )
-        if not ced_m:
-            # Fallback: primer número de 10 dígitos que no sea una fecha
-            for m in re.finditer(r'\b(\d{9,10})\b', tn):
-                candidato = m.group(1)
-                # Excluir años o códigos de formulario (menores de 9 cifras o fecha-like)
-                if len(candidato) >= 9 and not candidato.startswith('0108'):
-                    ced_m = m
-                    break
-        if ced_m:
-            data['cedula'] = ced_m.group(1)
-
-        # ── Nombre ──────────────────────────────────────────────────────────
-        # Formulario: "Nombre'y Apellidos Completos | VAIRON CAMILO ARICAPA TREJOS"
-        nombre_m = re.search(
-            r'Completes?\s*\|?\s*([A-Z][A-Z\s]{5,50}?)(?=\s*Cedula|\s*$)',
-            tn, re.IGNORECASE
-        )
-        if not nombre_m:
-            nombre_m = re.search(
-                r'(?:Nombre|Apellidos).*?Completos?\s+([A-Z][A-Z\s]{5,50}?)(?=\s*Cedula)',
-                tn, re.IGNORECASE
-            )
-        if nombre_m:
-            data['nombre'] = nombre_m.group(1).strip()
-
-        # ── Cargo ────────────────────────────────────────────────────────────
         cargo_m = re.search(
-            r'Carg[oe]\s+([A-Z][A-Z\s]{2,40}?)(?=\s*Periodo|\s*Solicitado|\s*$)',
+            r'Carg[oe]\s+([A-Za-záéíóúñÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s,]{2,50}?)'
+            r'(?=\s*(?:Periodo|Solicitado|$))',
             tn, re.IGNORECASE
         )
         if cargo_m:
             data['cargo'] = cargo_m.group(1).strip()
 
-        # ── Fechas: "DD MM YYYY DD MM YYYY" (pipes ya eliminados de tn) ──────
-        fechas_m = re.search(
-            r'(\d{1,2})\s+(\d{1,2})\s+(20\d{2})\s+'
-            r'(\d{1,2})\s+(\d{1,2})\s+(20\d{2})',
-            tn
-        )
-        # Fallback 300 dpi: algunas disposiciones de tabla (col. derecha) se
-        # capturan mejor a mayor resolución (ej. Paula Naranjo, doble columna).
-        # También se usa para cédula/nombre cuando 250dpi da texto ilegible
-        # (ej. Verónica Castro — CamScanner de baja calidad).
-        if not fechas_m or not data['cedula'] or not data['nombre']:
+        # ── Pasada 2: 400 DPI + PSM 4 para campos que aún faltan ────────────
+        # Cubre escaneos CamScanner de baja calidad donde 300 DPI no alcanza.
+        if not data['cedula'] or not data['nombre'] or not fechas_m:
             with pdfplumber.open(pdf_path) as pdf:
-                pil_img_300 = pdf.pages[0].to_image(resolution=300).original
-            raw_300  = pytesseract.image_to_string(pil_img_300, lang='eng')
-            tn_300   = re.sub(r'[ \t|]+', ' ', raw_300).strip()
+                pil_400 = pdf.pages[0].to_image(resolution=400).original
+            tn_400 = _leer(pil_400, _CFG_COL)
 
-            if not fechas_m:
-                fechas_m = re.search(
-                    r'(\d{1,2})\s+(\d{1,2})\s+(20\d{2})\s+'
-                    r'(\d{1,2})\s+(\d{1,2})\s+(20\d{2})',
-                    tn_300
-                )
-
-            # Cédula fallback con texto 300 dpi
             if not data['cedula']:
-                ced_300 = re.search(
-                    r'(?:Cedula|Cédula|cedula).*?(?:Ciudadania|Ciudadanía).*?No\.?\s*(\d{9,11})',
-                    tn_300, re.IGNORECASE
-                )
-                if not ced_300:
-                    for m in re.finditer(r'\b(\d{9,10})\b', tn_300):
-                        c = m.group(1)
-                        if not c.startswith('0108') and not c.startswith('2023') and not c.startswith('2026'):
-                            ced_300 = m
-                            break
-                if ced_300:
-                    data['cedula'] = ced_300.group(1)
-
-            # Nombre fallback con texto 300 dpi
+                data['cedula'] = _buscar_cedula(tn_400)
             if not data['nombre']:
-                nom_300 = re.search(
-                    r'Completes?\s*\|?\s*([A-Z][A-Z\s]{5,50}?)(?=\s*Cedula|\s*$)',
-                    tn_300, re.IGNORECASE
+                data['nombre'] = _buscar_nombre(tn_400)
+            if not fechas_m:
+                fechas_m = _buscar_fechas(tn_400)
+            if not data['cargo']:
+                cargo_400 = re.search(
+                    r'Carg[oe]\s+([A-Za-záéíóúñÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s,]{2,50}?)'
+                    r'(?=\s*(?:Periodo|Solicitado|$))',
+                    tn_400, re.IGNORECASE
                 )
-                if not nom_300:
-                    nom_300 = re.search(
-                        r'(?:Nombre|Apellidos).*?Completos?\s+([A-Z][A-Z\s]{5,50}?)(?=\s*Cedula)',
-                        tn_300, re.IGNORECASE
-                    )
-                if not nom_300:
-                    # Último recurso: nombre antes de "Cedula de Ciudadania"
-                    nom_300 = re.search(
-                        r'([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑa-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑa-záéíóúñ]+){1,4})'
-                        r'\s+(?:Cedula|Cédula)',
-                        tn_300, re.IGNORECASE
-                    )
-                if nom_300:
-                    data['nombre'] = nom_300.group(1).strip()
+                if cargo_400:
+                    data['cargo'] = cargo_400.group(1).strip()
 
         if fechas_m:
             d1, m1, y1, d2, m2, y2 = fechas_m.groups()
@@ -696,39 +731,32 @@ def extraer_vacaciones_ocr(pdf_path: str) -> dict:
                 data['errores'].append('Fechas inválidas en el período solicitado')
 
         # ── Días disfrutados ─────────────────────────────────────────────────
-        # Acepta dígitos Y letras que OCR confunde con dígitos (o→0, s/S→5, l/I→1)
-        dias_m = re.search(
-            r'disfrutados[:\s]*[\[\(]?\s*([0-9oOlIsS]{1,3})\s*[\]\)|]?',
-            tn, re.IGNORECASE
-        )
-        if not dias_m:
+        # Acepta dígitos y letras que OCR confunde (o→0, s/S→5, l/I→1).
+        # Busca en ambos textos disponibles.
+        _textos_dias = [tn] + ([tn_400] if 'tn_400' in dir() else [])
+        for _t in _textos_dias:
+            if data['cantidad']:
+                break
             dias_m = re.search(
                 r'disfrutados[:\s]*[\[\(]?\s*([0-9oOlIsS]{1,3})\s*[\]\)|]?',
-                tn_300 if 'tn_300' in dir() else '', re.IGNORECASE
+                _t, re.IGNORECASE
             )
-        if dias_m:
-            # Normalizar letras→dígitos antes de convertir
-            raw_dias = (dias_m.group(1)
-                        .replace('o', '0').replace('O', '0')
-                        .replace('s', '5').replace('S', '5')
-                        .replace('l', '1').replace('I', '1').replace('i', '1'))
-            if raw_dias.isdigit():
-                cantidad = int(raw_dias)
-                if 1 <= cantidad <= 31:
-                    data['cantidad'] = cantidad
+            if dias_m:
+                raw_dias = _normalizar_digitos_ocr(dias_m.group(1))
+                if raw_dias.isdigit():
+                    cantidad = int(raw_dias)
+                    if 1 <= cantidad <= 31:
+                        data['cantidad'] = cantidad
 
-        # Corrección OCR: el dígito "9" se confunde frecuentemente con "3"
-        # Si OCR dice 3 y las fechas dan 9 laborables → corregir a 9
+        # Corrección OCR: 3↔9 y 1↔7 son confusiones frecuentes de Tesseract
         if data['cantidad'] and data['fecha_inicio'] and data['fecha_fin']:
             dias_reales = calcular_dias_laborables(data['fecha_inicio'], data['fecha_fin'])
-            # Si el valor OCR es claramente incorrecto comparado con el cálculo
-            # y la diferencia cuadra con una confusión 3↔9, corregir
             if data['cantidad'] == 3 and dias_reales == 9:
                 data['cantidad'] = 9
             elif data['cantidad'] == 1 and dias_reales == 7:
                 data['cantidad'] = 7
 
-        # Fallback: calcular días laborables si OCR no dio ningún resultado
+        # Fallback: calcular días laborables si OCR no extrajo el campo
         if not data['cantidad'] and data['fecha_inicio'] and data['fecha_fin']:
             data['cantidad'] = calcular_dias_laborables(
                 data['fecha_inicio'], data['fecha_fin']
@@ -767,7 +795,7 @@ def extraer_vacaciones_ocr(pdf_path: str) -> dict:
 # ─── Extractor de Vacaciones (CM-TH-SV-001, PDF con texto nativo) ────────────
 
 def extraer_vacaciones_texto(text: str, pdf_path: str) -> dict:
-    """
+    r"""
     Extrae datos de vacaciones (CM-TH-SV-001) desde PDF con texto nativo.
 
     pdfplumber puede ordenar el stream de modo que el valor de una celda

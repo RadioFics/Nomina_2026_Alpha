@@ -506,7 +506,7 @@
       <span class="nav-icon">◫</span> Maestro Original
       <span class="nav-badge" id="badgeMaestro">0</span>
     </div>
-    <div class="nav-item" data-page="cambiosMaestro" onclick="navigate('cambiosMaestro')">
+    <div class="nav-item" data-page="cambiosMaestro" onclick="navigate('cambiosMaestro')" style="display:none">
       <span class="nav-icon">◧</span> Cambios Maestro
       <span class="nav-badge" id="badgeCMaestro">0</span>
     </div>
@@ -515,7 +515,7 @@
     <div class="nav-item" data-page="importar" onclick="navigate('importar')">
       <span class="nav-icon">↑</span> Importar Archivos
     </div>
-    <div class="nav-item" data-page="conexion" onclick="navigate('conexion')">
+    <div class="nav-item" data-page="conexion" onclick="navigate('conexion')" style="display:none">
       <span class="nav-icon">⊟</span> Conexión BD
     </div>
     <div class="nav-divider"></div>
@@ -939,71 +939,75 @@
     <!-- ===== MAESTRO ORIGINAL ===== -->
     <div class="page" id="page-maestroOriginal">
       <div class="page-title">Maestro <span>Original</span></div>
-      <div class="page-desc">Registro y consulta de empleados — 155 empleados activos en el archivo fuente</div>
-      <div class="alert alert-success" id="alertMaestro">✓ Empleado guardado correctamente</div>
+      <div class="page-desc">Alta individual de empleados — sincronizado con GN_TERCE y GN_FUNCI (MineDax)</div>
+      <div class="alert alert-success" id="alertMaestro">✓ Empleado creado correctamente en la base de datos</div>
+      <div class="alert alert-error"   id="alertMaestroErr" style="display:none"></div>
 
+      <!-- ── 1. IDENTIFICACIÓN ── -->
       <div class="form-card">
-        <div class="form-card-title">Identificación y Datos Personales</div>
-        <div class="form-grid cols-4">
+        <div class="form-card-title">Identificación</div>
+        <div class="form-grid cols-3">
           <div class="form-group">
-            <label>Código</label>
-            <input type="text" id="mo_codigo" placeholder="Ej: 1007808313">
+            <label>Número Identificación <span class="req">*</span></label>
+            <input type="text" id="mo_numiden" placeholder="Ej: 1007808313" oninput="mo_actualizarNomComp()">
           </div>
           <div class="form-group">
             <label>Código Alterno</label>
-            <input type="text" id="mo_codigoalt" placeholder="Ej: 085">
+            <input type="text" id="mo_codalt" placeholder="Ej: 085">
           </div>
           <div class="form-group">
-            <label>Cédula <span class="req">*</span></label>
-            <input type="text" id="mo_cedula" placeholder="Número de cédula">
-          </div>
-          <div class="form-group">
-            <label>Tipo Documento</label>
-            <select id="mo_tipdoc">
-              <option value="CC">CC - Cédula</option>
-              <option value="CE">CE - Extranjería</option>
-              <option value="PA">PA - Pasaporte</option>
-            </select>
+            <label>Tipo Documento <span class="req">*</span></label>
+            <select id="mo_tipdoc"><option value="1">— Cargando... —</option></select>
           </div>
         </div>
-        <div class="form-grid cols-3" style="margin-top:14px">
-          <div class="form-group" style="grid-column:span 2">
-            <label>Nombre Completo <span class="req">*</span></label>
-            <input type="text" id="mo_nombre" placeholder="Apellidos y nombres">
+      </div>
+
+      <!-- ── 2. NOMBRE ── -->
+      <div class="form-card">
+        <div class="form-card-title">Nombre Completo</div>
+        <div class="form-grid cols-4">
+          <div class="form-group">
+            <label>Primer Apellido <span class="req">*</span></label>
+            <input type="text" id="mo_ape1" placeholder="Primer apellido" oninput="mo_actualizarNomComp()">
           </div>
+          <div class="form-group">
+            <label>Segundo Apellido</label>
+            <input type="text" id="mo_ape2" placeholder="Segundo apellido" oninput="mo_actualizarNomComp()">
+          </div>
+          <div class="form-group">
+            <label>Primer Nombre <span class="req">*</span></label>
+            <input type="text" id="mo_nom1" placeholder="Primer nombre" oninput="mo_actualizarNomComp()">
+          </div>
+          <div class="form-group">
+            <label>Segundo Nombre</label>
+            <input type="text" id="mo_nom2" placeholder="Segundo nombre" oninput="mo_actualizarNomComp()">
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:14px">
+          <label>Nombre Completo (generado)</label>
+          <input type="text" id="mo_nomcomp" readonly placeholder="Se genera automáticamente desde apellidos y nombres..."
+                 style="background:rgba(255,255,255,0.03);color:var(--cm-blue-light);font-weight:600;letter-spacing:0.02em;">
+        </div>
+      </div>
+
+      <!-- ── 3. DATOS PERSONALES ── -->
+      <div class="form-card">
+        <div class="form-card-title">Datos Personales</div>
+        <div class="form-grid cols-4">
           <div class="form-group">
             <label>Sexo</label>
             <select id="mo_sexo">
-              <option value="M">M - Masculino</option>
-              <option value="F">F - Femenino</option>
+              <option value="M">M — Masculino</option>
+              <option value="F">F — Femenino</option>
             </select>
           </div>
-        </div>
-        <div class="form-grid cols-4" style="margin-top:14px">
           <div class="form-group">
             <label>Grupo Sanguíneo</label>
-            <select id="mo_gsang">
-              <option value="">—</option>
-              <option value="A">A</option><option value="B">B</option>
-              <option value="AB">AB</option><option value="O">O</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Factor RH</label>
-            <select id="mo_rh">
-              <option value="+">+</option><option value="-">-</option>
-            </select>
+            <select id="mo_grsan"><option value="">— Sin asignar —</option></select>
           </div>
           <div class="form-group">
             <label>Estado Civil</label>
-            <select id="mo_estcivil">
-              <option value="SOLTERO">Soltero</option>
-              <option value="CASADO">Casado</option>
-              <option value="UNION LIBRE">Unión Libre</option>
-              <option value="DIVORCIADO">Divorciado</option>
-              <option value="VIUDO">Viudo</option>
-              <option value="DESCONOCIDO">Desconocido</option>
-            </select>
+            <select id="mo_estciv"><option value="">— Sin asignar —</option></select>
           </div>
           <div class="form-group">
             <label>Hijos</label>
@@ -1016,12 +1020,12 @@
             <input type="date" id="mo_fnac">
           </div>
           <div class="form-group">
-            <label>Ciudad Expedición Doc.</label>
-            <input type="text" id="mo_ciudadexp" placeholder="Ciudad">
+            <label>Ciudad Expedición Doc. (Código)</label>
+            <input type="number" id="mo_ciudadexp" placeholder="Ej: 29" min="0">
           </div>
           <div class="form-group">
-            <label>Ciudad de Residencia</label>
-            <input type="text" id="mo_ciudad" placeholder="Ciudad">
+            <label>Ciudad Residencia (Código)</label>
+            <input type="number" id="mo_ciudad" placeholder="Ej: 29" min="0">
           </div>
         </div>
         <div class="form-grid cols-3" style="margin-top:14px">
@@ -1039,49 +1043,25 @@
           </div>
         </div>
         <div class="form-group" style="margin-top:14px">
-          <label>Dirección</label>
-          <input type="text" id="mo_dir" placeholder="Dirección completa de residencia">
+          <label>Dirección de Residencia</label>
+          <input type="text" id="mo_dir" placeholder="Dirección completa">
         </div>
       </div>
 
+      <!-- ── 4. CARGO Y LIQUIDACIÓN ── -->
       <div class="form-card">
         <div class="form-card-title">Cargo y Liquidación</div>
         <div class="form-grid cols-3">
           <div class="form-group" style="grid-column:span 2">
             <label>Cargo <span class="req">*</span></label>
-            <input type="text" id="mo_cargo" placeholder="Nombre del cargo">
-          </div>
-          <div class="form-group">
-            <label>Porcentaje (%)</label>
-            <input type="number" id="mo_pct" placeholder="91.666666" step="0.000001">
-          </div>
-        </div>
-        <div class="form-grid cols-4" style="margin-top:14px">
-          <div class="form-group">
-            <label>Salario</label>
-            <input type="number" id="mo_salario" placeholder="0.00" step="0.01">
+            <select id="mo_cargo"><option value="">— Seleccionar cargo —</option></select>
           </div>
           <div class="form-group">
             <label>Valor Hora</label>
             <input type="number" id="mo_valorh" placeholder="0.00" step="0.01">
           </div>
-          <div class="form-group">
-            <label>Horas Mes</label>
-            <input type="number" id="mo_hmes" value="220">
-          </div>
-          <div class="form-group">
-            <label>Días Vacaciones</label>
-            <input type="number" id="mo_dvac" value="15">
-          </div>
         </div>
         <div class="form-grid cols-4" style="margin-top:14px">
-          <div class="form-group">
-            <label>Régimen</label>
-            <select id="mo_regimen">
-              <option value="LEY 50">LEY 50</option>
-              <option value="LEY 1278">LEY 1278</option>
-            </select>
-          </div>
           <div class="form-group">
             <label>Clase Salario</label>
             <select id="mo_classal">
@@ -1092,113 +1072,106 @@
           <div class="form-group">
             <label>Modo Liquidación</label>
             <select id="mo_modoliq">
+              <option value="Normal">Normal</option>
               <option value="Quincenal">Quincenal</option>
               <option value="Mensual">Mensual</option>
             </select>
           </div>
           <div class="form-group">
-            <label>Tipo Liquidación</label>
-            <select id="mo_tipoliq">
-              <option value="Normal">Normal</option>
-              <option value="Retroactivo">Retroactivo</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-grid cols-4" style="margin-top:14px">
-          <div class="form-group">
             <label>Trabaja Sábado</label>
             <select id="mo_sabado">
-              <option value="No">No</option><option value="Si">Sí</option>
+              <option value="No">No</option>
+              <option value="Si">Sí</option>
             </select>
           </div>
+          <div class="form-group">
+            <label>Días Vacaciones</label>
+            <input type="number" id="mo_dvac" value="15" min="0">
+          </div>
+        </div>
+        <div class="form-grid cols-3" style="margin-top:14px">
           <div class="form-group">
             <label>Pensionado</label>
             <select id="mo_pension">
-              <option value="No">No</option><option value="Si">Sí</option>
+              <option value="">No</option>
+              <option value="Si">Sí</option>
             </select>
           </div>
           <div class="form-group">
-            <label>Aplica Ley 1393</label>
-            <select id="mo_ley1393">
-              <option value="Si">Sí</option><option value="No">No</option>
+            <label>Extranjero</label>
+            <select id="mo_extran">
+              <option value="NO">No</option>
+              <option value="SI">Sí</option>
             </select>
           </div>
           <div class="form-group">
-            <label>Declara Renta</label>
-            <select id="mo_renta">
-              <option value="No">No</option><option value="Si">Sí</option>
+            <label>Reside en Extranjero</label>
+            <select id="mo_dirforan">
+              <option value="NO">No</option>
+              <option value="SI">Sí</option>
             </select>
           </div>
         </div>
       </div>
 
+      <!-- ── 5. CUENTA BANCARIA Y CENTRO DE COSTOS ── -->
       <div class="form-card">
         <div class="form-card-title">Cuenta Bancaria y Centro de Costos</div>
         <div class="form-grid cols-3">
           <div class="form-group">
             <label>Tipo de Cuenta</label>
-            <select id="mo_tipcta">
-              <option value="CONSIG. CTA AHORROS">Cta. Ahorros</option>
-              <option value="CONSIG. CTA CORRIENTE">Cta. Corriente</option>
-            </select>
+            <select id="mo_tipcta"><option value="0">— Sin asignar —</option></select>
           </div>
           <div class="form-group">
             <label>Banco</label>
-            <input type="text" id="mo_banco" placeholder="Nombre del banco">
+            <select id="mo_banco"><option value="0">— Sin asignar —</option></select>
           </div>
           <div class="form-group">
             <label>Número de Cuenta</label>
             <input type="text" id="mo_numcta" placeholder="Número de cuenta">
           </div>
         </div>
-        <div class="form-grid cols-4" style="margin-top:14px">
+        <div class="form-grid cols-3" style="margin-top:14px">
           <div class="form-group">
             <label>Sucursal</label>
-            <input type="text" id="mo_sucursal" placeholder="Sucursal">
+            <input type="text" id="mo_sucursal" placeholder="NO APLICA" maxlength="10">
           </div>
           <div class="form-group">
-            <label>Centro Costo</label>
-            <input type="text" id="mo_cc" placeholder="Código">
+            <label>Centro de Costo</label>
+            <select id="mo_ccost"><option value="0">— Sin asignar —</option></select>
           </div>
           <div class="form-group">
-            <label>Centro Costos (Desc.)</label>
-            <input type="text" id="mo_ccdesc" placeholder="Descripción">
-          </div>
-          <div class="form-group">
-            <label>Cód. Compañía</label>
-            <input type="text" id="mo_codcia" placeholder="01">
+            <label>Cuenta de Gasto</label>
+            <input type="number" id="mo_cuegasto" value="0" min="0">
           </div>
         </div>
       </div>
 
+      <!-- ── 6. SEGURIDAD SOCIAL ── -->
       <div class="form-card">
         <div class="form-card-title">Seguridad Social</div>
-        <div class="form-grid cols-3">
+        <div class="form-grid cols-4">
           <div class="form-group">
             <label>EPS <span class="req">*</span></label>
-            <input type="text" id="mo_eps" placeholder="Nombre de la EPS">
+            <select id="mo_eps"><option value="">— Seleccionar —</option></select>
           </div>
           <div class="form-group">
             <label>AFP (Pensiones)</label>
-            <input type="text" id="mo_afp" placeholder="Nombre del fondo">
+            <select id="mo_afp"><option value="">— Seleccionar —</option></select>
           </div>
           <div class="form-group">
             <label>Caja de Compensación</label>
-            <input type="text" id="mo_caja" placeholder="Nombre de la CCF">
-          </div>
-        </div>
-        <div class="form-grid cols-4" style="margin-top:14px">
-          <div class="form-group">
-            <label>ARP / Riesgos</label>
-            <input type="text" id="mo_arp" placeholder="Nombre de la ARP">
+            <select id="mo_caja"><option value="">— Seleccionar —</option></select>
           </div>
           <div class="form-group">
             <label>Fondo Cesantías</label>
-            <input type="text" id="mo_cesantias" placeholder="Fondo de cesantías">
+            <select id="mo_cesan"><option value="">— Seleccionar —</option></select>
           </div>
+        </div>
+        <div class="form-grid cols-2" style="margin-top:14px">
           <div class="form-group">
-            <label>Nivel de Riesgo</label>
-            <input type="number" id="mo_riesgo" placeholder="0.00" step="0.001">
+            <label>Nivel de Riesgo ARL (%)</label>
+            <input type="number" id="mo_riesgo" placeholder="Ej: 6.96" step="0.001">
           </div>
           <div class="form-group">
             <label>Promedio Salud</label>
@@ -1207,9 +1180,23 @@
         </div>
       </div>
 
+      <!-- ── 7. CONTRATO, FECHAS Y RETENCIÓN ── -->
       <div class="form-card">
-        <div class="form-card-title">Fechas y Retención</div>
+        <div class="form-card-title">Contrato, Fechas y Retención</div>
         <div class="form-grid cols-4">
+          <div class="form-group">
+            <label>Tipo Contrato</label>
+            <select id="mo_tipcontrato">
+              <option value="01">01 — Término Indefinido</option>
+              <option value="02">02 — Término Fijo</option>
+              <option value="03">03 — Obra o Labor</option>
+              <option value="04">04 — Aprendizaje</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Número Contrato</label>
+            <input type="number" id="mo_numcontra" placeholder="Opcional">
+          </div>
           <div class="form-group">
             <label>Fecha Ingreso <span class="req">*</span></label>
             <input type="date" id="mo_fingreso">
@@ -1218,114 +1205,52 @@
             <label>Fecha Retiro</label>
             <input type="date" id="mo_fretiro">
           </div>
+        </div>
+        <div class="form-grid cols-4" style="margin-top:14px">
           <div class="form-group">
             <label>Causa Retiro</label>
             <input type="text" id="mo_causaret" placeholder="NO APLICA">
           </div>
           <div class="form-group">
-            <label>Tipo Contrato</label>
-            <select id="mo_tipcontrato">
-              <option value="01">01 - Término Indefinido</option>
-              <option value="02">02 - Término Fijo</option>
-              <option value="03">03 - Obra o Labor</option>
-              <option value="04">04 - Aprendizaje</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-grid cols-4" style="margin-top:14px">
-          <div class="form-group">
             <label>% Retención Fte.</label>
-            <input type="number" id="mo_rete" placeholder="0.000" step="0.001">
+            <input type="number" id="mo_rete" placeholder="0" step="0.001">
           </div>
           <div class="form-group">
             <label>Deducción Vivienda</label>
-            <input type="number" id="mo_dedviv" placeholder="0.00" step="0.01">
+            <input type="number" id="mo_dedviv" placeholder="0" step="0.01">
           </div>
           <div class="form-group">
             <label>Deducción Salud</label>
-            <input type="number" id="mo_dedsalud" placeholder="0.00" step="0.01">
+            <input type="number" id="mo_dedsalud" placeholder="0" step="0.01">
           </div>
+        </div>
+        <div class="form-grid cols-2" style="margin-top:14px">
           <div class="form-group">
             <label>Deducción Dependientes</label>
-            <input type="number" id="mo_deddep" placeholder="0.00" step="0.01">
-          </div>
-        </div>
-      </div>
-
-      <div class="form-card">
-        <div class="form-card-title">Clasificadores Internos</div>
-        <div class="form-grid cols-4">
-          <div class="form-group">
-            <label>Clasificador 1</label>
-            <input type="text" id="mo_clas1" placeholder="Código">
-          </div>
-          <div class="form-group">
-            <label>Clasificador 1 Nombre</label>
-            <input type="text" id="mo_clas1nom" placeholder="Descripción">
-          </div>
-          <div class="form-group">
-            <label>Sub Área</label>
-            <input type="text" id="mo_subarea" placeholder="Código sub área">
-          </div>
-          <div class="form-group">
-            <label>Sub Área (Nombre)</label>
-            <input type="text" id="mo_subareanov" placeholder="Nombre sub área">
-          </div>
-        </div>
-        <div class="form-grid cols-4" style="margin-top:14px">
-          <div class="form-group">
-            <label>Nivel Cargo</label>
-            <input type="text" id="mo_nivcargo" placeholder="Código nivel">
-          </div>
-          <div class="form-group">
-            <label>Driver Variable</label>
-            <input type="text" id="mo_driver" placeholder="Código driver">
-          </div>
-          <div class="form-group">
-            <label>Clasificador 7</label>
-            <input type="text" id="mo_clas7" placeholder="Código">
-          </div>
-          <div class="form-group">
-            <label>Clasificador 7 Nombre</label>
-            <input type="text" id="mo_clas7nom" placeholder="Descripción">
-          </div>
-        </div>
-        <div class="form-grid cols-3" style="margin-top:14px">
-          <div class="form-group">
-            <label>Pago X Días</label>
-            <select id="mo_pagodias">
-              <option value="No">No</option><option value="Si">Sí</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Relación Sindical</label>
-            <input type="text" id="mo_sindical" placeholder="No Aplica">
-          </div>
-          <div class="form-group">
-            <label>Extranjero</label>
-            <select id="mo_extran">
-              <option value="NO">No</option><option value="SI">Sí</option>
-            </select>
+            <input type="number" id="mo_deddep" placeholder="0" step="0.01">
           </div>
         </div>
         <div class="form-actions">
-          <button class="btn btn-secondary" onclick="limpiarForm('mo')">Limpiar</button>
-          <button class="btn btn-primary" onclick="guardarMaestro()">⊕ Guardar Empleado</button>
+          <button class="btn btn-secondary" onclick="limpiarFormMaestro()">Limpiar</button>
+          <button class="btn btn-primary" id="btnGuardarMaestro" onclick="guardarMaestro()">⊕ Guardar en Base de Datos</button>
         </div>
       </div>
 
       <div class="table-wrap">
         <div class="table-header">
-          <div class="table-title">Empleados registrados</div>
-          <input class="table-search" placeholder="🔍 Buscar por nombre o cédula..." oninput="filtrarTabla('tbMaestro', this.value)">
+          <div style="display:flex;align-items:center;gap:12px;width:100%">
+            <div class="table-title">Empleados en MineDax</div>
+            <button class="hist-btn hist-btn-search" style="padding:7px 14px;font-size:11px;white-space:nowrap" onclick="cargarEmpleadosBD()">↺ Recargar BD</button>
+            <input class="table-search" style="margin-left:auto" placeholder="🔍 Buscar por nombre o cédula..." oninput="filtrarTabla('tbMaestro', this.value)">
+          </div>
         </div>
         <table>
           <thead><tr>
             <th>Cédula</th><th>Nombre</th><th>Cargo</th><th>EPS</th><th>AFP</th>
-            <th>F. Ingreso</th><th>Centro Costo</th><th>Salario</th><th>Acciones</th>
+            <th>F. Ingreso</th><th>Centro Costo</th><th>Valor Hora</th><th>Estado</th>
           </tr></thead>
           <tbody id="tbMaestro">
-            <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>
+            <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">Cargando datos de la BD...</td></tr>
           </tbody>
         </table>
       </div>
@@ -2710,104 +2635,201 @@ function usarPeriodoLocal() {
 }
 
 // ─── MAESTRO ORIGINAL ────────────────────────────────────────────────────────
-function guardarMaestro() {
-  const cedula = document.getElementById('mo_cedula').value.trim();
-  const nombre = document.getElementById('mo_nombre').value.trim();
-  if (!cedula || !nombre) { alert('Cédula y Nombre son obligatorios.'); return; }
-  const rec = {
-    cedula, nombre,
-    codigo:       document.getElementById('mo_codigo').value,
-    codigoalt:    document.getElementById('mo_codigoalt').value,
-    tipdoc:       document.getElementById('mo_tipdoc').value,
-    sexo:         document.getElementById('mo_sexo').value,
-    gsang:        document.getElementById('mo_gsang').value,
-    rh:           document.getElementById('mo_rh').value,
-    estcivil:     document.getElementById('mo_estcivil').value,
-    hijos:        document.getElementById('mo_hijos').value,
-    fnac:         document.getElementById('mo_fnac').value,
-    ciudadexp:    document.getElementById('mo_ciudadexp').value,
-    ciudad:       document.getElementById('mo_ciudad').value,
-    tel1:         document.getElementById('mo_tel1').value,
-    tel2:         document.getElementById('mo_tel2').value,
-    correo:       document.getElementById('mo_correo').value,
-    dir:          document.getElementById('mo_dir').value,
-    cargo:        document.getElementById('mo_cargo').value,
-    pct:          document.getElementById('mo_pct').value,
-    salario:      document.getElementById('mo_salario').value,
-    valorh:       document.getElementById('mo_valorh').value,
-    hmes:         document.getElementById('mo_hmes').value,
-    dvac:         document.getElementById('mo_dvac').value,
-    regimen:      document.getElementById('mo_regimen').value,
-    classal:      document.getElementById('mo_classal').value,
-    modoliq:      document.getElementById('mo_modoliq').value,
-    tipoliq:      document.getElementById('mo_tipoliq').value,
-    sabado:       document.getElementById('mo_sabado').value,
-    pension:      document.getElementById('mo_pension').value,
-    ley1393:      document.getElementById('mo_ley1393').value,
-    renta:        document.getElementById('mo_renta').value,
-    tipcta:       document.getElementById('mo_tipcta').value,
-    banco:        document.getElementById('mo_banco').value,
-    numcta:       document.getElementById('mo_numcta').value,
-    sucursal:     document.getElementById('mo_sucursal').value,
-    cc:           document.getElementById('mo_cc').value,
-    ccdesc:       document.getElementById('mo_ccdesc').value,
-    codcia:       document.getElementById('mo_codcia').value,
-    eps:          document.getElementById('mo_eps').value,
-    afp:          document.getElementById('mo_afp').value,
-    caja:         document.getElementById('mo_caja').value,
-    arp:          document.getElementById('mo_arp').value,
-    cesantias:    document.getElementById('mo_cesantias').value,
-    riesgo:       document.getElementById('mo_riesgo').value,
-    promsalud:    document.getElementById('mo_promsalud').value,
-    fingreso:     document.getElementById('mo_fingreso').value,
-    fretiro:      document.getElementById('mo_fretiro').value,
-    causaret:     document.getElementById('mo_causaret').value,
-    tipcontrato:  document.getElementById('mo_tipcontrato').value,
-    rete:         document.getElementById('mo_rete').value,
-    dedviv:       document.getElementById('mo_dedviv').value,
-    dedsalud:     document.getElementById('mo_dedsalud').value,
-    deddep:       document.getElementById('mo_deddep').value,
-    clas1:        document.getElementById('mo_clas1').value,
-    clas1nom:     document.getElementById('mo_clas1nom').value,
-    subarea:      document.getElementById('mo_subarea').value,
-    subareanov:   document.getElementById('mo_subareanov').value,
-    nivcargo:     document.getElementById('mo_nivcargo').value,
-    driver:       document.getElementById('mo_driver').value,
-    clas7:        document.getElementById('mo_clas7').value,
-    clas7nom:     document.getElementById('mo_clas7nom').value,
-    pagodias:     document.getElementById('mo_pagodias').value,
-    sindical:     document.getElementById('mo_sindical').value,
-    extran:       document.getElementById('mo_extran').value,
+
+function mo_actualizarNomComp() {
+  const ape1 = (document.getElementById('mo_ape1').value || '').trim().toUpperCase();
+  const ape2 = (document.getElementById('mo_ape2').value || '').trim().toUpperCase();
+  const nom1 = (document.getElementById('mo_nom1').value || '').trim().toUpperCase();
+  const nom2 = (document.getElementById('mo_nom2').value || '').trim().toUpperCase();
+  document.getElementById('mo_nomcomp').value = [ape1, ape2, nom1, nom2].filter(Boolean).join(' ');
+}
+
+function limpiarFormMaestro() {
+  ['mo_numiden','mo_codalt','mo_ape1','mo_ape2','mo_nom1','mo_nom2','mo_nomcomp',
+   'mo_hijos','mo_fnac','mo_ciudadexp','mo_ciudad','mo_tel1','mo_tel2','mo_correo','mo_dir',
+   'mo_valorh','mo_dvac','mo_numcta','mo_sucursal','mo_cuegasto',
+   'mo_riesgo','mo_promsalud','mo_numcontra','mo_fingreso','mo_fretiro','mo_causaret',
+   'mo_rete','mo_dedviv','mo_dedsalud','mo_deddep'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('mo_hijos').value = '0';
+  document.getElementById('mo_dvac').value  = '15';
+  document.getElementById('mo_cuegasto').value = '0';
+}
+
+async function cargarCatalogos() {
+  try {
+    const r = await fetch('/api/maestros/catalogos');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const cat = await r.json();
+
+    const fill = (selId, items, valKey, nomKey, emptyLabel) => {
+      const sel = document.getElementById(selId);
+      if (!sel) return;
+      sel.innerHTML = `<option value="">${emptyLabel || '— Sin asignar —'}</option>` +
+        items.map(i => `<option value="${i[valKey]}">${i[nomKey]}</option>`).join('');
+    };
+
+    fill('mo_tipdoc', cat.tpdoc, 'cod', 'nom', '— Tipo Documento —');
+    fill('mo_grsan',  cat.grsan,  'cod', 'nom', '— Sin asignar —');
+    fill('mo_estciv', cat.estciv, 'cod', 'nom', '— Sin asignar —');
+    fill('mo_banco',  cat.banco,  'cod', 'nom', '— Sin asignar —');
+    fill('mo_tipcta', cat.tpcta,  'cod', 'nom', '— Sin asignar —');
+    fill('mo_ccost',  cat.ccost,  'cod', 'nom', '— Sin asignar —');
+    fill('mo_cargo',  cat.cargo,  'cod', 'nom', '— Seleccionar cargo —');
+    fill('mo_eps',    cat.eps,    'cod', 'nom', '— Seleccionar EPS —');
+    fill('mo_afp',    cat.afp,    'cod', 'nom', '— Seleccionar AFP —');
+    fill('mo_caja',   cat.caja,   'cod', 'nom', '— Seleccionar Caja —');
+    fill('mo_cesan',  cat.cesan,  'cod', 'nom', '— Seleccionar Cesantías —');
+
+    console.log('✓ Catálogos del Maestro Original cargados');
+  } catch (err) {
+    console.error('❌ cargarCatalogos:', err.message);
+  }
+}
+
+async function guardarMaestro() {
+  const btn = document.getElementById('btnGuardarMaestro');
+  const numiden  = document.getElementById('mo_numiden').value.trim();
+  const ape1     = document.getElementById('mo_ape1').value.trim();
+  const nom1     = document.getElementById('mo_nom1').value.trim();
+  const codCargo = document.getElementById('mo_cargo').value;
+  const fingreso = document.getElementById('mo_fingreso').value;
+
+  if (!numiden)  { alert('El número de identificación es obligatorio.');  return; }
+  if (!ape1)     { alert('El primer apellido es obligatorio.');            return; }
+  if (!nom1)     { alert('El primer nombre es obligatorio.');              return; }
+  if (!codCargo) { alert('Debe seleccionar un cargo.');                   return; }
+  if (!fingreso) { alert('La fecha de ingreso es obligatoria.');           return; }
+
+  const body = {
+    NUM_IDEN:    numiden,
+    COD_ALT:     document.getElementById('mo_codalt').value.trim()     || null,
+    COD_TPDOC:   document.getElementById('mo_tipdoc').value,
+    APE_TERC:    ape1,
+    SEG_APEL:    document.getElementById('mo_ape2').value.trim()       || null,
+    NOM_TERC:    nom1,
+    SEG_NOMB:    document.getElementById('mo_nom2').value.trim()       || null,
+    SEX_FUNC:    document.getElementById('mo_sexo').value,
+    COD_GRSAN:   document.getElementById('mo_grsan').value             || null,
+    COD_ESTCIV:  document.getElementById('mo_estciv').value            || null,
+    CNT_HIJO:    document.getElementById('mo_hijos').value             || 0,
+    FEC_NAC:     document.getElementById('mo_fnac').value              || null,
+    CIU_EXPED:   document.getElementById('mo_ciudadexp').value         || null,
+    COD_MPIO:    document.getElementById('mo_ciudad').value            || null,
+    TEL_TERC:    document.getElementById('mo_tel1').value              || '0',
+    TEL_TERC2:   document.getElementById('mo_tel2').value              || '',
+    DIR_MAIL:    document.getElementById('mo_correo').value            || '',
+    DIR_TERC:    document.getElementById('mo_dir').value               || '',
+    COD_CARGO:   codCargo,
+    VAL_HORA:    document.getElementById('mo_valorh').value            || 0,
+    TIP_SALAR:   document.getElementById('mo_classal').value,
+    MOD_LIQUID:  document.getElementById('mo_modoliq').value,
+    JOR_SABAD:   document.getElementById('mo_sabado').value,
+    DIA_VACAC:   document.getElementById('mo_dvac').value              || 15,
+    CUE_PENSIO:  document.getElementById('mo_pension').value           || null,
+    EMP_FORAN:   document.getElementById('mo_extran').value,
+    DIR_FORAN:   document.getElementById('mo_dirforan').value,
+    COD_TPCTA:   document.getElementById('mo_tipcta').value            || 0,
+    COD_BANCO:   document.getElementById('mo_banco').value             || 0,
+    NUM_CTA:     document.getElementById('mo_numcta').value            || null,
+    NOM_SUCUR:   document.getElementById('mo_sucursal').value          || 'NO APLICA',
+    COD_CCOST:   document.getElementById('mo_ccost').value             || 0,
+    CUE_GASTO:   document.getElementById('mo_cuegasto').value          || 0,
+    COD_EPS:     document.getElementById('mo_eps').value               || null,
+    COD_AFP:     document.getElementById('mo_afp').value               || null,
+    COD_CAJA:    document.getElementById('mo_caja').value              || null,
+    COD_CESAN:   document.getElementById('mo_cesan').value             || null,
+    GRA_RIESGO:  document.getElementById('mo_riesgo').value            || '0',
+    PRO_SALUD:   document.getElementById('mo_promsalud').value         || '0',
+    TIP_CONTRA:  document.getElementById('mo_tipcontrato').value,
+    NUM_CONTRA:  document.getElementById('mo_numcontra').value         || null,
+    FEC_INGRES:  fingreso,
+    FEC_RETIRO:  document.getElementById('mo_fretiro').value           || null,
+    CAU_RETIRO:  document.getElementById('mo_causaret').value          || 'NO APLICA',
+    POR_RETEN:   document.getElementById('mo_rete').value              || 0,
+    DED_VIVIEN:  document.getElementById('mo_dedviv').value            || 0,
+    DED_SALUD:   document.getElementById('mo_dedsalud').value          || 0,
+    DED_DEPEN:   document.getElementById('mo_deddep').value            || 0,
   };
-  // Replace if same cedula, otherwise push
-  const idx = state.maestroOriginal.findIndex(e => e.cedula === cedula);
-  if (idx >= 0) state.maestroOriginal[idx] = rec;
-  else state.maestroOriginal.push(rec);
-  renderMaestro();
-  limpiarForm('mo');
-  showAlert('alertMaestro');
-  addActivity('Maestro', nombre, 'Cambio');
-  updateBadges();
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Guardando...';
+
+  try {
+    const resp = await fetch('/api/maestros/empleado', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+
+    if (!resp.ok) {
+      const errEl = document.getElementById('alertMaestroErr');
+      errEl.textContent = '✗ ' + (data.error || 'Error desconocido');
+      errEl.style.display = 'flex';
+      errEl.classList.add('show');
+      setTimeout(() => { errEl.classList.remove('show'); errEl.style.display = 'none'; }, 5000);
+      return;
+    }
+
+    showAlert('alertMaestro');
+    limpiarFormMaestro();
+    cargarEmpleadosBD();
+    addActivity('Maestro', data.nombre || numiden, 'Alta');
+    updateBadges();
+  } catch (err) {
+    alert('Error de red: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '⊕ Guardar en Base de Datos';
+  }
+}
+
+async function cargarEmpleadosBD() {
+  const tb = document.getElementById('tbMaestro');
+  tb.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:24px">Cargando...</td></tr>';
+  try {
+    const r = await fetch('/api/maestros/empleados');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const rows = await r.json();
+    state.maestroOriginal = rows;
+    renderMaestro();
+    updateBadges();
+  } catch (err) {
+    tb.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--danger);padding:24px">Error al cargar: ${err.message}</td></tr>`;
+  }
 }
 
 function renderMaestro() {
   const tb = document.getElementById('tbMaestro');
   if (!state.maestroOriginal.length) {
-    tb.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>';
+    tb.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">Sin registros en BD</td></tr>';
     return;
   }
-  tb.innerHTML = state.maestroOriginal.map((r, i) => `
-    <tr>
-      <td><strong>${r.cedula}</strong></td>
-      <td>${r.nombre}</td>
-      <td style="font-size:12px;color:var(--muted)">${r.cargo||'—'}</td>
-      <td style="font-size:12px">${r.eps||'—'}</td>
-      <td style="font-size:12px">${r.afp||'—'}</td>
-      <td>${r.fingreso||'—'}</td>
-      <td style="font-size:12px">${r.cc||'—'}</td>
-      <td style="color:var(--gold-light)">${r.salario ? Number(r.salario).toLocaleString('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}) : '—'}</td>
-      <td><button class="btn-sm btn-sm-del" onclick="eliminar('maestroOriginal',${i})">✕</button></td>
-    </tr>`).join('');
+  tb.innerHTML = state.maestroOriginal.map(r => {
+    const eps  = (r.eps  || '').trim() || '—';
+    const afp  = (r.afp  || '').trim() || '—';
+    const cc   = (r.ccosto || '').trim() || '—';
+    const cargo = (r.cargo || '').trim() || '—';
+    const fi   = (r.fingreso || '').trim() || '—';
+    const vh   = r.valorh != null ? Number(r.valorh).toLocaleString('es-CO') : '—';
+    const est  = r.estado === 'A'
+      ? '<span class="badge badge-dev">Activo</span>'
+      : '<span class="badge" style="background:rgba(112,111,111,.2);color:var(--muted)">Inactivo</span>';
+    return `<tr>
+      <td><strong>${r.cedula ?? '—'}</strong></td>
+      <td>${r.nombre || '—'}</td>
+      <td style="font-size:12px;color:var(--muted)">${cargo}</td>
+      <td style="font-size:12px">${eps}</td>
+      <td style="font-size:12px">${afp}</td>
+      <td style="font-size:12px">${fi}</td>
+      <td style="font-size:12px">${cc}</td>
+      <td>${vh}</td>
+      <td>${est}</td>
+    </tr>`;
+  }).join('');
 }
 
 // ─── OCASIONALES (persistencia vs NO_NOVED + NO_OCASI) ──────────────────────
@@ -4547,6 +4569,9 @@ document.addEventListener('DOMContentLoaded', () => {
   cargarFijasDelPeriodo();
   cargarAusentismosDelPeriodo();
   cargarCambiosDelPeriodo();
+  // Catálogos y empleados del Maestro Original (desde MineDax BD)
+  cargarCatalogos();
+  cargarEmpleadosBD();
 
   // Cerrar dropdowns de autocomplete al hacer click fuera
   document.addEventListener('click', (e) => {

@@ -305,6 +305,115 @@ const CATALOG = {
       ]},
     ],
   },
+  'v0.11': {
+    titulo: 'Motor de extracción PDF — Consolidación y robustez',
+    resumen: [
+      'Refactorización profunda del motor Python de extracción de PDFs (procesar_pdf.py)',
+      'Mejor tolerancia a variaciones de formato en documentos escaneados o con OCR imperfecto',
+      'Corrección de cálculo de días en solicitudes de vacaciones con fechas no consecutivas',
+      'Manejo explícito de errores por archivo: un PDF mal formado no interrumpe el lote completo',
+      'Logs de extracción más detallados para facilitar diagnóstico en producción',
+    ],
+    detalle: [
+      { categoria: 'python/procesar_pdf.py', items: [
+        'Refactorización de 34 líneas a 307 (+273 netas): extracción por secciones con fallback por expresión regular',
+        'Función extract_field() generalizada: busca etiqueta por regex y captura valor en la misma línea o en la siguiente',
+        'Función clean_value(): elimina artefactos de OCR, caracteres de control y espacios múltiples',
+        'Detección de tipo de formulario mejorada: prioriza palabras clave en las primeras 10 líneas del texto extraído',
+        'Cálculo de días de vacaciones corregido: maneja correctamente saltos de mes y meses de 28/29/30/31 días',
+        'Modo batch: procesa lista de rutas de PDF devolviendo un JSON con resultado por archivo y conteo global',
+        'Manejo de excepciones por archivo con captura de traceback completo en el campo error del resultado',
+        'Compatibilidad con pdfplumber ≥ 0.9 y pdfminer como backend de fallback',
+      ]},
+    ],
+  },
+
+  'v0.10': {
+    titulo: 'Importación Excel robusta y rutas de ocasionales optimizadas',
+    resumen: [
+      'Correcciones críticas en el controlador de importación Excel para múltiples tipos de parser',
+      'Mejora en la normalización de cédulas y nombres antes de consultar la BD',
+      'Ruta de ocasionales actualizada: nuevos endpoints para importación por lote y descarga de plantilla',
+      'Motor Python de extracción PDF ampliado con soporte para formularios de permiso remunerado extendido',
+      'Mejor manejo de períodos: búsqueda dinámica del período activo sin depender de caché',
+    ],
+    detalle: [
+      { categoria: 'controllers/importarExcelController.js', items: [
+        'Refactorización de 344 líneas netas (+270 sobre V0.9): lógica de resolución de parser extraída a función interna resolveParser()',
+        'resolveParser(): intenta fingerprint síncrono, luego asíncrono y finalmente nombre de archivo; devuelve null si ninguno aplica',
+        'Normalización de cédula: strip de espacios, guiones y puntos antes de consulta a GN_FUNCI/GN_TERCE',
+        'Manejo de transacciones por archivo: si falla una inserción, hace rollback del lote de ese archivo sin afectar los demás',
+        'Logging estructurado por archivo: reporta parser usado, filas leídas, insertadas, acumuladas y errores con detalle',
+        'Endpoint GET /api/ocasionales/plantilla: devuelve archivo Excel de plantilla con cabeceras correctas',
+      ]},
+      { categoria: 'routes/ocasionales.js', items: [
+        'Nueva ruta GET /api/ocasionales/plantilla para descarga de plantilla de importación',
+        'Ruta POST /api/ocasionales/importar-excel mantenida; parámetro opcional modo=strict para rechazar filas incompletas',
+        'Middleware de validación de tipo MIME añadido antes de pasar a multer',
+      ]},
+      { categoria: 'python/procesar_pdf.py', items: [
+        'Soporte para variante extendida del formulario CM-TH-FR-003: extrae campo de justificación de hasta 3 líneas',
+        'Campo jefe_inmediato: ahora busca tanto "Jefe Inmediato" como "Supervisor" para mayor compatibilidad',
+        'Mejoras en limpieza de texto: elimina saltos de línea dentro de nombres compuestos',
+      ]},
+    ],
+  },
+
+  'v0.9': {
+    titulo: 'Correcciones de esquema y tablas maestras MAE_ARL y MAE_EPS',
+    resumen: [
+      'Scripts SQL de diagnóstico y correcciones de integridad sobre las tablas de novedades',
+      'Creación y población de la tabla MAE_ARL con las ARL del sector minero-energético',
+      'Creación y población de las tablas MAE_EPS y MAE_CCF con entidades del sistema de salud colombiano',
+      'Correcciones en importarExcelController: manejo de filas sin cédula y acumulación de conceptos duplicados',
+    ],
+    detalle: [
+      { categoria: 'sql/ — Scripts de esquema y datos maestros', items: [
+        'sql/diagnostico_y_correcciones.sql: 330 líneas de diagnóstico; verifica integridad de llaves foráneas en NO_NOVED, NO_OCASI, NO_FIJAS, NO_AUSEN, NO_CAMBI; genera reporte de huérfanos y propone correcciones con UPDATE/DELETE selectivos',
+        'sql/poblar_MAE_ARL.sql: crea tabla MAE_ARL (COD_ARL, NOM_ARL, NIT_ARL, ACT_ESTA) y la puebla con 7 ARL vigentes en Colombia (Sura, Positiva, Colmena, Axa Colpatria, Bolívar, Liberty, Equidad)',
+        'sql/poblar_MAE_EPS_CCF.sql: crea MAE_EPS con 24 EPS del RUPS y MAE_CCF con 43 Cajas de Compensación Familiar; INSERTs idempotentes con MERGE',
+      ]},
+      { categoria: 'controllers/importarExcelController.js', items: [
+        'Corrección de bug crítico: filas con celda de cédula vacía causaban error de FK; ahora se saltan con advertencia en el log',
+        'Acumulación de conceptos duplicados: si el mismo COD_CONC aparece dos veces para el mismo empleado en el mismo archivo, se suman las cantidades antes de insertar',
+        'Mensaje de error mejorado cuando GN_FUNCI no encuentra el empleado: incluye la cédula buscada para facilitar diagnóstico',
+        'Compatibilidad con ExcelJS ≥ 4.3: ajuste en lectura de celdas de fecha (valor raw vs. resultado formateado)',
+      ]},
+    ],
+  },
+
+  'v0.8': {
+    titulo: 'Importador Adecco y descifrado de archivos Office protegidos',
+    resumen: [
+      'Nuevo módulo de importación de archivos Adecco (nómina tercerizada) en formato Excel protegido',
+      'Soporte para descifrar archivos .xlsx/.xls protegidos con contraseña mediante msoffcrypto-tool',
+      'Parser dedicado para el formato Adecco: detecta automáticamente por nombre y estructura del archivo',
+      'Integración en la interfaz: Adecco se procesa junto a los demás tipos en la misma zona de carga',
+      'Actualización de dependencias: msoffcrypto-tool y dependencias relacionadas añadidas a package.json',
+    ],
+    detalle: [
+      { categoria: 'Importador Adecco', items: [
+        'importar_adecco.py: script Python para procesamiento de nómina Adecco; extrae cédula, nombre, concepto y valor desde el formato de liquidación mensual',
+        'utils/importParsers/parserAdecco.js: nuevo parser Node.js; detecta por nombre ("adecco", "nomina tercera") y presencia de columna "No. Identificación"',
+        'parserRegistry.js actualizado: Adecco añadido antes del parser genérico — orden final: salud → vida → Adecco → genérico',
+        'Mapeo de columnas: No. Identificación → cédula, Nombre → nombre, Código Concepto → COD_CONC, Valor → valor unitario',
+        'Soporte para hoja "Detalle" o "Liquidación" como hoja principal del archivo',
+      ]},
+      { categoria: 'Descifrado de archivos Office', items: [
+        'utils/decryptOffice.js: usa msoffcrypto-tool (vía Python subprocess) para desproteger .xlsx/.xls con contraseña conocida antes de pasarlos al parser',
+        'Flujo: buffer recibido → detecta cifrado (magic bytes) → descifra en memoria → entrega buffer limpio al parser',
+        'Contraseña configurable vía variable de entorno ADECCO_PASSWORD; por defecto intenta sin contraseña primero',
+        'Si el descifrado falla, devuelve error 422 con mensaje descriptivo al cliente',
+      ]},
+      { categoria: 'Controlador y rutas', items: [
+        'controllers/importarExcelController.js (+875 líneas netas sobre V0.7): integra la lógica de descifrado antes de llamar al parser',
+        'routes/ocasionales.js: límite de tamaño de archivo ajustado a 20 MB para acomodar archivos Adecco de gran volumen',
+        '.env: nueva variable ADECCO_PASSWORD para la contraseña de archivos protegidos',
+        'package.json + package-lock.json: dependencias msoffcrypto-tool y node_modules actualizados',
+      ]},
+    ],
+  },
+
   'v0.3': {
     titulo: 'Pólizas corporativas y exportación ADECCO mejorada',
     resumen: [
