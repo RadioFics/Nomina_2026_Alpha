@@ -61,6 +61,101 @@ function descripcionCommit(subject) {
 // ─── Catálogo de cambios conocidos por versión ────────────────────────────────
 // Complementa los commits con descripciones elaboradas cuando están disponibles.
 const CATALOG = {
+  'v0.13': {
+    titulo: 'Maestro Original funcional — Alta real de empleados en MineDax',
+    resumen: [
+      'Pestaña "Maestro Original" completamente funcional: el formulario ahora inserta empleados reales en GN_TERCE y GN_FUNCI de MineDax',
+      'Formulario estructurado en 7 secciones: Identificación, Nombre Completo, Información Personal, Contacto, Cargo y Contrato, Cuenta Bancaria, y Seguridad Social',
+      'Campo "Nombre Completo" dividido en 4 subcampos independientes: APE_TERC, SEG_APEL, NOM_TERC, SEG_NOMB; NOM_COMP generado automáticamente',
+      'Todos los dropdowns de selección cargados dinámicamente desde la BD: Cargo, EPS, AFP, Caja, Cesantías, Banco, Tipo Cuenta, Estado Civil, Grupo Sanguíneo, Centro Costo, Tipo Documento',
+      'Tabla de empleados sincronizada con GN_FUNCI + GN_TERCE: muestra Cédula, Nombre, Cargo, EPS, AFP, F. Ingreso, Centro Costo, Valor Hora, Estado',
+      'Validación de duplicados: rechaza inserción si ya existe un empleado activo con el mismo NUM_IDEN',
+      'Pestañas "Cambios Maestro" y "Conexión BD" ocultadas de la interfaz sin eliminar su código',
+      'Tres nuevos endpoints API: GET /api/maestros/catalogos, POST /api/maestros/empleado, GET /api/maestros/empleados',
+    ],
+    detalle: [
+      { categoria: 'controllers/maestrosController.js', items: [
+        'Nueva función obtenerCatalogos(): consultas paralelas (Promise.all) a MAE_TPDOC, MAE_GRSAN, MAE_ESTCIV, MAE_BANCO, MAE_TPCTA, MAE_CCOST, MAE_CARGO y GN_TERCE (EPS/AFP/Caja/Cesantías por LIKE)',
+        'EPS detectadas por: NOM_COMP LIKE \'%E.P.S%\' OR LIKE \'%CAFESALUD%\'',
+        'AFP detectadas por: NOM_COMP LIKE \'%A.F.P%\' OR NOM_COMP = \'COLPENSIONES\'',
+        'Cajas (CCF) detectadas por: NOM_COMP LIKE \'%CCF %\'',
+        'Cesantías detectadas por: NOM_COMP LIKE \'%CESANT%\' OR LIKE \'%FONDO NACIONAL%\'',
+        'Nueva función crearEmpleado(): valida campos obligatorios, detecta duplicado por NUM_IDEN, obtiene next COD_TERC y COD_FUNCI con MAX()+1, inserta en GN_TERCE y luego en GN_FUNCI',
+        'NOM_COMP construido como: APE_TERC + SEG_APEL + NOM_TERC + SEG_NOMB (todo uppercase, filtrando vacíos)',
+        'FEC_INGRES convertida de formato ISO (YYYY-MM-DD) a nchar(10) del MineDax (DD/MM/YYYY) con función toSlash()',
+        'FEC_NAC enviada como Date object para columna datetime; NUM_CTA como Number seguro con strip de no-dígitos',
+        'GN_TERCE: campos TER_EMPL=\'0\', ACT_USUA=\'MineDax\', ACT_HORA=GETDATE(), ACT_ESTA=\'A\', COD_EMPR=1',
+        'GN_FUNCI: 38 campos mapeados incluyendo EPS/AFP/Caja/Cesantías como FK decimales a COD_TERC de GN_TERCE',
+        'Nueva función listarEmpleados(): SELECT TOP 300 con INNER JOIN GN_FUNCI y LEFT JOINs a MAE_CARGO, GN_TERCE (eps/afp), MAE_CCOST; ordenado por NOM_COMP',
+        'module.exports actualizado: añadidos obtenerCatalogos, crearEmpleado, listarEmpleados',
+      ]},
+      { categoria: 'routes/maestros.js', items: [
+        'GET /api/maestros/catalogos → maestrosController.obtenerCatalogos',
+        'POST /api/maestros/empleado → maestrosController.crearEmpleado',
+        'GET /api/maestros/empleados → maestrosController.listarEmpleados',
+      ]},
+      { categoria: 'index_novedades.html — Maestro Original', items: [
+        'Sección page-maestroOriginal completamente reescrita con 7 tarjetas de formulario',
+        'Card 1 — Identificación: NUM_IDEN (text), COD_ALT (text), COD_TPDOC (<select> dinámico)',
+        'Card 2 — Nombre Completo: APE_TERC, SEG_APEL, NOM_TERC, SEG_NOMB + campo NOM_COMP readonly auto-generado',
+        'Card 3 — Información Personal: SEX_FUNC (radio M/F), COD_GRSAN (<select>), COD_ESTCIV (<select>), CNT_HIJO, FEC_NAC, CIU_EXPED',
+        'Card 4 — Contacto y Residencia: COD_MPIO, TEL_TERC, TEL_TERC2, DIR_MAIL, DIR_TERC',
+        'Card 5 — Cargo y Contrato: COD_CARGO (<select>), VAL_HORA, TIP_SALAR, MOD_LIQUID, JOR_SABAD, DIA_VACAC, CUE_PENSIO, EMP_FORAN, DIR_FORAN, TIP_CONTRA, NUM_CONTRA, FEC_INGRES*, FEC_RETIRO, CAU_RETIRO',
+        'Card 6 — Cuenta Bancaria: COD_TPCTA (<select>), COD_BANCO (<select>), NUM_CTA, NOM_SUCUR, COD_CCOST (<select>), CUE_GASTO',
+        'Card 7 — Seguridad Social y Retenciones: COD_EPS (<select>), COD_AFP (<select>), COD_CAJA (<select>), COD_CESAN (<select>), GRA_RIESGO, PRO_SALUD, POR_RETEN, DED_VIVIEN, DED_SALUD, DED_DEPEN',
+        'Función mo_actualizarNomComp(): recompone NOM_COMP en tiempo real al escribir en cualquier campo de nombre',
+        'Función cargarCatalogos(): GET /api/maestros/catalogos; helper fill() puebla cada <select> con <option value="cod">nom</option>',
+        'Función guardarMaestro(): POST /api/maestros/empleado con todos los campos mapeados; muestra alert de éxito/error',
+        'Función cargarEmpleadosBD(): GET /api/maestros/empleados; guarda en state.maestroOriginal y llama renderMaestro()',
+        'Tabla de empleados: columnas Cédula, Nombre, Cargo, EPS, AFP, F.Ingreso, C.Costo, Valor Hora, Estado; con badges Activo/Inactivo',
+        'Botón "↺ Recargar BD" para refrescar la tabla manualmente',
+        'DOMContentLoaded: llama cargarCatalogos() y cargarEmpleadosBD() automáticamente al abrir la pestaña',
+      ]},
+      { categoria: 'index_novedades.html — Navegación', items: [
+        'Nav item "Cambios Maestro" ocultado con style="display:none" (código intacto, inaccesible desde UI)',
+        'Nav item "Conexión BD" ocultado con style="display:none" (código intacto, inaccesible desde UI)',
+        'Resto del sidebar y todas las demás pestañas sin cambios',
+      ]},
+    ],
+  },
+
+  'v0.12': {
+    titulo: 'Sistema de Changelog, base del Maestro Original y mejoras PDF',
+    resumen: [
+      'Nuevo módulo routes/changelog.js: historial de versiones generado automáticamente desde commits git',
+      'Pestaña "Versiones & Cambios" integrada en la interfaz con sub-pestañas Resumen y Detalle técnico',
+      'Catálogo estático (CATALOG) con entradas documentadas para V0.1 a V0.11',
+      'Base inicial del formulario Maestro Original: campos de identificación, nombre y estructura de secciones',
+      'Correcciones al motor Python de extracción de PDFs (procesar_pdf.py)',
+      'Primeras rutas GET /api/maestros/catalogos, POST /api/maestros/empleado, GET /api/maestros/empleados añadidas a routes/maestros.js',
+    ],
+    detalle: [
+      { categoria: 'routes/changelog.js (nuevo)', items: [
+        'GET /api/changelog: lee git log, agrupa commits por etiqueta de versión ("Upload Payroll V*") y complementa con CATALOG',
+        'GET /api/changelog/raw: devuelve commits crudos para diagnóstico',
+        'Función getCommits(): execSync git log --format="%H|||%ad|||%s|||%an|||%D" con timeout 5 s',
+        'Función esVersionPrincipal(): detecta cabeceras de versión por regex /upload payroll/i o /\\bv\\d+\\.\\d+/i',
+        'Función etiquetaVersion(): extrae "V0.N" del mensaje o asigna número secuencial',
+        'CATALOG estático con entradas elaboradas para V0.1 – V0.11 (resumen + detalle técnico por categoría)',
+        'Entradas "dev" automáticas para commits sin etiqueta de versión al final del historial',
+      ]},
+      { categoria: 'index_novedades.html — Pestaña Versiones', items: [
+        'Página page-changelog con sub-tabs: Resumen (tarjetas condensadas) y Detalle técnico (por categoría)',
+        'Spinner de carga mientras se obtiene /api/changelog',
+        'clRenderizar(): mapea versiones a .cl-version-card con badge de versión, título, fecha y commit hash',
+        'Sub-pestaña Detalle: agrupa items por categoría (.cl-category) y lista commits incluidos con hash, fecha y mensaje',
+        'Estilos CSS exclusivos: .cl-version-card, .cl-version-badge, .cl-bullet-list, .cl-detail-list, .cl-commit-row',
+      ]},
+      { categoria: 'controllers/maestrosController.js', items: [
+        'Inicio de funciones obtenerCatalogos, crearEmpleado y listarEmpleados (completadas en V0.13)',
+        'Mapeo de columnas de GN_TERCE y GN_FUNCI para inserción de empleados nuevos',
+      ]},
+      { categoria: 'python/procesar_pdf.py', items: [
+        'Refactorización de lógica de extracción (260 líneas netas de cambios)',
+        'Mejoras en manejo de errores y compatibilidad con variantes de formularios CM',
+      ]},
+    ],
+  },
   'v0.7': {
     titulo: 'Importación de PDFs — Permisos y Vacaciones desde formularios CM',
     resumen: [
@@ -500,6 +595,22 @@ router.get('/', (req, res) => {
       resumen: buffer.map(c => c.subject),
       detalle: [],
       commits: buffer,
+    });
+  }
+
+  // ── Inyectar v0.13 al tope si aún no está en el historial de git ─────────
+  const yaEnGit = versions.some(v => v.version === 'v0.13');
+  if (!yaEnGit && CATALOG['v0.13']) {
+    const c13 = CATALOG['v0.13'];
+    versions.unshift({
+      version: 'v0.13',
+      fecha:   '2026-05-04',
+      commit:  'pendiente',
+      titulo:  c13.titulo,
+      resumen: c13.resumen,
+      detalle: c13.detalle,
+      commits: [],
+      pending: true,
     });
   }
 

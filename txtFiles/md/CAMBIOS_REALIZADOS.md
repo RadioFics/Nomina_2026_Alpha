@@ -1,270 +1,141 @@
-# Cambios Realizados - Corrección Exportación ADECCO
+# Correcciones Realizadas en index_novedades.html
 
 ## Resumen
-Se identificaron y corrigieron dos problemas críticos que impedían la exportación ADECCO:
-1. **Python no instalado** (requerido pero no en PATH)
-2. **Conflicto de arquitecturas de BD** (código obsoleto vs. código correcto)
+Se han implementado 3 correcciones principales en el archivo `index_novedades.html` para mejorar la funcionalidad y experiencia del usuario en el dashboard de novedades de nómina.
 
 ---
 
-## Cambios Hechos en el Código
+## Corrección #1: Período Automático (No Editable)
 
-### 1. Archivo: `controllers/nominaController.js`
+### Problema Original
+El período que se mostraba en la esquina superior derecha era modificable manualmente, y su actualización se hacía mediante un cálculo local sin sincronización con la base de datos.
 
-**Acción:** Renombrado a `nominaController.OLD.js`
+### Solución Implementada
+- **Lectura automática desde NO_PERIOD**: El período ahora se obtiene directamente de la tabla `NO_PERIOD` basado en la fecha actual del sistema.
+- **Campo readonly**: El campo `#cfgPeriodo` ahora es de solo lectura (readonly).
+- **Formato mejorado**: Se muestra en el formato `AÑO/MES/QUINCENA - FECHA_INICIO / FECHA_FIN`
+- **Fallback local**: Si la API falla, utiliza un cálculo local como respaldo.
 
-**Razón:** Este archivo contenía código que intentaba acceder a tablas que NO existen en MineDax:
-- `Ocasionales` (no existe)
-- `Fijas` (no existe)
-- `Ausencias` (no existe)
-- `Cambios` (no existe)
-
-El error `Invalid object name 'Ocasionales'` provenía directamente de este archivo.
-
-**Ubicación actual:**
-```
-controllers/nominaController.OLD.js
-```
-
----
-
-### 2. Archivo: `routes/nomina.js`
-
-**Acción:** Completamente reescrito
-
-**Cambios principales:**
-
-#### Antes:
-```javascript
-const nominaController = require('../controllers/nominaController');
-
-router.post('/ocasionales', nominaController.crearOcasional);
-router.get('/ocasionales', nominaController.obtenerOcasionales);
-// ... etc (todas apuntaban a nominaController)
-```
-
-#### Después:
-```javascript
-const ocasionalesCtrl = require('../controllers/ocasionalesController');
-const fijasCtrl = require('../controllers/fijasController');
-const ausentismosCtrl = require('../controllers/ausentismosController');
-const cambiosCtrl = require('../controllers/cambiosController');
-
-// Ocasionales
-router.get('/ocasionales/periodo-actual', ocasionalesCtrl.obtenerPeriodoActual);
-router.get('/ocasionales', ocasionalesCtrl.listarOcasionales);
-router.post('/ocasionales', ocasionalesCtrl.crearOcasional);
-router.put('/ocasionales/:codNoved', ocasionalesCtrl.actualizarOcasional);
-router.delete('/ocasionales/:codNoved', ocasionalesCtrl.anularOcasional);
-
-// Fijas
-router.get('/fijas/periodo-actual', fijasCtrl.obtenerPeriodoActual);
-router.get('/fijas', fijasCtrl.listarFijas);
-// ... etc
-```
-
-**Beneficios:**
-- ✅ Ahora usa controladores que interactúan con **tablas reales** de MineDax
-- ✅ Mapeo correcto de endpoints
-- ✅ Error `Invalid object name 'Ocasionales'` eliminado
+### Cambios en el Código
+1. Modificada la función `inicializarInterfaz()` para obtener el período desde el endpoint `/api/periodo/actual`
+2. Actualizado el campo HTML:
+   ```html
+   <!-- Antes -->
+   <input type="text" id="cfgPeriodo" placeholder="Ej: 2025-03-01 / 2025-03-15" oninput="actualizarBadge()">
+   
+   <!-- Después -->
+   <input type="text" id="cfgPeriodo" placeholder="Se carga automáticamente..." readonly>
+   ```
+3. Añadida función auxiliar `usarPeriodoLocal()` para el fallback
 
 ---
 
-## Controladores Correctos Ya Existentes
+## Corrección #2: Nombre de Usuario desde BD
 
-El proyecto ya tenía los controladores correctos implementados. Solo necesitaban ser integrados en las rutas:
+### Problema Original
+El nombre de usuario mostraba el apellido (APE_TERC) en lugar del nombre completo. Debería mostrar `NOM_TERC + SEG_NOMB` o solo `NOM_TERC` si no existe segundo nombre.
 
-```
-controllers/
-├── ocasionalesController.js     ✓ Usa NO_NOVED + NO_OCASI
-├── fijasController.js           ✓ Usa NO_NOVED + NO_FIJAS
-├── ausentismosController.js     ✓ Usa NO_NOVED + NO_AUSEN
-├── cambiosController.js         ✓ Usa NO_NOVED + NO_CAMBI
-├── exportarAdeccoController.js  ✓ Consulta múltiples tablas
-└── nominaController.OLD.js      ✗ Obsoleto (renombrado)
-```
+### Solución Implementada
+- **Lectura desde GN_TERCE**: Se obtienen los campos `NOM_TERC` y `SEG_NOMB` de la tabla `GN_TERCE`
+- **Lógica de fallback**: 
+  - Si tiene `NOM_TERC` + `SEG_NOMB`: muestra ambos
+  - Si solo tiene `NOM_TERC`: muestra solo ese valor
+  - Si falla la lectura de BD: usa el nombre desde AuthUtil/localStorage
+- **Visualización mejorada**: La bienvenida ahora muestra "¡Bienvenido, [NOMBRE]!" con el nombre correcto
 
----
-
-## Arquivos Creados con Documentación
-
-### 1. `ANALISIS_ERRORES_ADECCO.md`
-- Análisis detallado de los dos problemas
-- Explicación del conflicto arquitectónico
-- Plan de acción paso a paso
-- Comandos útiles para debugging
-
-### 2. `INSTRUCCIONES_PYTHON.md`
-- Guía completa para instalar Python
-- Verificación de instalación
-- Solución de problemas comunes
-- Información sobre dependencias
-
-### 3. `RESUMEN_CORRECION_EXPORTACION.txt`
-- Resumen visual de cambios
-- Checklist de acciones completadas
-- Próximos pasos para el usuario
-- Mapeo de controladores correctos
-
-### 4. `CAMBIOS_REALIZADOS.md`
-- Este archivo
-- Detalle de todos los cambios hechos en código
+### Cambios en el Código
+1. Modificada la función `inicializarInterfaz()` para llamar a `/api/usuario/datos?nombre=`
+2. Implementada lógica condicional para combinar `NOM_TERC` + `SEG_NOMB`
+3. Los campos `#welcomeMessage` y `#userNameDisplay` ahora muestran datos correctos
 
 ---
 
-## Próximos Pasos del Usuario
+## Corrección #3: Selección Correcta de Pestañas
 
-### ⚠️ CRÍTICO: Instalar Python
+### Problema Original
+Al seleccionar "Cambios e Ingresos" o "Maestro Original", también se seleccionaba accidentalmente la pestaña "Cambios Maestro" debido a una búsqueda por substring en el texto del elemento.
 
-```bash
-# Descarga desde https://www.python.org/downloads/
-# IMPORTANTE: Marca "Add Python to PATH" durante la instalación
-# Reinicia Windows
+### Solución Implementada
+- **Atributos data-page**: Se agregó el atributo `data-page="nombrePagina"` a todos los elementos `nav-item`
+- **Búsqueda exacta**: La función `navigate()` ahora busca por coincidencia exacta del atributo `data-page`
+- **Sin ambigüedades**: Cada pestaña tiene una identificación única y clara
 
-# Verifica:
-python --version
-```
+### Cambios en el Código
+1. Actualizada la función `navigate()`:
+   ```javascript
+   // Antes: búsqueda por substring
+   items.forEach(i => { 
+     if (i.textContent.trim().toLowerCase().includes(page.toLowerCase().substring(0,5))) 
+       i.classList.add('active'); 
+   });
+   
+   // Después: búsqueda por data-page
+   items.forEach(i => {
+     const pageAttr = i.getAttribute('data-page');
+     if (pageAttr === page) {
+       i.classList.add('active');
+     }
+   });
+   ```
 
-Más detalles en: `INSTRUCCIONES_PYTHON.md`
-
-### Reiniciar el servidor
-```bash
-npm start
-```
-
-### Probar la exportación
-1. Abre `http://localhost:3000/index_novedades.html`
-2. Selecciona un período
-3. Click en "Descargar Excel"
-4. Debería funcionar sin errores
-
----
-
-## Tablas de Base de Datos Utilizadas
-
-### Arquitectura MineDax (CORRECTA)
-
-| Tabla | Propósito | Usada por |
-|-------|-----------|-----------|
-| `NO_NOVED` | Cabecera de todas las novedades | Todos los controladores |
-| `NO_OCASI` | Datos específicos de ocasionales | ocasionalesController |
-| `NO_FIJAS` | Datos específicos de fijas | fijasController |
-| `NO_AUSEN` | Datos específicos de ausencias | ausentismosController |
-| `NO_CAMBI` | Cambios | cambiosController |
-| `NO_PERIOD` | Períodos nómina | Todos los controladores |
-| `GN_FUNCI` | Funciones/empleados | Todos los controladores |
-| `GN_TERCE` | Terceros/personas | Todos los controladores |
-| `NO_CONCE` | Conceptos de nómina | Todos los controladores |
-
-### Arquitectura Legacy (OBSOLETA - NO USAR)
-
-| Tabla | Estado |
-|-------|--------|
-| `Ocasionales` | ❌ No existe |
-| `Fijas` | ❌ No existe |
-| `Ausencias` | ❌ No existe |
-| `Cambios` | ❌ No existe |
+2. Agregados atributos `data-page` a todos los `nav-item`:
+   ```html
+   <div class="nav-item" data-page="cambiosIngresos" onclick="navigate('cambiosIngresos')">
+     <span class="nav-icon">◨</span> Cambios e Ingresos
+   </div>
+   <div class="nav-item" data-page="cambiosMaestro" onclick="navigate('cambiosMaestro')">
+     <span class="nav-icon">◧</span> Cambios Maestro
+   </div>
+   ```
 
 ---
 
-## Validación de Cambios
+## Endpoints de API Requeridos
 
-### ✅ Verificaciones Completadas
+Para que los cambios funcionen correctamente, se necesitan los siguientes endpoints:
 
-```bash
-# 1. Controladores correctos existen
-ls -la controllers/ocasionalesController.js
-ls -la controllers/fijasController.js
-ls -la controllers/ausentismosController.js
-ls -la controllers/cambiosController.js
+### 1. GET /api/periodo/actual
+**Respuesta esperada:**
+```json
+{
+  "PER_ANO": 2026,
+  "PER_MES": 12,
+  "PER_QNA": 2,
+  "PER_FINI": "2026-12-16",
+  "PER_FFIN": "2026-12-31"
+}
+```
 
-# 2. Archivo obsoleto renombrado
-ls -la controllers/nominaController.OLD.js
-
-# 3. Rutas actualizadas
-grep -n "ocasionalesCtrl\|fijasCtrl\|ausentismosCtrl\|cambiosCtrl" routes/nomina.js
-
-# 4. No hay más referencias a nominaController.js
-grep -r "require.*nominaController[^.]" routes/
-# Resultado esperado: (no matches)
+### 2. GET /api/usuario/datos?nombre={nombre}
+**Respuesta esperada:**
+```json
+{
+  "NOM_TERC": "JUAN",
+  "SEG_NOMB": "ESTEBAN",
+  "APE_TERC": "CALLE",
+  "SEG_APEL": "PALMETT"
+}
 ```
 
 ---
 
-## Impacto de los Cambios
+## Verificación de Cambios
 
-### Antes (Roto)
-```
-Usuario intenta exportar
-    ↓
-exportarAdeccoController busca datos
-    ↓
-API /api/ocasionales (etc.)
-    ↓
-routes/nomina.js → nominaController
-    ↓
-Intenta acceder a tabla "Ocasionales"
-    ↓
-❌ ERROR SQL 208: Invalid object name 'Ocasionales'
-```
-
-### Después (Funcional)
-```
-Usuario intenta exportar
-    ↓
-exportarAdeccoController busca datos
-    ↓
-API /api/ocasionales (etc.)
-    ↓
-routes/nomina.js → ocasionalesController
-    ↓
-Accede a tabla "NO_NOVED" + "NO_OCASI" (EXISTEN)
-    ↓
-✅ Datos recuperados correctamente
-    ↓
-Script Python genera Excel
-    ↓
-✅ Archivo descargado exitosamente
-```
+✓ **Corrección #1**: Campo de período ahora es readonly y carga desde BD  
+✓ **Corrección #2**: Nombre de usuario muestra NOM_TERC + SEG_NOMB correctamente  
+✓ **Corrección #3**: Las pestañas de navegación se seleccionan sin ambigüedades  
 
 ---
 
 ## Notas Importantes
 
-1. **El código correcto ya existía**: Los controladores MineDax (`ocasionalesController`, etc.) ya estaban implementados. Solo necesitaban ser conectados en las rutas.
-
-2. **Preservación de código histórico**: El archivo `nominaController.js` obsoleto se renombró a `nominaController.OLD.js` (no eliminado) por si hay referencias en Git history o documentación.
-
-3. **Python sigue siendo necesario**: Los cambios de código resuelven el error SQL, pero Python sigue siendo necesario para generar los archivos Excel.
-
-4. **API compatible**: Las nuevas rutas mantienen los mismos nombres (`/api/ocasionales`, etc.) pero ahora funcionan correctamente.
+1. **Compatibilidad con navegadores**: Los cambios no afectan compatibilidad (usan JavaScript estándar)
+2. **Seguridad**: Los campos readonly se han añadido tanto en HTML como en JavaScript
+3. **Performance**: Se utiliza async/await para no bloquear la interfaz mientras se cargan datos
+4. **Rollback**: Si es necesario revertir, el archivo original está disponible como backup
 
 ---
 
-## Archivos Modificados - Resumen
-
-| Archivo | Cambio | Razón |
-|---------|--------|-------|
-| `routes/nomina.js` | REESCRITO | Usar controladores correctos |
-| `controllers/nominaController.js` | RENOMBRADO → OLD.js | Código obsoleto |
-| `controllers/nominaController.OBSOLETO.js` | CREADO | Documentación de cambio |
-| `ANALISIS_ERRORES_ADECCO.md` | NUEVO | Análisis detallado |
-| `INSTRUCCIONES_PYTHON.md` | NUEVO | Guía instalación Python |
-| `RESUMEN_CORRECION_EXPORTACION.txt` | NUEVO | Resumen visual |
-| `CAMBIOS_REALIZADOS.md` | NUEVO | Este archivo |
-
----
-
-## Próximas Tareas del Equipo
-
-1. **Instalar Python** (usuario debe hacer esto)
-2. **Reiniciar servidor** (usuario)
-3. **Probar exportación** (usuario)
-4. **Considerar limpiar** `nominaController.OLD.js` después de confirmar que todo funciona
-5. **Actualizar documentación** del proyecto con la arquitectura MineDax
-
----
-
-**Fecha de cambios:** 20 de Abril de 2026  
-**Responsable del análisis:** Claude  
-**Estado:** ✅ Completado
+**Fecha de actualización**: 2026-04-21  
+**Usuario**: CALLE PALMETT JUAN ESTEBAN  
+**Período actual**: 2026/12/2

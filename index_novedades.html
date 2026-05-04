@@ -374,6 +374,50 @@
   .badge-hist-cambi { background: rgba(155,91,213,0.15); color: #9B5BD5; }
   .badge-inact { background: rgba(112,111,111,0.2); color: var(--muted); }
   .badge-act   { background: rgba(76,175,130,0.15); color: var(--success); }
+
+  /* ── Fila expandible de detalle empleado ── */
+  .btn-expand {
+    width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--border);
+    background: rgba(32,167,201,0.08); color: var(--cm-blue);
+    cursor: pointer; font-size: 13px; line-height: 26px;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: all .2s; font-weight: 700;
+  }
+  .btn-expand:hover { background: rgba(32,167,201,0.22); border-color: var(--cm-blue); }
+  .btn-expand.open  { background: var(--cm-blue); color: #fff; border-color: var(--cm-blue); transform: rotate(180deg); }
+  tr.maestro-main:hover td { background: rgba(32,167,201,0.04); }
+  tr.detalle-expand-row > td { padding: 0 !important; border-bottom: 2px solid rgba(32,167,201,0.4); }
+  .detalle-inner {
+    padding: 18px 20px 22px;
+    background: linear-gradient(180deg, rgba(32,167,201,0.06) 0%, transparent 100%);
+    animation: detalleSlideIn .2s ease;
+  }
+  @keyframes detalleSlideIn { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:none; } }
+  .detalle-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 4px; }
+  .detalle-section {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 16px; position: relative; overflow: hidden;
+  }
+  .detalle-section::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: var(--accent, var(--cm-blue));
+  }
+  .detalle-section.span2 { grid-column: span 2; }
+  .detalle-section-title {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.1em; color: var(--cm-blue); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .detalle-section-title::after { content:''; flex:1; height:1px; background: var(--border); }
+  .detalle-field { margin-bottom: 8px; }
+  .detalle-field:last-child { margin-bottom: 0; }
+  .detalle-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); margin-bottom: 2px; }
+  .detalle-val { font-size: 12.5px; color: var(--text); word-break: break-word; }
+  .detalle-val.hi { color: var(--cm-blue-light); font-weight: 600; }
+  .detalle-val.mu { color: var(--muted); }
+  .detalle-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+  .detalle-loading { text-align:center; padding: 28px; color: var(--muted); font-size:13px; }
+
   .hist-empty { text-align: center; color: var(--muted); padding: 36px; font-size: 13px; }
   .hist-extra { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
@@ -1246,11 +1290,12 @@
         </div>
         <table>
           <thead><tr>
+            <th></th>
             <th>Cédula</th><th>Nombre</th><th>Cargo</th><th>EPS</th><th>AFP</th>
             <th>F. Ingreso</th><th>Centro Costo</th><th>Valor Hora</th><th>Estado</th>
           </tr></thead>
           <tbody id="tbMaestro">
-            <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">Cargando datos de la BD...</td></tr>
+            <tr><td colspan="10" style="text-align:center;color:var(--muted);padding:32px">Cargando datos de la BD...</td></tr>
           </tbody>
         </table>
       </div>
@@ -1850,7 +1895,8 @@
     padding: 3px 12px; border-radius: 6px;
     flex-shrink: 0;
   }
-  .cl-version-badge.dev { background: var(--muted); }
+  .cl-version-badge.dev     { background: var(--muted); }
+  .cl-version-badge.pending { background: #7B5EA7; }   /* violeta — en desarrollo */
   .cl-version-title {
     font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
     font-size: 16px; text-transform: uppercase; letter-spacing: 0.03em;
@@ -1987,14 +2033,19 @@ function clRenderizar(versiones) {
 
   // ── Resumen ──
   const resEl = document.getElementById('cl-resumen-content');
-  resEl.innerHTML = versiones.map(v => `
+  resEl.innerHTML = versiones.map(v => {
+    const badgeCls = v.version === 'dev' ? 'dev' : v.pending ? 'pending' : '';
+    const commitLabel = v.pending
+      ? `<div style="font-family:monospace;color:#9B7FD4">en desarrollo</div>`
+      : v.commit ? `<div style="font-family:monospace;color:var(--cm-blue)">${v.commit}</div>` : '';
+    return `
     <div class="cl-version-card">
       <div class="cl-version-header">
-        <span class="cl-version-badge ${v.version === 'dev' ? 'dev' : ''}">${v.version}</span>
+        <span class="cl-version-badge ${badgeCls}">${v.version}</span>
         <span class="cl-version-title">${escH(v.titulo)}</span>
         <div class="cl-version-meta">
           ${v.fecha ? `<div>📅 ${v.fecha}</div>` : ''}
-          ${v.commit ? `<div style="font-family:monospace;color:var(--cm-blue)">${v.commit}</div>` : ''}
+          ${commitLabel}
         </div>
       </div>
       <div class="cl-version-body">
@@ -2003,19 +2054,24 @@ function clRenderizar(versiones) {
           : `<p class="cl-empty">Sin descripción registrada para esta versión.</p>`
         }
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 
   // ── Detalle técnico ──
   const detEl = document.getElementById('cl-detalle-content');
-  detEl.innerHTML = versiones.map(v => `
+  detEl.innerHTML = versiones.map(v => {
+    const badgeCls = v.version === 'dev' ? 'dev' : v.pending ? 'pending' : '';
+    const commitLabel = v.pending
+      ? `<div style="font-family:monospace;color:#9B7FD4">en desarrollo</div>`
+      : v.commit ? `<div style="font-family:monospace;color:var(--cm-blue)">${v.commit}</div>` : '';
+    return `
     <div class="cl-version-card">
       <div class="cl-version-header">
-        <span class="cl-version-badge ${v.version === 'dev' ? 'dev' : ''}">${v.version}</span>
+        <span class="cl-version-badge ${badgeCls}">${v.version}</span>
         <span class="cl-version-title">${escH(v.titulo)}</span>
         <div class="cl-version-meta">
           ${v.fecha ? `<div>📅 ${v.fecha}</div>` : ''}
-          ${v.commit ? `<div style="font-family:monospace;color:var(--cm-blue)">${v.commit}</div>` : ''}
+          ${commitLabel}
         </div>
       </div>
       <div class="cl-version-body">
@@ -2043,8 +2099,8 @@ function clRenderizar(versiones) {
           </div>
         ` : ''}
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 
   // Mostrar pestaña activa
   clSwitchTab(_clTabActiva);
@@ -2805,21 +2861,25 @@ async function cargarEmpleadosBD() {
 function renderMaestro() {
   const tb = document.getElementById('tbMaestro');
   if (!state.maestroOriginal.length) {
-    tb.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">Sin registros en BD</td></tr>';
+    tb.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:32px">Sin registros en BD</td></tr>';
     return;
   }
   tb.innerHTML = state.maestroOriginal.map(r => {
-    const eps  = (r.eps  || '').trim() || '—';
-    const afp  = (r.afp  || '').trim() || '—';
-    const cc   = (r.ccosto || '').trim() || '—';
-    const cargo = (r.cargo || '').trim() || '—';
-    const fi   = (r.fingreso || '').trim() || '—';
-    const vh   = r.valorh != null ? Number(r.valorh).toLocaleString('es-CO') : '—';
-    const est  = r.estado === 'A'
+    const eps   = (r.eps     || '').trim() || '—';
+    const afp   = (r.afp     || '').trim() || '—';
+    const cc    = (r.ccosto  || '').trim() || '—';
+    const cargo = (r.cargo   || '').trim() || '—';
+    const fi    = (r.fingreso|| '').trim() || '—';
+    const vh    = r.valorh != null ? Number(r.valorh).toLocaleString('es-CO') : '—';
+    const est   = r.estado === 'A'
       ? '<span class="badge badge-dev">Activo</span>'
       : '<span class="badge" style="background:rgba(112,111,111,.2);color:var(--muted)">Inactivo</span>';
-    return `<tr>
-      <td><strong>${r.cedula ?? '—'}</strong></td>
+    const ced   = r.cedula ?? '';
+    return `<tr class="maestro-main" id="mrow-${ced}">
+      <td style="width:36px;text-align:center">
+        <button class="btn-expand" id="btnExp-${ced}" onclick="toggleDetalleEmpleado('${ced}',this)" title="Ver ficha completa">▾</button>
+      </td>
+      <td><strong style="color:var(--cm-blue-light)">${ced || '—'}</strong></td>
       <td>${r.nombre || '—'}</td>
       <td style="font-size:12px;color:var(--muted)">${cargo}</td>
       <td style="font-size:12px">${eps}</td>
@@ -2830,6 +2890,168 @@ function renderMaestro() {
       <td>${est}</td>
     </tr>`;
   }).join('');
+}
+
+// ─── DETALLE EXPANDIBLE DEL EMPLEADO ─────────────────────────────────────────
+const _detalleCache = {};
+
+async function toggleDetalleEmpleado(cedula, btn) {
+  const existingRow = document.getElementById('detexp-' + cedula);
+  if (existingRow) {
+    existingRow.remove();
+    btn.classList.remove('open');
+    return;
+  }
+
+  btn.classList.add('open');
+
+  // Insertar fila de detalle inmediatamente con loader
+  const mainRow = document.getElementById('mrow-' + cedula);
+  const colCount = 10;
+  const detRow = document.createElement('tr');
+  detRow.id = 'detexp-' + cedula;
+  detRow.className = 'detalle-expand-row';
+  detRow.innerHTML = `<td colspan="${colCount}"><div class="detalle-inner"><div class="detalle-loading">⟳ Cargando ficha del empleado...</div></div></td>`;
+  mainRow.insertAdjacentElement('afterend', detRow);
+
+  try {
+    // Usar caché para no re-consultar si ya se cargó antes
+    let d = _detalleCache[cedula];
+    if (!d) {
+      const res = await fetch(`/api/maestros/detalle-empleado?cedula=${encodeURIComponent(cedula)}`);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      d = await res.json();
+      _detalleCache[cedula] = d;
+    }
+    detRow.querySelector('.detalle-inner').innerHTML = _buildDetalleHTML(d);
+  } catch (err) {
+    btn.classList.remove('open');
+    detRow.querySelector('.detalle-inner').innerHTML = `<div class="detalle-loading" style="color:var(--danger)">✕ Error al cargar: ${err.message}</div>`;
+  }
+}
+
+function _df(label, val, hi = false, fallback = '—', allowZero = false) {
+  const s = val !== null && val !== undefined ? String(val).trim() : '';
+  const valid = s !== '' && s !== 'NO APLICA' && (allowZero || s !== '0');
+  const v = valid ? s : fallback;
+  const cls = hi && v !== fallback ? 'hi' : (v === fallback ? 'mu' : '');
+  return `<div class="detalle-field"><div class="detalle-label">${label}</div><div class="detalle-val ${cls}">${v}</div></div>`;
+}
+
+function _buildDetalleHTML(d) {
+  const initials = (d.NOM_COMP || '?').split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('');
+  const fmtDate = v => {
+    if (!v) return '—';
+    const s = String(v);
+    if (s.includes('T')) { const dt = new Date(v); return isNaN(dt) ? s : dt.toLocaleDateString('es-CO'); }
+    return s.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$1/$2/$3') || '—';
+  };
+  const fmtMoney = v => {
+    const n = parseFloat(String(v || '').replace(/[^0-9.-]/g,''));
+    return (!isNaN(n) && n !== 0) ? n.toLocaleString('es-CO', {style:'currency',currency:'COP',maximumFractionDigits:0}) : '';
+  };
+  const sexo = d.SEX_FUNC === 'M' ? 'Masculino' : d.SEX_FUNC === 'F' ? 'Femenino' : d.SEX_FUNC || '—';
+  const estado = d.FEC_RETIRO && d.FEC_RETIRO.trim() && d.FEC_RETIRO.trim() !== 'NO APLICA'
+    ? `<span class="badge badge-inact">Retirado · ${fmtDate(d.FEC_RETIRO)}</span>`
+    : `<span class="badge badge-dev">Activo</span>`;
+
+  return `
+  <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+    <div style="width:44px;height:44px;border-radius:50%;background:rgba(32,167,201,0.15);border:2px solid var(--border);
+                display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;
+                color:var(--cm-blue);flex-shrink:0">${initials}</div>
+    <div>
+      <div style="font-size:15px;font-weight:700;color:var(--text)">${d.NOM_COMP || '—'}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:2px">${d.NOM_CARGO || 'Sin cargo'}</div>
+    </div>
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span style="font-size:11px;color:var(--cm-blue-light);font-weight:600">CC ${d.NUM_IDEN || '—'}</span>
+      ${estado}
+      <span style="font-size:10px;color:var(--muted)">COD_TERC: ${d.COD_TERC || '—'} · COD_FUNCI: ${d.COD_FUNCI || '—'}</span>
+    </div>
+  </div>
+
+  <div class="detalle-grid">
+
+    <div class="detalle-section" style="--accent:var(--cm-blue)">
+      <div class="detalle-section-title">Identificación · GN_TERCE</div>
+      ${_df('Tipo Documento', d.NOM_TPDOC)}
+      ${_df('Número de Identificación', d.NUM_IDEN, true)}
+      ${_df('Código Alterno', d.COD_ALT)}
+      ${_df('Primer Nombre', d.NOM_TERC)}
+      ${_df('Segundo Nombre', d.SEG_NOMB)}
+      ${_df('Primer Apellido', d.APE_TERC)}
+      ${_df('Segundo Apellido', d.SEG_APEL)}
+    </div>
+
+    <div class="detalle-section" style="--accent:#4DC4E0">
+      <div class="detalle-section-title">Contacto · GN_TERCE</div>
+      ${_df('Municipio de Residencia', d.NOM_MUNI)}
+      ${_df('Dirección', d.DIR_TERC)}
+      ${_df('Teléfono 1', d.TEL_TERC)}
+      ${_df('Teléfono 2', d.TEL_TERC2)}
+      ${_df('Correo Electrónico', d.DIR_MAIL)}
+      ${_df('Última Actualización', fmtDate(d.t_act_hora))}
+    </div>
+
+    <div class="detalle-section" style="--accent:#9B5BD5">
+      <div class="detalle-section-title">Datos Personales · GN_FUNCI</div>
+      ${_df('Sexo', sexo)}
+      ${_df('Grupo Sanguíneo', d.NOM_GRSAN)}
+      ${_df('Estado Civil', d.NOM_ESTCIV)}
+      ${_df('Cantidad de Hijos', d.CNT_HIJO, false, '—', true)}
+      ${_df('Fecha de Nacimiento', fmtDate(d.FEC_NAC))}
+    </div>
+
+    <div class="detalle-section" style="--accent:#4CAF82">
+      <div class="detalle-section-title">Cargo y Salario · GN_FUNCI</div>
+      ${_df('Cargo', d.NOM_CARGO, true)}
+      ${_df('% del Cargo', d.POR_CARGO ? d.POR_CARGO + '%' : '')}
+      ${_df('Valor Hora', d.VAL_HORA ? Number(d.VAL_HORA).toLocaleString('es-CO') : '')}
+      ${_df('Tipo Salario', d.TIP_SALAR)}
+      ${_df('Modo Liquidación', d.MOD_LIQUID)}
+      ${_df('Trabaja Sábado', d.JOR_SABAD)}
+      ${_df('Días Vacaciones', d.DIA_VACAC)}
+      ${_df('Grado de Riesgo', d.GRA_RIESGO)}
+    </div>
+
+    <div class="detalle-section" style="--accent:#E8A84C">
+      <div class="detalle-section-title">Seguridad Social · GN_FUNCI</div>
+      ${_df('EPS', d.nom_eps, true)}
+      ${_df('AFP (Pensiones)', d.nom_afp, true)}
+      ${_df('Caja Compensación', d.nom_caja)}
+      ${_df('Fondo Cesantías', d.nom_cesan)}
+      ${_df('Cuenta Pensión', d.CUE_PENSIO)}
+      ${_df('% Retención', d.POR_RETEN)}
+      ${_df('Ded. Vivienda', fmtMoney(d.DED_VIVIEN))}
+      ${_df('Ded. Salud', fmtMoney(d.DED_SALUD))}
+      ${_df('Ded. Dependientes', fmtMoney(d.DED_DEPEN))}
+      ${_df('Promedio Salud', fmtMoney(d.PRO_SALUD))}
+    </div>
+
+    <div class="detalle-section" style="--accent:#5B9BD5">
+      <div class="detalle-section-title">Cuenta Bancaria · GN_FUNCI</div>
+      ${_df('Banco', d.NOM_BANCO, true)}
+      ${_df('Tipo de Cuenta', d.NOM_TPCTA)}
+      ${_df('Número de Cuenta', d.NUM_CTA)}
+      ${_df('Sucursal', d.NOM_SUCUR)}
+    </div>
+
+    <div class="detalle-section" style="--accent:#E05555">
+      <div class="detalle-section-title">Fechas Laborales · GN_FUNCI</div>
+      ${_df('Centro de Costo', d.NOM_CCOST, true)}
+      ${_df('Cuenta de Gasto', d.CUE_GASTO)}
+      ${_df('Fecha de Ingreso', fmtDate(d.FEC_INGRES), true)}
+      ${_df('Tipo de Contrato', d.TIP_CONTRA)}
+      ${_df('Número de Contrato', d.NUM_CONTRA)}
+      ${_df('Empleado Foráneo', d.EMP_FORAN)}
+      ${_df('Fecha de Retiro', fmtDate(d.FEC_RETIRO))}
+      ${_df('Fecha Final', fmtDate(d.FEC_FINAL))}
+      ${_df('Causa de Retiro', d.CAU_RETIRO)}
+      ${_df('Última Actualización BD', fmtDate(d.f_act_hora))}
+    </div>
+
+  </div>`;
 }
 
 // ─── OCASIONALES (persistencia vs NO_NOVED + NO_OCASI) ──────────────────────

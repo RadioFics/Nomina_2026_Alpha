@@ -137,4 +137,7 @@ router.post('/empleado', maestrosController.crearEmpleado);
 // Listar empleados activos de la BD
 router.get('/empleados', maestrosController.listarEmpleados);
 
+// Detalle completo de un empleado (GN_TERCE + GN_FUNCI + catálogos)
+router.get('/detalle-empleado', maestrosController.obtenerDetalleEmpleado);
+
 module.exports = router;

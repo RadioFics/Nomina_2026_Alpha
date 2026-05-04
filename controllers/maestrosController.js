@@ -308,6 +308,93 @@ async function crearEmpleado(req, res) {
   }
 }
 
+// ─── DETALLE COMPLETO DE UN EMPLEADO (GN_TERCE + GN_FUNCI + catálogos) ───────
+async function obtenerDetalleEmpleado(req, res) {
+  try {
+    const { cedula } = req.query;
+    if (!cedula || cedula.trim() === '') {
+      return res.status(400).json({ error: 'Cédula requerida' });
+    }
+
+    const query = `
+      SELECT TOP 1
+        t.COD_TERC, t.NUM_IDEN, t.NOM_COMP,
+        t.NOM_TERC, t.SEG_NOMB, t.APE_TERC, t.SEG_APEL,
+        t.COD_ALT, t.DIR_MAIL,
+        RTRIM(t.TEL_TERC)  AS TEL_TERC,
+        RTRIM(t.TEL_TERC2) AS TEL_TERC2,
+        RTRIM(t.DIR_TERC)  AS DIR_TERC,
+        t.ACT_HORA         AS t_act_hora,
+        td.NOM_TPDOC,
+        mn.NOM_MUNI,
+        f.COD_FUNCI,
+        f.SEX_FUNC, ISNULL(f.CNT_HIJO, 0) AS CNT_HIJO, f.FEC_NAC,
+        f.POR_CARGO, f.VAL_HORA,
+        f.NUM_CTA,
+        RTRIM(f.NOM_SUCUR)  AS NOM_SUCUR,
+        f.CUE_GASTO,
+        RTRIM(f.JOR_SABAD)  AS JOR_SABAD,
+        RTRIM(f.TIP_SALAR)  AS TIP_SALAR,
+        RTRIM(f.CUE_PENSIO) AS CUE_PENSIO,
+        RTRIM(f.MOD_LIQUID) AS MOD_LIQUID,
+        RTRIM(f.EMP_FORAN)  AS EMP_FORAN,
+        RTRIM(f.DIR_FORAN)  AS DIR_FORAN,
+        RTRIM(f.FEC_INGRES) AS FEC_INGRES,
+        RTRIM(f.FEC_RETIRO) AS FEC_RETIRO,
+        RTRIM(f.FEC_FINAL)  AS FEC_FINAL,
+        RTRIM(f.CAU_RETIRO) AS CAU_RETIRO,
+        RTRIM(f.TIP_CONTRA) AS TIP_CONTRA,
+        f.NUM_CONTRA,
+        RTRIM(f.POR_RETEN)  AS POR_RETEN,
+        RTRIM(f.DED_VIVIEN) AS DED_VIVIEN,
+        RTRIM(f.DED_SALUD)  AS DED_SALUD,
+        RTRIM(f.DED_DEPEN)  AS DED_DEPEN,
+        RTRIM(f.PRO_SALUD)  AS PRO_SALUD,
+        RTRIM(f.GRA_RIESGO) AS GRA_RIESGO,
+        RTRIM(f.DIA_VACAC)  AS DIA_VACAC,
+        f.ACT_HORA          AS f_act_hora,
+        mc.NOM_CARGO,
+        gs.NOM_GRSAN,
+        ISNULL(ec.NOM_ESTCIV, 'Sin asignar') AS NOM_ESTCIV,
+        bk.NOM_BANCO,
+        tc.NOM_TPCTA,
+        cc.NOM_CCOST,
+        eps_t.NOM_COMP  AS nom_eps,
+        afp_t.NOM_COMP  AS nom_afp,
+        caja_t.NOM_COMP AS nom_caja,
+        mces.NOM_CEST   AS nom_cesan
+      FROM GN_TERCE t
+      INNER JOIN GN_FUNCI   f      ON f.COD_TERC    = t.COD_TERC   AND f.COD_EMPR = 1
+      LEFT  JOIN MAE_TPDOC  td     ON td.COD_TPDOC   = t.COD_TPDOC
+      LEFT  JOIN MAE_MUNI   mn     ON mn.COD_MUNI    = t.COD_MPIO
+      LEFT  JOIN MAE_CARGO  mc     ON mc.COD_CARGO   = f.COD_CARGO  AND mc.COD_EMPR = 1
+      LEFT  JOIN MAE_GRSAN  gs     ON gs.COD_GRSAN   = f.COD_GRSAN
+      LEFT  JOIN MAE_ESTCIV ec     ON ec.COD_ESTCIV  = f.COD_ESTCIV
+      LEFT  JOIN MAE_BANCO  bk     ON bk.COD_BANCO   = f.COD_BANCO
+      LEFT  JOIN MAE_TPCTA  tc     ON tc.COD_TPCTA   = f.COD_TPCTA
+      LEFT  JOIN MAE_CCOST  cc     ON cc.COD_CCOST   = f.COD_CCOST  AND cc.COD_EMPR = 1
+      LEFT  JOIN MAE_EPS    me     ON me.COD_EPS      = f.COD_EPS    AND me.COD_EMPR = 1
+      LEFT  JOIN GN_TERCE   eps_t  ON eps_t.COD_TERC  = me.COD_TERC
+      LEFT  JOIN MAE_AFP    ma     ON ma.COD_AFP      = f.COD_AFP    AND ma.COD_EMPR = 1
+      LEFT  JOIN GN_TERCE   afp_t  ON afp_t.COD_TERC  = ma.COD_TERC
+      LEFT  JOIN MAE_CCF    mccf   ON mccf.COD_CCF    = f.COD_CAJA   AND mccf.COD_EMPR = 1
+      LEFT  JOIN GN_TERCE   caja_t  ON caja_t.COD_TERC  = mccf.COD_TERC
+      LEFT  JOIN MAE_CEST   mces    ON mces.COD_CEST     = f.COD_CESAN  AND mces.COD_EMPR = 1
+      WHERE t.NUM_IDEN = @cedula AND t.COD_EMPR = 1 AND t.ACT_ESTA = 'A'
+    `;
+
+    const result = await executeQuery(query, { cedula: parseInt(cedula.trim()) });
+    if (!result.recordset || result.recordset.length === 0) {
+      return res.status(404).json({ error: 'Empleado no encontrado', cedula });
+    }
+    console.log(`✓ Detalle empleado cédula ${cedula}: ${result.recordset[0].NOM_COMP}`);
+    res.json(result.recordset[0]);
+  } catch (err) {
+    console.error('❌ obtenerDetalleEmpleado:', err.message);
+    res.status(500).json({ error: 'Error al obtener detalle del empleado', details: err.message });
+  }
+}
+
 // ─── LISTAR EMPLEADOS DE LA BD ───────────────────────────────────────────────
 async function listarEmpleados(req, res) {
   try {
@@ -325,8 +412,10 @@ async function listarEmpleados(req, res) {
       FROM GN_TERCE t
       INNER JOIN GN_FUNCI   f   ON f.COD_TERC  = t.COD_TERC  AND f.COD_EMPR = 1
       LEFT  JOIN MAE_CARGO  mc  ON mc.COD_CARGO = f.COD_CARGO AND mc.COD_EMPR = 1
-      LEFT  JOIN GN_TERCE   eps ON eps.COD_TERC = f.COD_EPS
-      LEFT  JOIN GN_TERCE   afp ON afp.COD_TERC = f.COD_AFP
+      LEFT  JOIN MAE_EPS    me  ON me.COD_EPS   = f.COD_EPS  AND me.COD_EMPR = 1
+      LEFT  JOIN GN_TERCE   eps ON eps.COD_TERC  = me.COD_TERC
+      LEFT  JOIN MAE_AFP    ma  ON ma.COD_AFP   = f.COD_AFP  AND ma.COD_EMPR = 1
+      LEFT  JOIN GN_TERCE   afp ON afp.COD_TERC  = ma.COD_TERC
       LEFT  JOIN MAE_CCOST  cc  ON cc.COD_CCOST = f.COD_CCOST AND cc.COD_EMPR = 1
       WHERE t.COD_EMPR = 1 AND t.ACT_ESTA = 'A' AND f.ACT_ESTA = 'A'
       ORDER BY t.NOM_COMP ASC
@@ -346,4 +435,5 @@ module.exports = {
   obtenerCatalogos,
   crearEmpleado,
   listarEmpleados,
+  obtenerDetalleEmpleado,
 };
