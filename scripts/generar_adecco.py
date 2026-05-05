@@ -39,8 +39,9 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='repla
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side, numbers
 
-OUTPUT_PATH   = sys.argv[1]
-TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), '..', 'assets', 'FORMATO_LIBRE_ADECCO.xlsx')
+OUTPUT_PATH      = sys.argv[1]
+TEMPLATE_PATH    = os.path.join(os.path.dirname(__file__), '..', 'assets', 'FORMATO_LIBRE_ADECCO.xlsx')
+MAESTRO_REF_PATH = os.path.join(os.path.dirname(__file__), '..', 'assets', 'ultimo_maestro_adecco.xlsx')
 
 # ─── Leer datos desde stdin (ya forzado a UTF-8) ─────────────────────────────
 data = json.load(sys.stdin)
@@ -56,6 +57,51 @@ shutil.copy2(TEMPLATE_PATH, OUTPUT_PATH)
 wb = openpyxl.load_workbook(OUTPUT_PATH)
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
+
+def copy_sheet(src_ws, dst_wb, sheet_name):
+    """
+    Copia src_ws hacia dst_wb bajo sheet_name, reemplazando si ya existe.
+    Preserva valores, estilos, dimensiones de columnas/filas y celdas fusionadas.
+    """
+    # Recordar posición actual en el workbook destino
+    pos = None
+    if sheet_name in dst_wb.sheetnames:
+        pos = dst_wb.sheetnames.index(sheet_name)
+        del dst_wb[sheet_name]
+
+    dst_ws = dst_wb.create_sheet(title=sheet_name)
+
+    # Copiar valores y estilos celda a celda
+    for row in src_ws.iter_rows():
+        for cell in row:
+            dst_cell = dst_ws.cell(row=cell.row, column=cell.column, value=cell.value)
+            if cell.has_style:
+                dst_cell.font          = copy(cell.font)
+                dst_cell.fill          = copy(cell.fill)
+                dst_cell.border        = copy(cell.border)
+                dst_cell.alignment     = copy(cell.alignment)
+                dst_cell.number_format = cell.number_format
+
+    # Dimensiones de columnas
+    for col_letter, col_dim in src_ws.column_dimensions.items():
+        dst_ws.column_dimensions[col_letter].width  = col_dim.width
+        dst_ws.column_dimensions[col_letter].hidden = col_dim.hidden
+
+    # Dimensiones de filas
+    for row_num, row_dim in src_ws.row_dimensions.items():
+        dst_ws.row_dimensions[row_num].height = row_dim.height
+        dst_ws.row_dimensions[row_num].hidden = row_dim.hidden
+
+    # Celdas fusionadas
+    for merge_range in list(src_ws.merged_cells.ranges):
+        dst_ws.merge_cells(str(merge_range))
+
+    # Restaurar posición original si la hoja ya existía
+    if pos is not None:
+        dst_wb.move_sheet(dst_ws, offset=pos - (len(dst_wb.sheetnames) - 1))
+
+    return dst_ws
+
 
 def parse_date(val):
     """Convierte string ISO o None a datetime.date (sin hora)."""
@@ -221,6 +267,20 @@ col_map_ci = [
 ]
 write_rows(ws_ci, FIRST_ROW_CI, cambios, col_map_ci)
 
+
+# ─── Reemplazar hojas maestras desde el último ADECCO importado ───────────────
+# Si existe un archivo de referencia guardado al importar (ultimo_maestro_adecco.xlsx),
+# se copian sus hojas "Maestro Original" y "Cambios Maestro" al workbook de salida.
+# Así el exportado refleja siempre la plantilla maestra más reciente, no la estática.
+if os.path.exists(MAESTRO_REF_PATH):
+    try:
+        ref_wb = openpyxl.load_workbook(MAESTRO_REF_PATH, data_only=True)
+        for nombre_hoja in ('Maestro Original', 'Cambios Maestro'):
+            if nombre_hoja in ref_wb.sheetnames:
+                copy_sheet(ref_wb[nombre_hoja], wb, nombre_hoja)
+        ref_wb.close()
+    except Exception as e:
+        print(f'AVISO: No se pudieron copiar las hojas maestras de referencia: {e}', file=sys.stderr)
 
 # ─── Guardar ─────────────────────────────────────────────────────────────────
 wb.save(OUTPUT_PATH)
