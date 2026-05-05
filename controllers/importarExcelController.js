@@ -220,9 +220,9 @@ async function procesarEnBD({ agrupado, codEmpr, periodo, pool, usuario, nombreA
       // Normalizamos aquí para que el resto del código sea uniforme.
       let tipo, cantidad, valor;
       if (typeof novedad === 'object' && novedad !== null && 'tipo' in novedad) {
-        tipo     = novedad.tipo;   // 'OCASIONAL' | 'FIJA'
-        valor    = novedad.valor;  // monto monetario
-        cantidad = 1;              // cantidad por defecto para novedades de valor
+        tipo     = novedad.tipo;             // 'OCASIONAL' | 'FIJA' | 'AUSENTISMO' | 'CAMBIO'
+        valor    = novedad.valor;            // monto monetario
+        cantidad = novedad.cantidad || 1;   // usar valor del parser; 1 si la columna está vacía
       } else {
         // Formato legacy: la "novedad" es directamente la cantidad de horas/días
         tipo     = 'OCASIONAL';
