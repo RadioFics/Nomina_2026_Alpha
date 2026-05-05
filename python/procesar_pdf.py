@@ -297,6 +297,7 @@ def extraer_permiso(text: str, pdf_path: str) -> dict:
     # Cuando hay dos motivos marcados, buscar cuál se menciona en observaciones.
     # Mapeamos a los códigos de concepto de MineDax.
     motivos_ord = [
+        ('Dia de la Familia', 'DIA_FAMILIA'),
         ('Compensatorio', 'COMPENSATORIO'),
         ('Fuerza Mayor',  'FUERZA_MAYOR'),
         ('Calamidad',     'CALAMIDAD'),
@@ -319,7 +320,9 @@ def extraer_permiso(text: str, pdf_path: str) -> dict:
             _obsm2 = re.search(r'Explicacion:\s*(.+?)(?:\n|SOLICITANTE|JEFE|$)',
                                tn, re.IGNORECASE | re.DOTALL)
         if _obsm2: _obss = _obsm2.group(1).lower()
-        if 'clases' in _obss or 'universidad' in _obss:
+        if 'familia' in _obss or 'dia de la' in _obss:
+            motivo_detectado = 'DIA_FAMILIA'
+        elif 'clases' in _obss or 'universidad' in _obss:
             motivo_detectado = 'ESTUDIO'
         elif 'compensad' in _obss or 'compensatorio' in _obss or 'voto' in _obss:
             motivo_detectado = 'COMPENSATORIO'
@@ -374,7 +377,7 @@ def extraer_permiso(text: str, pdf_path: str) -> dict:
 
 # ─── Extractor de Permisos (CM-TH-FR-003, PDF imagen escaneada) ──────────────
 
-def extraer_permiso_ocr(pdf_path):
+def extraer_permiso_ocr(pdf_path, page_idx=0):
     data = {
         'tipo_novedad': 'PERMISO', 'tipo_archivo': 'pdf',
         'cedula': None, 'nombre': None, 'cargo': None, 'area': None,
@@ -449,7 +452,7 @@ def extraer_permiso_ocr(pdf_path):
 
     try:
         with pdfplumber.open(pdf_path) as pdf:
-            _img = pdf.pages[0].to_image(resolution=250).original
+            _img = pdf.pages[page_idx].to_image(resolution=250).original
         tn = re.sub(r'[ \t|]+', ' ', pytesseract.image_to_string(_img, lang='eng')).strip()
         _t3 = None
 
@@ -457,7 +460,7 @@ def extraer_permiso_ocr(pdf_path):
             nonlocal _t3
             if _t3 is None:
                 with pdfplumber.open(pdf_path) as pdf:
-                    _i3 = pdf.pages[0].to_image(resolution=300).original
+                    _i3 = pdf.pages[page_idx].to_image(resolution=300).original
                 _t3 = re.sub(r'[ \t|]+', ' ',
                              pytesseract.image_to_string(_i3, lang='eng')).strip()
             return _t3
@@ -523,6 +526,7 @@ def extraer_permiso_ocr(pdf_path):
             if not data['cantidad']: data['cantidad'] = _dias_ocr(_rt)
 
         _mkw = [
+            (r'[Dd]ia\s+de\s+la\s+[Ff]amilia', 'DIA_FAMILIA'),
             (r'[Cc]ompensator', 'COMPENSATORIO'), (r'[Ff]uerza [Mm]ayor', 'FUERZA_MAYOR'),
             (r'[Cc]alamidad', 'CALAMIDAD'), (r'[Mm][eé]dico', 'MEDICO'),
             (r'[Ee]studio', 'ESTUDIO'), (r'[Oo]tra [Cc]ausa', 'OTRA'),
@@ -535,7 +539,8 @@ def extraer_permiso_ocr(pdf_path):
                             tn, re.IGNORECASE | re.DOTALL)
             if _ex:
                 _el = _ex.group(1).lower()
-                if 'compensad' in _el or 'familia' in _el: data['motivo'] = 'COMPENSATORIO'
+                if 'familia' in _el or 'dia de la' in _el: data['motivo'] = 'DIA_FAMILIA'
+                elif 'compensad' in _el or 'compensatorio' in _el: data['motivo'] = 'COMPENSATORIO'
                 elif 'estudio' in _el or 'clase' in _el: data['motivo'] = 'ESTUDIO'
                 elif 'medico' in _el or 'cita' in _el: data['motivo'] = 'MEDICO'
                 elif 'calamidad' in _el or 'luto' in _el: data['motivo'] = 'CALAMIDAD'
@@ -571,7 +576,7 @@ def extraer_permiso_ocr(pdf_path):
 
 # ─── Extractor de Vacaciones (CM-TH-SV-001, PDF imagen escaneada) ─────────────
 
-def extraer_vacaciones_ocr(pdf_path: str) -> dict:
+def extraer_vacaciones_ocr(pdf_path: str, page_idx: int = 0) -> dict:
     """
     Extrae datos de solicitud de VACACIONES (CM-TH-SV-001).
     El formulario es una imagen escaneada; se usa OCR con Tesseract.
@@ -683,7 +688,7 @@ def extraer_vacaciones_ocr(pdf_path: str) -> dict:
     try:
         # ── Pasada 1: 300 DPI + preprocesamiento (equilibrio calidad/velocidad) ──
         with pdfplumber.open(pdf_path) as pdf:
-            pil_300 = pdf.pages[0].to_image(resolution=300).original
+            pil_300 = pdf.pages[page_idx].to_image(resolution=300).original
         tn = _leer(pil_300, _CFG_FORM)
 
         data['cedula'] = _buscar_cedula(tn)
@@ -702,7 +707,7 @@ def extraer_vacaciones_ocr(pdf_path: str) -> dict:
         # Cubre escaneos CamScanner de baja calidad donde 300 DPI no alcanza.
         if not data['cedula'] or not data['nombre'] or not fechas_m:
             with pdfplumber.open(pdf_path) as pdf:
-                pil_400 = pdf.pages[0].to_image(resolution=400).original
+                pil_400 = pdf.pages[page_idx].to_image(resolution=400).original
             tn_400 = _leer(pil_400, _CFG_COL)
 
             if not data['cedula']:
@@ -938,97 +943,132 @@ def extraer_vacaciones_texto(text: str, pdf_path: str) -> dict:
 
 # ─── Detector de tipo de formulario ──────────────────────────────────────────
 
-def procesar_pdf(pdf_path: str) -> dict:
+def _detectar_tipo(pdf_path: str):
     """
-    Detecta automaticamente el tipo de formulario y extrae los datos.
-    Soporta texto nativo (permisos, Mauricio Cruz) e imagenes escaneadas (vacaciones OCR).
+    Devuelve ('permiso'|'vacaciones'|None) detectando el tipo de formulario
+    a partir de la página 0 (texto nativo + OCR rápido si es imagen).
+    También devuelve (es_imagen_0, text_0).
     """
-    if not HAS_PDFPLUMBER:
-        return {'success': False, 'error': 'pdfplumber no instalado (pip install pdfplumber)'}
+    with pdfplumber.open(pdf_path) as pdf:
+        page0     = pdf.pages[0]
+        text0     = page0.extract_text() or ''
+        es_imagen = len(page0.chars) == 0 and len(page0.images) > 0
 
-    if not os.path.isfile(pdf_path):
-        return {'success': False, 'error': f'Archivo no encontrado: {pdf_path}'}
+    upper = text0.upper()
+    es_permiso    = 'CM-TH-FR-003' in text0 or (
+        'FORMATO SOLICITUD DE PERMISO' in upper and 'DATOS DE PERMISO' in upper
+    )
+    es_vacaciones = 'CM-TH-SV-001' in text0 or 'SOLICITUD DE VACACIONES' in upper
+
+    if not es_permiso and not es_vacaciones:
+        nb = os.path.basename(pdf_path).lower()
+        es_permiso    = 'permiso' in nb or 'fr-003' in nb or 'familia' in nb
+        es_vacaciones = 'vacacion' in nb or 'sv-001' in nb
+
+    if not es_permiso and not es_vacaciones and es_imagen and HAS_OCR:
+        try:
+            with pdfplumber.open(pdf_path) as _pdf:
+                _hdr_img = _pdf.pages[0].to_image(resolution=150).original
+            _hdr_txt = pytesseract.image_to_string(_hdr_img, lang='eng').upper()
+            if 'FR-003' in _hdr_txt or 'SOLICITUD DE PERMISO' in _hdr_txt or 'FAMILIA' in _hdr_txt:
+                es_permiso = True
+            elif 'SV-001' in _hdr_txt or 'SOLICITUD DE VACACIONES' in _hdr_txt:
+                es_vacaciones = True
+        except Exception:
+            pass
+
+    tipo = 'permiso' if es_permiso else ('vacaciones' if es_vacaciones else None)
+    return tipo, es_imagen, text0
+
+
+def _procesar_pagina(pdf_path: str, page_idx: int, tipo: str) -> dict:
+    """Extrae datos de una página concreta según el tipo de formulario."""
+    with pdfplumber.open(pdf_path) as pdf:
+        page    = pdf.pages[page_idx]
+        text    = page.extract_text() or ''
+        es_img  = len(page.chars) == 0 and len(page.images) > 0
 
     try:
-        with pdfplumber.open(pdf_path) as pdf:
-            page = pdf.pages[0]
-            text = page.extract_text() or ''
-            es_imagen = len(page.chars) == 0 and len(page.images) > 0
-
-        text_upper = text.upper()
-
-        # ── Detectar por codigo de formulario ─────────────────────────────────
-        es_permiso    = 'CM-TH-FR-003' in text or (
-            'FORMATO SOLICITUD DE PERMISO' in text_upper and
-            'DATOS DE PERMISO' in text_upper
-        )
-        es_vacaciones = 'CM-TH-SV-001' in text or ('SOLICITUD DE VACACIONES' in text_upper)
-
-        # Fallback 1: nombre de archivo
-        if not es_permiso and not es_vacaciones:
-            nombre_archivo = os.path.basename(pdf_path).lower()
-            es_permiso    = 'permiso' in nombre_archivo or 'fr-003' in nombre_archivo
-            es_vacaciones = 'vacacion' in nombre_archivo or 'sv-001' in nombre_archivo
-
-        # Fallback 2: OCR rapido del encabezado para PDFs imagen sin texto
-        # Aplica cuando el nombre de archivo tampoco identifica el formulario
-        # (ej. '22- Solicitud dia de la familia Exploracion.pdf')
-        if not es_permiso and not es_vacaciones and es_imagen and HAS_OCR:
-            try:
-                import pytesseract as _pyt
-                with pdfplumber.open(pdf_path) as _pdf:
-                    _hdr_img = _pdf.pages[0].to_image(resolution=150).original
-                _hdr_txt = _pyt.image_to_string(_hdr_img, lang='eng').upper()
-                if 'FR-003' in _hdr_txt or 'SOLICITUD DE PERMISO' in _hdr_txt:
-                    es_permiso = True
-                elif 'SV-001' in _hdr_txt or 'SOLICITUD DE VACACIONES' in _hdr_txt:
-                    es_vacaciones = True
-            except Exception:
-                pass
-
-        if es_permiso:
-            if es_imagen or not text.strip():
+        if tipo == 'permiso':
+            if es_img or not text.strip():
                 if not HAS_OCR:
                     return {'success': False,
                             'error': 'pytesseract no instalado para PDFs escaneados'}
-                return extraer_permiso_ocr(pdf_path)
+                result = extraer_permiso_ocr(pdf_path, page_idx=page_idx)
+                # Indicar explícitamente si parece manuscrito
+                if not result.get('success') and not result.get('cedula'):
+                    result.setdefault('error',
+                        'Cédula no detectada. '
+                        'Si el documento es manuscrito, el OCR no puede leerlo — '
+                        'registre manualmente.')
+                return result
             return extraer_permiso(text, pdf_path)
-
-        elif es_vacaciones:
-            # PDFs con texto nativo suficiente (chars > 0 y texto > 50 chars):
-            # usar extractor de texto — mas preciso y rapido que OCR.
-            if not es_imagen and len(text.strip()) > 50:
+        else:  # vacaciones
+            if not es_img and len(text.strip()) > 50:
                 return extraer_vacaciones_texto(text, pdf_path)
-            return extraer_vacaciones_ocr(pdf_path)
+            if not HAS_OCR:
+                return {'success': False,
+                        'error': 'pytesseract no instalado para PDFs escaneados'}
+            result = extraer_vacaciones_ocr(pdf_path, page_idx=page_idx)
+            if not result.get('success') and not result.get('cedula'):
+                result.setdefault('error',
+                    'Cédula no detectada. '
+                    'Si el documento es manuscrito, el OCR no puede leerlo — '
+                    'registre manualmente.')
+            return result
+    except Exception as e:
+        return {'success': False, 'error': f'Error procesando página {page_idx + 1}: {str(e)}'}
 
-        else:
-            return {
+
+def procesar_pdf(pdf_path: str) -> list:
+    """
+    Detecta el tipo de formulario y extrae datos de TODAS las páginas.
+    Devuelve siempre una lista (un elemento por página/empleado).
+    Soporta texto nativo e imágenes escaneadas (OCR con Tesseract).
+    """
+    if not HAS_PDFPLUMBER:
+        return [{'success': False, 'error': 'pdfplumber no instalado (pip install pdfplumber)'}]
+
+    if not os.path.isfile(pdf_path):
+        return [{'success': False, 'error': f'Archivo no encontrado: {pdf_path}'}]
+
+    try:
+        tipo, _, _ = _detectar_tipo(pdf_path)
+
+        if tipo is None:
+            with pdfplumber.open(pdf_path) as pdf:
+                text_muestra = (pdf.pages[0].extract_text() or '')[:200]
+            return [{
                 'success': False,
                 'error': (
                     'Formulario PDF no reconocido. '
-                    'Formulario PDF no reconocido. '
                     'Use CM-TH-FR-003 (Permiso) o CM-TH-SV-001 (Vacaciones). '
-                    f'Texto extraido: {text[:200]!r}'
+                    f'Texto extraído: {text_muestra!r}'
                 )
-            }
+            }]
+
+        with pdfplumber.open(pdf_path) as pdf:
+            n_pages = len(pdf.pages)
+
+        return [_procesar_pagina(pdf_path, i, tipo) for i in range(n_pages)]
 
     except Exception as e:
-        return {'success': False, 'error': f'Error procesando PDF: {str(e)}'}
+        return [{'success': False, 'error': f'Error procesando PDF: {str(e)}'}]
 
 
 # ─── Main ───────────────────────────────────────────────────────────────────────
 
 def main():
     if len(sys.argv) < 2:
-        print(json.dumps({
+        print(json.dumps([{
             'success': False,
             'error': 'Uso: python3 procesar_pdf.py <ruta_pdf>'
-        }, ensure_ascii=False))
+        }], ensure_ascii=False))
         sys.exit(0)
 
     pdf_path = sys.argv[1]
-    result = procesar_pdf(pdf_path)
-    print(json.dumps(result, ensure_ascii=False, default=str))
+    results = procesar_pdf(pdf_path)   # siempre devuelve lista
+    print(json.dumps(results, ensure_ascii=False, default=str))
 
 
 if __name__ == '__main__':

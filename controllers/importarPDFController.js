@@ -107,32 +107,54 @@ async function resolverNombreEmpleado(cedula, codEmpr) {
 
 /**
  * Busca duplicado en NO_NOVED para un empleado + concepto + rango de fechas.
- * Retorna el registro existente o null.
+ * Solo retorna registros activos (ACT_ESTA='A') o registros inactivos cuyo
+ * período siga abierto (PER_EST='A'). Los registros inactivos en períodos
+ * cerrados se ignoran: intentar reactivarlos dispara TR_NO_NOVED_PERIODO_CERRADO.
  */
 async function buscarDuplicadoNoved(codEmpr, codFunci, codConc, fechaIni, fechaFin) {
   const r = await executeQuery(`
-    SELECT TOP 1 COD_NOVED, ACT_ESTA
-    FROM dbo.NO_NOVED
-    WHERE COD_EMPR  = @codEmpr
-      AND COD_FUNCI = @codFunci
-      AND COD_CONC  = @codConc
-      AND FEC_INI   = CONVERT(date, @fechaIni)
-      AND FEC_FIN   = CONVERT(date, @fechaFin)
+    SELECT TOP 1 n.COD_NOVED, n.ACT_ESTA
+    FROM dbo.NO_NOVED n
+    LEFT JOIN dbo.NO_PERIOD p
+      ON p.COD_EMPR  = n.COD_EMPR
+     AND p.COD_PERIOD = n.COD_PERIOD
+    WHERE n.COD_EMPR  = @codEmpr
+      AND n.COD_FUNCI = @codFunci
+      AND n.COD_CONC  = @codConc
+      AND n.FEC_INI   = CONVERT(date, @fechaIni)
+      AND n.FEC_FIN   = CONVERT(date, @fechaFin)
+      AND (n.ACT_ESTA = 'A' OR ISNULL(p.PER_EST, '') = 'A')
+    ORDER BY n.ACT_ESTA DESC
   `, { codEmpr, codFunci, codConc, fechaIni, fechaFin });
   return r.recordset && r.recordset[0] ? r.recordset[0] : null;
 }
 
 
+// ─── Mapeo motivo → COD_CONC ──────────────────────────────────────────────────
+
+/**
+ * Resuelve el concepto correcto según el motivo extraído del PDF.
+ *  COMPENSATORIO → 74 (Compensatorio)
+ *  DIA_FAMILIA   → 75 (Día de la Familia)
+ *  resto         → 68 (Permiso Remunerado): MEDICO, ESTUDIO, CALAMIDAD, FUERZA_MAYOR, OTRA
+ */
+function resolverCodConcPermiso(motivo) {
+  switch ((motivo || '').toUpperCase()) {
+    case 'COMPENSATORIO': return 74;
+    case 'DIA_FAMILIA':   return 75;
+    default:              return 68;
+  }
+}
+
 // ─── Insertar / reactivar Permiso ────────────────────────────────────────────
 
 /**
- * COD_CONC = 68 → "Permiso Remunerado"
- * Inserta en NO_NOVED.
- * Si ya existe y está inactivo → lo reactiva.
- * Si ya existe y está activo  → retorna como 'ACUMULADO'.
+ * Inserta en NO_NOVED usando el COD_CONC correcto según el motivo del permiso.
+ * Si ya existe y está inactivo (en período abierto) → lo reactiva.
+ * Si ya existe y está activo → retorna como 'ACUMULADO'.
  */
 async function insertarOReactivarPermiso({ codEmpr, codFunci, periodo, datos }) {
-  const COD_CONC_PERMISO = 68;   // Permiso Remunerado
+  const COD_CONC_PERMISO = resolverCodConcPermiso(datos.motivo);
 
   const fechaIni = datos.fecha_inicio || datos.fecha_novedad;
   const fechaFin = datos.fecha_fin    || datos.fecha_novedad || fechaIni;
@@ -438,112 +460,129 @@ exports.importarPDFs = [
     if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
 
     for (const file of req.files) {
-      const resumen = {
-        archivo:     file.originalname,
-        tipoNovedad: null,
-        cedula:      null,
-        nombre:      null,
-        estado:      'PENDIENTE',
-        detalle:     null,
-        error:       null,
-      };
-
       const tmpPath = path.join(tempDir, `${Date.now()}_${file.originalname}`);
 
       try {
         // Guardar temporalmente
         fs.writeFileSync(tmpPath, file.buffer);
 
-        // ── Extracción Python ────────────────────────────────────────────
-        const datos = await procesarPDFconPython(tmpPath);
+        // ── Extracción Python (devuelve array; un elemento por página/empleado) ──
+        const rawResult  = await procesarPDFconPython(tmpPath);
+        const registros  = Array.isArray(rawResult) ? rawResult : [rawResult];
 
-        if (!datos.success) {
-          resumen.estado = 'ERROR';
-          resumen.error  = datos.error || 'Error al procesar PDF';
-          totalErrores++;
-          archivos.push(resumen);
-          continue;
-        }
-
-        resumen.tipoNovedad = datos.tipo_novedad;
-        resumen.cedula      = datos.cedula;
-        resumen.nombre      = datos.nombre;
-
-        // ── Validar cédula ───────────────────────────────────────────────
-        if (!datos.cedula) {
-          resumen.estado = 'ERROR';
-          resumen.error  = 'Cédula no detectada en el PDF';
-          totalErrores++;
-          archivos.push(resumen);
-          continue;
-        }
-
-        // ── Resolver empleado en BD ──────────────────────────────────────
-        const codFunci = await resolverCodFunci(datos.cedula, codEmpr);
-        if (!codFunci) {
-          resumen.estado = 'ERROR';
-          resumen.error  = `Empleado con cédula ${datos.cedula} no encontrado o inactivo en BD`;
-          totalErrores++;
-          archivos.push(resumen);
-          continue;
-        }
-
-        // Confirmar nombre desde BD
-        const nombreBD = await resolverNombreEmpleado(datos.cedula, codEmpr);
-        if (nombreBD) resumen.nombre = nombreBD.trim();
-
-        // ── Resolver período activo actual ───────────────────────────────
-        // Siempre se usa el período activo de hoy. Las novedades de PDFs
-        // históricos (feb, mar) se registran en el período vigente para
-        // no disparar el trigger TR_NO_NOVED_PERIODO_CERRADO.
+        // Resolver período activo una sola vez por archivo (se reutiliza por página)
         const periodo = await resolverPeriodo(codEmpr);
-        if (!periodo) {
-          resumen.estado = 'ERROR';
-          resumen.error  = 'No existe período activo (PER_EST=A) en la base de datos';
-          totalErrores++;
-          archivos.push(resumen);
-          continue;
-        }
 
-        // ── Insertar / reactivar ─────────────────────────────────────────
-        let resultado;
-        if (datos.tipo_novedad === 'PERMISO') {
-          resultado = await insertarOReactivarPermiso({
-            codEmpr, codFunci, periodo, datos
-          });
-        } else if (datos.tipo_novedad === 'VACACIONES') {
-          resultado = await insertarOReactivarVacaciones({
-            codEmpr, codFunci, periodo, datos
-          });
-        } else {
-          resultado = {
-            success: false,
-            error: `Tipo de novedad no soportado: ${datos.tipo_novedad}`
+        for (const [pageIdx, datos] of registros.entries()) {
+          const etiqueta = registros.length > 1
+            ? `${file.originalname} (pág. ${pageIdx + 1})`
+            : file.originalname;
+
+          const resumen = {
+            archivo:     etiqueta,
+            tipoNovedad: null,
+            cedula:      null,
+            nombre:      null,
+            estado:      'PENDIENTE',
+            detalle:     null,
+            error:       null,
           };
-        }
 
-        if (resultado.success) {
-          resumen.estado  = resultado.estado || 'INSERTADO';
-          resumen.detalle = resultado.mensaje;
-          if (resumen.estado === 'INSERTADO')    totalInsertados++;
-          if (resumen.estado === 'ACUMULADO')    totalAcumulados++;
-          if (resumen.estado === 'REACTIVADO')   totalReactivados++;
-        } else {
-          resumen.estado = 'ERROR';
-          resumen.error  = resultado.error;
-          totalErrores++;
+          if (!datos.success) {
+            resumen.estado = 'ERROR';
+            // Mostrar errores reales del extractor, no el genérico
+            const errMsg = datos.error
+              || (datos.errores && datos.errores.length > 0 ? datos.errores.join('; ') : null)
+              || 'Error al procesar PDF';
+            resumen.error = errMsg;
+            totalErrores++;
+            archivos.push(resumen);
+            continue;
+          }
+
+          resumen.tipoNovedad = datos.tipo_novedad;
+          resumen.cedula      = datos.cedula;
+          resumen.nombre      = datos.nombre;
+
+          // ── Validar cédula ─────────────────────────────────────────────
+          if (!datos.cedula) {
+            resumen.estado = 'ERROR';
+            resumen.error  = 'Cédula no detectada en el PDF';
+            totalErrores++;
+            archivos.push(resumen);
+            continue;
+          }
+
+          // ── Resolver empleado en BD ────────────────────────────────────
+          const codFunci = await resolverCodFunci(datos.cedula, codEmpr);
+          if (!codFunci) {
+            resumen.estado = 'ERROR';
+            resumen.error  = `Empleado con cédula ${datos.cedula} no encontrado o inactivo en BD`;
+            totalErrores++;
+            archivos.push(resumen);
+            continue;
+          }
+
+          // Confirmar nombre desde BD
+          const nombreBD = await resolverNombreEmpleado(datos.cedula, codEmpr);
+          if (nombreBD) resumen.nombre = nombreBD.trim();
+
+          // ── Verificar período activo ───────────────────────────────────
+          if (!periodo) {
+            resumen.estado = 'ERROR';
+            resumen.error  = 'No existe período activo (PER_EST=A) en la base de datos';
+            totalErrores++;
+            archivos.push(resumen);
+            continue;
+          }
+
+          // ── Insertar / reactivar ───────────────────────────────────────
+          let resultado;
+          if (datos.tipo_novedad === 'PERMISO') {
+            resultado = await insertarOReactivarPermiso({
+              codEmpr, codFunci, periodo, datos
+            });
+          } else if (datos.tipo_novedad === 'VACACIONES') {
+            resultado = await insertarOReactivarVacaciones({
+              codEmpr, codFunci, periodo, datos
+            });
+          } else {
+            resultado = {
+              success: false,
+              error: `Tipo de novedad no soportado: ${datos.tipo_novedad}`
+            };
+          }
+
+          if (resultado.success) {
+            resumen.estado  = resultado.estado || 'INSERTADO';
+            resumen.detalle = resultado.mensaje;
+            if (resumen.estado === 'INSERTADO')  totalInsertados++;
+            if (resumen.estado === 'ACUMULADO')  totalAcumulados++;
+            if (resumen.estado === 'REACTIVADO') totalReactivados++;
+          } else {
+            resumen.estado = 'ERROR';
+            resumen.error  = resultado.error;
+            totalErrores++;
+          }
+
+          archivos.push(resumen);
         }
 
       } catch (err) {
-        resumen.estado = 'ERROR';
-        resumen.error  = err.message;
+        archivos.push({
+          archivo:     file.originalname,
+          tipoNovedad: null,
+          cedula:      null,
+          nombre:      null,
+          estado:      'ERROR',
+          detalle:     null,
+          error:       err.message,
+        });
         totalErrores++;
       } finally {
         // Limpiar temporal
         if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
       }
-
-      archivos.push(resumen);
     }
 
     // Periodo activo para incluirlo en la respuesta (para la UI)
@@ -566,8 +605,8 @@ exports.importarPDFs = [
       periodo: periodoResp,
       resumen: {
         totalArchivos: req.files.length,
-        procesados:    req.files.length,
-        totalFilas:    req.files.length,
+        procesados:    archivos.length,
+        totalFilas:    archivos.length,
         insertados:    totalInsertados,
         acumulados:    totalAcumulados,
         reactivados:   totalReactivados,
