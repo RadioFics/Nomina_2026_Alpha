@@ -37,8 +37,12 @@ const { executeQuery, getConnection } = require('../config/database');
 const { getActUsua } = require('../config/userHelper');
 const sql = require('mssql');
 const multer = require('multer');
+const path = require('path');
+const fs   = require('fs');
 const { getParser, formatosSoportados } = require('../utils/importParsers/parserRegistry');
 const { decryptIfNeeded } = require('../utils/decryptOffice');
+
+const MAESTRO_REF_PATH = path.join(__dirname, '..', 'assets', 'ultimo_maestro_adecco.xlsx');
 
 const DEFAULT_COD_EMPR = 1;
 
@@ -1426,6 +1430,11 @@ async function importarDesdeExcelConModo(req, res) {
         resultadosArchivos.push(resultadoArchivo);
         globalResumen.conErrores++;
         continue;
+      }
+
+      // Persistir copia desencriptada para que el exportador use las hojas maestras actuales
+      if (parser.meta.id === 'adecco-novedades') {
+        try { fs.writeFileSync(MAESTRO_REF_PATH, file.buffer); } catch (_) { /* best-effort */ }
       }
 
       // 4a. Sync empleados (si aplica) — PRIMERO para que las novedades puedan
