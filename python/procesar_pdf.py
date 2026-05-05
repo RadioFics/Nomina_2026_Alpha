@@ -202,7 +202,7 @@ def extraer_permiso(text: str, pdf_path: str) -> dict:
     # ── Nombre ──────────────────────────────────────────────────────────────
     nombre_m = re.search(
         r'Nombre:\s*([A-Za-záéíóúñÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s]+?)'
-        r'\s+Cedula:',
+        r'\s+C[eé]dula:',   # acepta "Cedula:" y "Cédula:"
         tn, re.IGNORECASE
     )
     if nombre_m:
@@ -266,7 +266,7 @@ def extraer_permiso(text: str, pdf_path: str) -> dict:
     # ── Total horas/días ─────────────────────────────────────────────────────
     # Acepta numero ('04 Horas'), texto ('dia y medio', 'Ocho'), o vacio.
     total_m = re.search(
-        r'Total\s+de\s+Dias:\s*(.{1,30}?)(?:\n|MOTIVO|SOLICITANTE|$)',
+        r'Total\s+de\s+D[ií]as:\s*(.{1,30}?)(?:\n|MOTIVO|SOLICITANTE|$)',
         tn, re.IGNORECASE
     )
     if total_m:
@@ -367,12 +367,11 @@ def extraer_permiso(text: str, pdf_path: str) -> dict:
         data['errores'].append('Nombre no detectado')
     if not data['fecha_inicio']:
         data['errores'].append('Fecha de permiso no detectada')
-    if not data['cantidad']:
-        data['errores'].append('Total horas no detectado')
+    # cantidad (Total de Dias) es opcional: el campo puede dejarse en blanco y
+    # el controlador usa DIAS_TOTAL=1 para permisos de todos modos.
 
     data['success'] = len(data['errores']) == 0
     return data
-
 
 
 # ─── Extractor de Permisos (CM-TH-FR-003, PDF imagen escaneada) ──────────────
@@ -569,7 +568,7 @@ def extraer_permiso_ocr(pdf_path, page_idx=0):
     if not data['cedula']:    data['errores'].append('Cedula no detectada')
     if not data['nombre']:    data['errores'].append('Nombre no detectado')
     if not data['fecha_inicio']: data['errores'].append('Fecha de permiso no detectada')
-    if not data['cantidad']:  data['errores'].append('Total horas/dias no detectado')
+    # cantidad opcional: el controlador usa DIAS_TOTAL=1 para permisos.
 
     data['success'] = len(data['errores']) == 0
     return data
@@ -881,13 +880,21 @@ def extraer_vacaciones_texto(text: str, pdf_path: str) -> dict:
     if cargo_m:
         data['cargo'] = cargo_m.group(1).strip()
 
-    # ── Fechas: despues de encabezados "DD MM AA DD MM AA" ───────────────────
+    # ── Fechas: "Periodo Solicitado" con encabezados DD MM AA ─────────────────
+    # Intento 1: encabezados DD MM AA presentes antes de los valores (formato estándar)
     fechas_m = re.search(
         r'(?:DD\s+MM\s+AA\s*){1,2}\s*'
         r'(\d{1,2})\s+(\d{1,2})\s+(20\d{2})\s+'
         r'(\d{1,2})\s+(\d{1,2})\s+(20\d{2})',
         tn, re.IGNORECASE
     )
+    # Intento 2: sin encabezados — pdfplumber a veces invierte el orden celda/etiqueta
+    if not fechas_m:
+        fechas_m = re.search(
+            r'(\d{1,2})\s+(\d{1,2})\s+(20\d{2})\s+'
+            r'(\d{1,2})\s+(\d{1,2})\s+(20\d{2})',
+            tn
+        )
     if fechas_m:
         d1, m1, y1, d2, m2, y2 = fechas_m.groups()
         try:
@@ -897,6 +904,20 @@ def extraer_vacaciones_texto(text: str, pdf_path: str) -> dict:
             data['fecha_fin']    = ff.isoformat()
         except ValueError:
             data['errores'].append('Fechas invalidas en el periodo solicitado')
+
+    # Intento 3: formato DD/MM/YYYY o DD-MM-YYYY (versiones alternativas del formulario)
+    if not data['fecha_inicio']:
+        fechas_slash = re.findall(r'(\d{1,2})[/-](\d{1,2})[/-](20\d{2})', tn)
+        if len(fechas_slash) >= 2:
+            try:
+                d1, m1, y1 = fechas_slash[0]
+                d2, m2, y2 = fechas_slash[-1]
+                fi = date(int(y1), int(m1), int(d1))
+                ff = date(int(y2), int(m2), int(d2))
+                data['fecha_inicio'] = fi.isoformat()
+                data['fecha_fin']    = ff.isoformat()
+            except ValueError:
+                pass
 
     # ── Dias disfrutados ──────────────────────────────────────────────────────
     dias_m = re.search(
