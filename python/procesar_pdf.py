@@ -724,6 +724,13 @@ def extraer_vacaciones_ocr(pdf_path: str, page_idx: int = 0) -> dict:
                 if cargo_400:
                     data['cargo'] = cargo_400.group(1).strip()
 
+        # ── Pasada 3: normalizar confusiones de OCR (l→1, O→0, S→5) y reintentar ─
+        # Tesseract confunde con frecuencia letras y dígitos en formularios impresos.
+        if not fechas_m:
+            fechas_m = _buscar_fechas(_normalizar_digitos_ocr(tn))
+        if not fechas_m and 'tn_400' in dir():
+            fechas_m = _buscar_fechas(_normalizar_digitos_ocr(tn_400))
+
         if fechas_m:
             d1, m1, y1, d2, m2, y2 = fechas_m.groups()
             try:
@@ -733,6 +740,20 @@ def extraer_vacaciones_ocr(pdf_path: str, page_idx: int = 0) -> dict:
                 data['fecha_fin']    = ff.isoformat()
             except ValueError:
                 data['errores'].append('Fechas inválidas en el período solicitado')
+
+        # ── Fallback fechas: formato DD/MM/YYYY o DD-MM-YYYY (formularios alternativos) ─
+        if not data['fecha_inicio']:
+            for _t_slash in [tn] + ([tn_400] if 'tn_400' in dir() else []):
+                _sl = re.findall(r'(\d{1,2})[/-](\d{1,2})[/-](20\d{2})', _t_slash)
+                if len(_sl) >= 2:
+                    try:
+                        _d1, _m1, _y1 = _sl[0]
+                        _d2, _m2, _y2 = _sl[-1]
+                        data['fecha_inicio'] = date(int(_y1), int(_m1), int(_d1)).isoformat()
+                        data['fecha_fin']    = date(int(_y2), int(_m2), int(_d2)).isoformat()
+                        break
+                    except ValueError:
+                        pass
 
         # ── Días disfrutados ─────────────────────────────────────────────────
         # Acepta dígitos y letras que OCR confunde (o→0, s/S→5, l/I→1).

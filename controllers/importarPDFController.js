@@ -130,6 +130,26 @@ async function buscarDuplicadoNoved(codEmpr, codFunci, codConc, fechaIni, fechaF
 }
 
 
+/**
+ * Busca cualquier registro en NO_NOVED con el mismo concepto en el período dado,
+ * sin importar las fechas. Detecta el conflicto con el índice único
+ * UQ_NO_NOVED_PERIODO_FUNCI_CONC antes de intentar INSERT, evitando
+ * "Cannot insert duplicate key row" cuando ADECCO ya creó un registro con
+ * FEC_INI=NULL para el mismo empleado + concepto + período.
+ */
+async function buscarNovedEnPeriodo(codEmpr, codPeriod, codFunci, codConc) {
+  const r = await executeQuery(`
+    SELECT TOP 1 n.COD_NOVED, n.ACT_ESTA, n.FEC_INI, n.FEC_FIN
+    FROM dbo.NO_NOVED n
+    WHERE n.COD_EMPR   = @codEmpr
+      AND n.COD_PERIOD = @codPeriod
+      AND n.COD_FUNCI  = @codFunci
+      AND n.COD_CONC   = @codConc
+  `, { codEmpr, codPeriod, codFunci, codConc });
+  return r.recordset && r.recordset[0] ? r.recordset[0] : null;
+}
+
+
 // ─── Mapeo motivo → COD_CONC ──────────────────────────────────────────────────
 
 /**
@@ -214,6 +234,66 @@ async function insertarOReactivarPermiso({ codEmpr, codFunci, periodo, datos }) 
         estado: 'REACTIVADO',
         codNoved: duplicado.COD_NOVED,
         mensaje: `Permiso reactivado (COD_NOVED=${duplicado.COD_NOVED})`
+      };
+    }
+
+    // ── Verificar conflicto con índice único (mismo concepto en mismo período) ─
+    // UQ_NO_NOVED_PERIODO_FUNCI_CONC impide dos registros del mismo concepto en
+    // el mismo período aunque tengan fechas distintas (ADECCO importa FEC_INI=NULL).
+    // Si existe tal registro se actualizan sus fechas desde el PDF.
+    const enPeriodo = await buscarNovedEnPeriodo(
+      codEmpr, periodo.COD_PERIOD, codFunci, COD_CONC_PERMISO
+    );
+    if (enPeriodo) {
+      await executeQuery(`
+        UPDATE dbo.NO_NOVED
+        SET FEC_INI   = CONVERT(date, @fechaIni),
+            FEC_FIN   = CONVERT(date, @fechaFin),
+            OBS_NOVED = @obs,
+            ACT_ESTA  = 'A',
+            ACT_USUA  = 'PDF_IMP',
+            ACT_HORA  = GETDATE()
+        WHERE COD_EMPR = @codEmpr AND COD_NOVED = @codNoved
+      `, {
+        codEmpr,
+        codNoved: enPeriodo.COD_NOVED,
+        fechaIni,
+        fechaFin,
+        obs: construirObs(datos)
+      });
+      await executeQuery(`
+        IF NOT EXISTS (SELECT 1 FROM dbo.NO_AUSEN WHERE COD_EMPR=@codEmpr AND COD_NOVED=@codNoved)
+          INSERT INTO dbo.NO_AUSEN (
+            COD_EMPR, COD_NOVED,
+            FEC_INI, FEC_FIN, DIAS_TOTAL,
+            DIAGNOSTICO,
+            ACT_USUA, ACT_HORA, ACT_ESTA
+          ) VALUES (
+            @codEmpr, @codNoved,
+            CONVERT(date,@fechaIni), CONVERT(date,@fechaFin), 1,
+            @diag,
+            'PDF_IMP', SYSDATETIME(), 'A'
+          );
+        ELSE
+          UPDATE dbo.NO_AUSEN
+          SET FEC_INI   = CONVERT(date,@fechaIni),
+              FEC_FIN   = CONVERT(date,@fechaFin),
+              ACT_ESTA  = 'A',
+              ACT_USUA  = 'PDF_IMP',
+              ACT_HORA  = SYSDATETIME()
+          WHERE COD_EMPR=@codEmpr AND COD_NOVED=@codNoved;
+      `, {
+        codEmpr,
+        codNoved: enPeriodo.COD_NOVED,
+        fechaIni,
+        fechaFin,
+        diag: (datos.motivo || 'PERMISO REMUNERADO').slice(0, 20)
+      });
+      return {
+        success: true,
+        estado: 'ACTUALIZADO',
+        codNoved: enPeriodo.COD_NOVED,
+        mensaje: `Permiso actualizado con fechas del PDF (COD_NOVED=${enPeriodo.COD_NOVED})`
       };
     }
 
@@ -339,6 +419,65 @@ async function insertarOReactivarVacaciones({ codEmpr, codFunci, periodo, datos 
       };
     }
 
+    // ── Verificar conflicto con índice único (mismo concepto en mismo período) ─
+    const enPeriodoVac = await buscarNovedEnPeriodo(
+      codEmpr, periodo.COD_PERIOD, codFunci, COD_CONC_VACACIONES
+    );
+    if (enPeriodoVac) {
+      await executeQuery(`
+        UPDATE dbo.NO_NOVED
+        SET FEC_INI   = CONVERT(date, @fechaIni),
+            FEC_FIN   = CONVERT(date, @fechaFin),
+            OBS_NOVED = @obs,
+            ACT_ESTA  = 'A',
+            ACT_USUA  = 'PDF_IMP',
+            ACT_HORA  = GETDATE()
+        WHERE COD_EMPR = @codEmpr AND COD_NOVED = @codNoved
+      `, {
+        codEmpr,
+        codNoved: enPeriodoVac.COD_NOVED,
+        fechaIni,
+        fechaFin,
+        obs: `Vacaciones disfrutadas ${fechaIni} al ${fechaFin} (${diasTotal} días)`
+      });
+      await executeQuery(`
+        IF NOT EXISTS (SELECT 1 FROM dbo.NO_AUSEN WHERE COD_EMPR=@codEmpr AND COD_NOVED=@codNoved)
+          INSERT INTO dbo.NO_AUSEN (
+            COD_EMPR, COD_NOVED,
+            FEC_INI, FEC_FIN, DIAS_TOTAL,
+            DIAGNOSTICO,
+            ACT_USUA, ACT_HORA, ACT_ESTA
+          ) VALUES (
+            @codEmpr, @codNoved,
+            CONVERT(date,@fechaIni), CONVERT(date,@fechaFin), @diasTotal,
+            @diag,
+            'PDF_IMP', SYSDATETIME(), 'A'
+          );
+        ELSE
+          UPDATE dbo.NO_AUSEN
+          SET FEC_INI    = CONVERT(date,@fechaIni),
+              FEC_FIN    = CONVERT(date,@fechaFin),
+              DIAS_TOTAL = @diasTotal,
+              ACT_ESTA   = 'A',
+              ACT_USUA   = 'PDF_IMP',
+              ACT_HORA   = SYSDATETIME()
+          WHERE COD_EMPR=@codEmpr AND COD_NOVED=@codNoved;
+      `, {
+        codEmpr,
+        codNoved: enPeriodoVac.COD_NOVED,
+        fechaIni,
+        fechaFin,
+        diasTotal,
+        diag: `Vacaciones PDF - ${datos.nombre || ''}`.trim().slice(0, 20)
+      });
+      return {
+        success: true,
+        estado: 'ACTUALIZADO',
+        codNoved: enPeriodoVac.COD_NOVED,
+        mensaje: `Vacaciones actualizadas con fechas del PDF (COD_NOVED=${enPeriodoVac.COD_NOVED})`
+      };
+    }
+
     // ── Insertar nuevo en NO_NOVED — COD_NOVED es IDENTITY, lo genera SQL Server ──
     const insertResult = await executeQuery(`
       INSERT INTO dbo.NO_NOVED (
@@ -451,6 +590,7 @@ exports.importarPDFs = [
 
     const archivos = [];
     let totalInsertados = 0;
+    let totalActualizados = 0;
     let totalAcumulados = 0;
     let totalReactivados = 0;
     let totalErrores = 0;
@@ -556,9 +696,10 @@ exports.importarPDFs = [
           if (resultado.success) {
             resumen.estado  = resultado.estado || 'INSERTADO';
             resumen.detalle = resultado.mensaje;
-            if (resumen.estado === 'INSERTADO')  totalInsertados++;
-            if (resumen.estado === 'ACUMULADO')  totalAcumulados++;
-            if (resumen.estado === 'REACTIVADO') totalReactivados++;
+            if (resumen.estado === 'INSERTADO')   totalInsertados++;
+            if (resumen.estado === 'ACTUALIZADO') totalActualizados++;
+            if (resumen.estado === 'ACUMULADO')   totalAcumulados++;
+            if (resumen.estado === 'REACTIVADO')  totalReactivados++;
           } else {
             resumen.estado = 'ERROR';
             resumen.error  = resultado.error;
@@ -608,6 +749,7 @@ exports.importarPDFs = [
         procesados:    archivos.length,
         totalFilas:    archivos.length,
         insertados:    totalInsertados,
+        actualizados:  totalActualizados,
         acumulados:    totalAcumulados,
         reactivados:   totalReactivados,
         conErrores:    totalErrores,
