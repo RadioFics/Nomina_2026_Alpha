@@ -983,13 +983,289 @@ def extraer_vacaciones_texto(text: str, pdf_path: str) -> dict:
     return data
 
 
+# ─── Extractores para PDFs generados por Power Automate (Word → PDF) ─────────
+#
+# Estos extractores se usan cuando el PDF contiene el marcador [FORMS] en el
+# encabezado, lo que indica que fue generado automáticamente por Power Automate
+# a partir de una plantilla Word con respuestas de Microsoft Forms.
+# El formato es 100 % texto-nativo y determinístico: sin OCR, sin ambigüedad.
+
+def extraer_formulario_generado_permiso(text: str, pdf_path: str) -> dict:
+    """
+    Extrae datos de permiso (CM-TH-FR-003) desde PDF generado por Power Automate.
+    El marcador [FORMS] en el encabezado identifica este tipo.
+    Todos los campos son texto nativo → extracción 100 % fiable.
+    """
+    data = {
+        'tipo_novedad':      'PERMISO',
+        'tipo_archivo':      'pdf',
+        'cedula':            None,
+        'nombre':            None,
+        'cargo':             None,
+        'area':              None,
+        'fecha_novedad':     None,
+        'fecha_inicio':      None,
+        'fecha_fin':         None,
+        'hora_inicio':       None,
+        'hora_fin':          None,
+        'cantidad':          None,
+        'motivo':            None,
+        'es_remunerado':     False,
+        'observaciones':     None,
+        'email_solicitante': None,
+        'fuente':            pdf_path,
+        'procesado_en':      datetime.now().isoformat(),
+        'success':           False,
+        'errores':           []
+    }
+
+    tn = normalizar(text)
+
+    # ── Nombre ──────────────────────────────────────────────────────────────────
+    # Plantilla: "Nombre: Juan Pérez García   Cédula: 1234567890"
+    nombre_m = re.search(
+        r'Nombre:\s*([A-Za-záéíóúñÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s]{3,60}?)'
+        r'(?=\s+C[eé]dula:|\s*$)',
+        tn, re.IGNORECASE
+    )
+    if nombre_m:
+        data['nombre'] = nombre_m.group(1).strip()
+
+    # ── Cédula ──────────────────────────────────────────────────────────────────
+    cedula_m = re.search(r'C[eé]dula:\s*(\d{7,11})', tn, re.IGNORECASE)
+    if cedula_m:
+        data['cedula'] = cedula_m.group(1).strip()
+
+    # ── Cargo ────────────────────────────────────────────────────────────────────
+    cargo_m = re.search(
+        r'Cargo:\s*([A-Za-záéíóúñÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s,]{2,60}?)'
+        r'(?=\s+[AÁ]rea:|\s*$)',
+        tn, re.IGNORECASE
+    )
+    if cargo_m:
+        data['cargo'] = cargo_m.group(1).strip()
+
+    # ── Área ─────────────────────────────────────────────────────────────────────
+    area_m = re.search(
+        r'[AÁ]rea:\s*([A-Za-záéíóúñÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s,]{1,50}?)'
+        r'(?=\s+(?:DATOS|Fecha|$))',
+        tn, re.IGNORECASE
+    )
+    if area_m:
+        data['area'] = area_m.group(1).strip()
+
+    # ── Fechas del permiso ───────────────────────────────────────────────────────
+    # Plantilla: "Fecha Permiso: De: 15/05/2026    Hasta: 15/05/2026"
+    fechas_m = re.search(
+        r'Fecha\s+Permiso:.*?De:\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4})'
+        r'.*?Hasta:\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4})',
+        tn, re.IGNORECASE
+    )
+    if fechas_m:
+        fi = parse_fecha_ddmmyyyy(fechas_m.group(1))
+        ff = parse_fecha_ddmmyyyy(fechas_m.group(2))
+        data['fecha_novedad'] = fi
+        data['fecha_inicio']  = fi
+        data['fecha_fin']     = ff
+
+    # ── Horas ────────────────────────────────────────────────────────────────────
+    horas_m = re.search(
+        r'Horas:.*?De:\s*(\d{1,2}:\d{2}(?:\s*(?:AM|PM|am|pm))?)'
+        r'.*?Hasta:\s*(\d{1,2}:\d{2}(?:\s*(?:AM|PM|am|pm))?)',
+        tn, re.IGNORECASE
+    )
+    if horas_m:
+        data['hora_inicio'] = horas_m.group(1).strip()
+        data['hora_fin']    = horas_m.group(2).strip()
+
+    # ── Total de días ─────────────────────────────────────────────────────────────
+    # Power Automate siempre genera un número (0.5, 1, 2, …)
+    total_m = re.search(r'Total\s+de\s+D[ií]as:\s*(\d+(?:[.,]\d)?)', tn, re.IGNORECASE)
+    if total_m:
+        try:
+            v = float(total_m.group(1).replace(',', '.'))
+            data['cantidad'] = int(v) if v == int(v) else v
+        except ValueError:
+            pass
+
+    # ── Motivo ──────────────────────────────────────────────────────────────────
+    # Plantilla: "Tipo: Médico"  — valor directo del desplegable de Microsoft Forms
+    tipo_m = re.search(r'\bTipo:\s*([^\n\r]{2,40})', tn, re.IGNORECASE)
+    if tipo_m:
+        tipo_raw = tipo_m.group(1).strip().lower()
+        _motivo_map = [
+            ('dia de la familia', 'DIA_FAMILIA'),
+            ('familia',           'DIA_FAMILIA'),
+            ('compensatorio',     'COMPENSATORIO'),
+            ('fuerza mayor',      'FUERZA_MAYOR'),
+            ('calamidad',         'CALAMIDAD'),
+            ('medico',            'MEDICO'),
+            ('médico',            'MEDICO'),
+            ('estudio',           'ESTUDIO'),
+            ('otra causa',        'OTRA'),
+            ('vacaciones',        'VACACIONES'),
+        ]
+        for kw, cod in _motivo_map:
+            if kw in tipo_raw:
+                data['motivo'] = cod
+                break
+        if not data['motivo']:
+            # Guardar literal del Forms para auditoría
+            data['motivo'] = tipo_m.group(1).strip().upper()[:20]
+    if not data['motivo']:
+        data['motivo'] = 'COMPENSATORIO'
+
+    # ── Tipo permiso (Remunerado / No Remunerado) ────────────────────────────────
+    # Plantilla: "TIPO PERMISO: Remunerado"
+    tipo_perm_m = re.search(r'TIPO\s+PERMISO:\s*([^\n\r]{2,30})', tn, re.IGNORECASE)
+    if tipo_perm_m:
+        tp = tipo_perm_m.group(1).strip().lower()
+        data['es_remunerado'] = ('remunerado' in tp) and ('no remunerado' not in tp)
+
+    # ── Observaciones ────────────────────────────────────────────────────────────
+    obs_m = re.search(r'OBSERVACIONES?:\s*([^\n]{5,500})', tn, re.IGNORECASE)
+    if obs_m:
+        data['observaciones'] = obs_m.group(1).strip()
+
+    # ── Email solicitante ────────────────────────────────────────────────────────
+    # Plantilla: "Correo electrónico: juan@collectivemining.com"
+    email_m = re.search(
+        r'(?:Correo|Email|E-mail)[^:]*:\s*([\w.+-]+@[\w-]+\.[a-z]{2,})',
+        tn, re.IGNORECASE
+    )
+    if email_m:
+        data['email_solicitante'] = email_m.group(1).strip()
+
+    # ── Validaciones ─────────────────────────────────────────────────────────────
+    if not data['cedula']:       data['errores'].append('Cédula no detectada')
+    if not data['nombre']:       data['errores'].append('Nombre no detectado')
+    if not data['fecha_inicio']: data['errores'].append('Fecha de permiso no detectada')
+
+    data['success'] = len(data['errores']) == 0
+    return data
+
+
+def extraer_formulario_generado_vacaciones(text: str, pdf_path: str) -> dict:
+    """
+    Extrae datos de vacaciones (CM-TH-SV-001) desde PDF generado por Power Automate.
+    El marcador [FORMS] en el encabezado identifica este tipo.
+    Todos los campos son texto nativo → extracción 100 % fiable.
+    """
+    data = {
+        'tipo_novedad':      'VACACIONES',
+        'tipo_archivo':      'pdf',
+        'cedula':            None,
+        'nombre':            None,
+        'cargo':             None,
+        'area':              None,
+        'fecha_inicio':      None,
+        'fecha_fin':         None,
+        'cantidad':          None,
+        'observaciones':     None,
+        'email_solicitante': None,
+        'fuente':            pdf_path,
+        'procesado_en':      datetime.now().isoformat(),
+        'success':           False,
+        'errores':           []
+    }
+
+    tn = normalizar(text)
+
+    # ── Nombre ───────────────────────────────────────────────────────────────────
+    # Plantilla: "Nombre y Apellidos Completos: Juan Pérez García"
+    nombre_m = re.search(
+        r'Nombre\s+y\s+Apellidos\s+Completos:\s*'
+        r'([A-Za-záéíóúñÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s]{3,60}?)'
+        r'(?=\s+C[eé]dula|\s*$)',
+        tn, re.IGNORECASE
+    )
+    if nombre_m:
+        data['nombre'] = nombre_m.group(1).strip()
+
+    # ── Cédula ───────────────────────────────────────────────────────────────────
+    # Plantilla: "Cédula de Ciudadanía No.: 1234567890"
+    ced_m = re.search(
+        r'C[eé]dula.*?No\.?:\s*(\d{7,11})',
+        tn, re.IGNORECASE
+    )
+    if ced_m:
+        data['cedula'] = ced_m.group(1).strip()
+
+    # ── Cargo ─────────────────────────────────────────────────────────────────────
+    cargo_m = re.search(
+        r'\bCargo:\s*([A-Za-záéíóúñÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s,]{2,60}?)'
+        r'(?=\s+(?:Per[ií]odo|DESDE|Correo|Email|$))',
+        tn, re.IGNORECASE
+    )
+    if cargo_m:
+        data['cargo'] = cargo_m.group(1).strip()
+
+    # ── Fechas: "DESDE: 01/06/2026    HASTA: 15/06/2026" ────────────────────────
+    fechas_m = re.search(
+        r'DESDE:\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4})'
+        r'.*?HASTA:\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4})',
+        tn, re.IGNORECASE
+    )
+    if fechas_m:
+        data['fecha_inicio'] = parse_fecha_ddmmyyyy(fechas_m.group(1))
+        data['fecha_fin']    = parse_fecha_ddmmyyyy(fechas_m.group(2))
+    else:
+        # Fallback: cualquier par de fechas DD/MM/YYYY en el texto
+        all_dates = re.findall(r'\d{1,2}[/-]\d{1,2}[/-]\d{4}', tn)
+        if len(all_dates) >= 2:
+            data['fecha_inicio'] = parse_fecha_ddmmyyyy(all_dates[0])
+            data['fecha_fin']    = parse_fecha_ddmmyyyy(all_dates[-1])
+
+    # ── Días disfrutados ─────────────────────────────────────────────────────────
+    dias_m = re.search(
+        r'D[ií]as\s+de\s+Vacaciones\s+disfrutados:\s*(\d{1,3})',
+        tn, re.IGNORECASE
+    )
+    if dias_m:
+        try:
+            v = int(dias_m.group(1))
+            if 1 <= v <= 90:
+                data['cantidad'] = v
+        except ValueError:
+            pass
+
+    if not data['cantidad'] and data['fecha_inicio'] and data['fecha_fin']:
+        data['cantidad'] = calcular_dias_laborables(data['fecha_inicio'], data['fecha_fin'])
+
+    # ── Observaciones ─────────────────────────────────────────────────────────────
+    obs_m = re.search(r'Observaciones:\s*([^\n]{5,500})', tn, re.IGNORECASE)
+    if obs_m:
+        data['observaciones'] = obs_m.group(1).strip()
+
+    # ── Email solicitante ────────────────────────────────────────────────────────
+    email_m = re.search(
+        r'(?:Correo|Email|E-mail)[^:]*:\s*([\w.+-]+@[\w-]+\.[a-z]{2,})',
+        tn, re.IGNORECASE
+    )
+    if email_m:
+        data['email_solicitante'] = email_m.group(1).strip()
+
+    # ── Validaciones ─────────────────────────────────────────────────────────────
+    if not data['cedula']:       data['errores'].append('Cédula no detectada')
+    if not data['nombre']:       data['errores'].append('Nombre no detectado')
+    if not data['fecha_inicio']: data['errores'].append('Fecha inicio no detectada')
+    if not data['fecha_fin']:    data['errores'].append('Fecha fin no detectada')
+    if not data['cantidad']:     data['errores'].append('Días de vacaciones no detectados')
+
+    data['success'] = len(data['errores']) == 0
+    return data
+
+
 # ─── Detector de tipo de formulario ──────────────────────────────────────────
 
 def _detectar_tipo(pdf_path: str):
     """
     Devuelve ('permiso'|'vacaciones'|None) detectando el tipo de formulario
     a partir de la página 0 (texto nativo + OCR rápido si es imagen).
-    También devuelve (es_imagen_0, text_0).
+    También devuelve (es_imagen_0, text_0, es_forms).
+
+    es_forms=True indica que el PDF fue generado por Power Automate a partir
+    de una plantilla Word con respuestas de Microsoft Forms (marcador [FORMS]).
     """
     with pdfplumber.open(pdf_path) as pdf:
         page0     = pdf.pages[0]
@@ -997,6 +1273,10 @@ def _detectar_tipo(pdf_path: str):
         es_imagen = len(page0.chars) == 0 and len(page0.images) > 0
 
     upper = text0.upper()
+
+    # ── Detectar PDFs generados por Power Automate (plantilla Word + [FORMS]) ──
+    es_forms = '[FORMS]' in text0
+
     es_permiso    = 'CM-TH-FR-003' in text0 or (
         'FORMATO SOLICITUD DE PERMISO' in upper and 'DATOS DE PERMISO' in upper
     )
@@ -1020,17 +1300,33 @@ def _detectar_tipo(pdf_path: str):
             pass
 
     tipo = 'permiso' if es_permiso else ('vacaciones' if es_vacaciones else None)
-    return tipo, es_imagen, text0
+    return tipo, es_imagen, text0, es_forms
 
 
-def _procesar_pagina(pdf_path: str, page_idx: int, tipo: str) -> dict:
-    """Extrae datos de una página concreta según el tipo de formulario."""
+def _procesar_pagina(pdf_path: str, page_idx: int, tipo: str,
+                     es_forms: bool = False) -> dict:
+    """
+    Extrae datos de una página concreta según el tipo de formulario.
+
+    es_forms=True → usar extractor determinístico para PDFs generados por
+    Power Automate (plantilla Word + Microsoft Forms). Prioridad máxima:
+    texto nativo, sin OCR, sin ambigüedades.
+    """
     with pdfplumber.open(pdf_path) as pdf:
         page    = pdf.pages[page_idx]
         text    = page.extract_text() or ''
         es_img  = len(page.chars) == 0 and len(page.images) > 0
 
     try:
+        # ── Ruta 1: PDF generado por Power Automate (marcador [FORMS]) ──────────
+        # Máxima confiabilidad — todos los campos son texto plano estructurado.
+        if es_forms and text.strip():
+            if tipo == 'permiso':
+                return extraer_formulario_generado_permiso(text, pdf_path)
+            else:
+                return extraer_formulario_generado_vacaciones(text, pdf_path)
+
+        # ── Ruta 2: PDF original (escaneado o nativo) ───────────────────────────
         if tipo == 'permiso':
             if es_img or not text.strip():
                 if not HAS_OCR:
@@ -1075,7 +1371,7 @@ def procesar_pdf(pdf_path: str) -> list:
         return [{'success': False, 'error': f'Archivo no encontrado: {pdf_path}'}]
 
     try:
-        tipo, _, _ = _detectar_tipo(pdf_path)
+        tipo, _, _, es_forms = _detectar_tipo(pdf_path)
 
         if tipo is None:
             with pdfplumber.open(pdf_path) as pdf:
@@ -1092,7 +1388,7 @@ def procesar_pdf(pdf_path: str) -> list:
         with pdfplumber.open(pdf_path) as pdf:
             n_pages = len(pdf.pages)
 
-        return [_procesar_pagina(pdf_path, i, tipo) for i in range(n_pages)]
+        return [_procesar_pagina(pdf_path, i, tipo, es_forms) for i in range(n_pages)]
 
     except Exception as e:
         return [{'success': False, 'error': f'Error procesando PDF: {str(e)}'}]
