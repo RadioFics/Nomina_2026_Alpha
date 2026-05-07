@@ -1,0 +1,19 @@
+{
+  "nombre": "Laura Valentina Velasquez",
+  "cedula": "1037652841",
+  "cargo": "Analista de Nomina",
+  "area": "Talento Humano",
+  "fecha_dia": "07",
+  "fecha_mes": "05",
+  "fecha_anio": "2026",
+  "fecha_desde": "15/05/2026",
+  "fecha_hasta": "15/05/2026",
+  "hora_inicio": "08:00",
+  "hora_fin": "12:00",
+  "total_dias": "0.5",
+  "motivo": "Medico",
+  "cual": "",
+  "explicacion": "Cita con especialista ortopedia Hospital General",
+  "tipo_permiso": "Remunerado",
+  "observaciones": "Pendiente presentar comprobante de cita al reintegro"
+}

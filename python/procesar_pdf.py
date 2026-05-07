@@ -990,6 +990,29 @@ def extraer_vacaciones_texto(text: str, pdf_path: str) -> dict:
 # a partir de una plantilla Word con respuestas de Microsoft Forms.
 # El formato es 100 % texto-nativo y determinístico: sin OCR, sin ambigüedad.
 
+def _leer_bloque_forms(text: str) -> dict:
+    """
+    Lee el bloque de datos estructurado invisible que rellenar_pdf.py inserta
+    en los PDFs generados. Formato:
+        [FORMS]
+        CAMPO: valor
+        CAMPO2: valor2
+        ...
+    Retorna un dict con los pares clave→valor (claves en minúsculas).
+    """
+    bloque = {}
+    en_bloque = False
+    for linea in text.splitlines():
+        linea = linea.strip()
+        if linea == '[FORMS]':
+            en_bloque = True
+            continue
+        if en_bloque and ':' in linea:
+            clave, _, valor = linea.partition(':')
+            bloque[clave.strip().lower()] = valor.strip()
+    return bloque
+
+
 def extraer_formulario_generado_permiso(text: str, pdf_path: str) -> dict:
     """
     Extrae datos de permiso (CM-TH-FR-003) desde PDF generado por Power Automate.

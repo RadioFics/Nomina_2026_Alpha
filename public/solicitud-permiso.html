@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solicitud de Permiso — Collective Mining</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #0E0E0E;
+      color: #F0EDE8;
+      min-height: 100vh;
+      padding: 24px 16px 48px;
+    }
+
+    .container {
+      max-width: 680px;
+      margin: 0 auto;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .header h1 {
+      font-size: 26px;
+      color: #C9A84C;
+      letter-spacing: 1px;
+      font-weight: 700;
+    }
+    .header p {
+      color: #8A857A;
+      font-size: 13px;
+      margin-top: 6px;
+    }
+    .header .doc-ref {
+      display: inline-block;
+      background: rgba(201,168,76,0.12);
+      color: #C9A84C;
+      font-size: 11px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      margin-top: 8px;
+      letter-spacing: 0.5px;
+    }
+
+    .card {
+      background: #141414;
+      border: 1px solid rgba(201,168,76,0.15);
+      border-radius: 12px;
+      padding: 28px;
+      margin-bottom: 20px;
+    }
+    .card-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #C9A84C;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(201,168,76,0.15);
+    }
+
+    .field-row {
+      display: grid;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .field-row.cols-2 { grid-template-columns: 1fr 1fr; }
+    .field-row.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    label {
+      font-size: 12px;
+      color: #8A857A;
+      font-weight: 500;
+      letter-spacing: 0.3px;
+    }
+    label .req { color: #C9A84C; margin-left: 2px; }
+
+    input, select, textarea {
+      background: #1E1E1E;
+      border: 1px solid rgba(201,168,76,0.2);
+      color: #F0EDE8;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 14px;
+      font-family: inherit;
+      width: 100%;
+      transition: border-color 0.2s;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: #C9A84C;
+    }
+    input:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    input[type="date"]::-webkit-calendar-picker-indicator {
+      filter: invert(0.7) sepia(1) saturate(3) hue-rotate(10deg);
+    }
+    textarea { resize: vertical; min-height: 80px; }
+    select option { background: #1E1E1E; }
+
+    .employee-card {
+      display: none;
+      background: rgba(201,168,76,0.08);
+      border: 1px solid rgba(201,168,76,0.3);
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin-top: 12px;
+    }
+    .employee-card.show { display: block; }
+    .employee-card .emp-name {
+      font-size: 16px;
+      font-weight: 600;
+      color: #C9A84C;
+      margin-bottom: 4px;
+    }
+    .employee-card .emp-meta {
+      font-size: 13px;
+      color: #8A857A;
+    }
+
+    .radio-group {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      padding: 4px 0;
+    }
+    .radio-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .radio-option input[type="radio"] {
+      width: 16px;
+      height: 16px;
+      accent-color: #C9A84C;
+      cursor: pointer;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 8px;
+      padding: 12px 24px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary {
+      background: #C9A84C;
+      color: #0E0E0E;
+      width: 100%;
+    }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-secondary {
+      background: rgba(201,168,76,0.15);
+      color: #C9A84C;
+      border: 1px solid rgba(201,168,76,0.3);
+      font-size: 13px;
+      padding: 9px 18px;
+    }
+    .btn-secondary:hover { background: rgba(201,168,76,0.25); }
+
+    .alert {
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-size: 14px;
+      margin-bottom: 16px;
+      display: none;
+    }
+    .alert.show { display: block; }
+    .alert-error   { background: rgba(220,53,69,0.15);  border: 1px solid rgba(220,53,69,0.3);  color: #ff8087; }
+    .alert-success { background: rgba(40,167,69,0.12);  border: 1px solid rgba(40,167,69,0.3);  color: #60d07a; }
+    .alert-info    { background: rgba(201,168,76,0.1);  border: 1px solid rgba(201,168,76,0.25); color: #C9A84C; }
+
+    .section-form { display: none; }
+    .section-form.show { display: block; }
+
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid rgba(14,14,14,0.3);
+      border-top-color: #0E0E0E;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .field-hidden { display: none; }
+
+    @media (max-width: 500px) {
+      .field-row.cols-2, .field-row.cols-3 { grid-template-columns: 1fr; }
+      .card { padding: 20px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <div class="header">
+    <h1>Collective Mining</h1>
+    <p>Solicitud de Permiso — Autoservicio</p>
+    <span class="doc-ref">CM-TH-FR-003</span>
+  </div>
+
+  <div id="alert-global" class="alert"></div>
+
+  <!-- PASO 1: Verificar empleado -->
+  <div class="card">
+    <div class="card-title">Identificación del Solicitante</div>
+
+    <div class="field-row">
+      <div class="field">
+        <label for="cedula">Cédula de Ciudadanía <span class="req">*</span></label>
+        <input type="text" id="cedula" inputmode="numeric" placeholder="Ej: 1234567890" maxlength="12">
+      </div>
+    </div>
+
+    <button type="button" class="btn btn-secondary" id="btn-verificar" onclick="verificarEmpleado()">
+      Verificar Empleado
+    </button>
+
+    <div class="employee-card" id="emp-card">
+      <div class="emp-name" id="emp-nombre"></div>
+      <div class="emp-meta" id="emp-meta"></div>
+    </div>
+  </div>
+
+  <!-- PASO 2: Formulario (oculto hasta verificación) -->
+  <div class="section-form" id="section-form">
+
+    <!-- Contacto -->
+    <div class="card">
+      <div class="card-title">Correo de Contacto</div>
+      <div class="field-row">
+        <div class="field">
+          <label for="email_solicitante">Correo electrónico <span class="req">*</span></label>
+          <input type="email" id="email_solicitante" placeholder="tucorreo@ejemplo.com">
+        </div>
+      </div>
+    </div>
+
+    <!-- Datos del permiso -->
+    <div class="card">
+      <div class="card-title">Datos del Permiso</div>
+
+      <div class="field-row cols-2">
+        <div class="field">
+          <label for="fecha_desde">Fecha Desde <span class="req">*</span></label>
+          <input type="date" id="fecha_desde" onchange="calcularDias()">
+        </div>
+        <div class="field">
+          <label for="fecha_hasta">Fecha Hasta <span class="req">*</span></label>
+          <input type="date" id="fecha_hasta" onchange="calcularDias()">
+        </div>
+      </div>
+
+      <div class="field-row cols-2">
+        <div class="field">
+          <label for="hora_inicio">Hora Inicio</label>
+          <input type="time" id="hora_inicio">
+        </div>
+        <div class="field">
+          <label for="hora_fin">Hora Fin</label>
+          <input type="time" id="hora_fin">
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="total_dias">Total Días Solicitados</label>
+          <input type="number" id="total_dias" min="0.5" step="0.5" placeholder="Ej: 1 ó 0.5">
+        </div>
+      </div>
+    </div>
+
+    <!-- Motivo -->
+    <div class="card">
+      <div class="card-title">Motivo del Permiso</div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="motivo">Tipo de Motivo <span class="req">*</span></label>
+          <select id="motivo" onchange="toggleCual()">
+            <option value="">— Seleccione —</option>
+            <option value="Medico">Médico</option>
+            <option value="Estudio">Estudio</option>
+            <option value="Calamidad Domestica">Calamidad Doméstica</option>
+            <option value="Compensatorio">Compensatorio</option>
+            <option value="Fuerza Mayor">Fuerza Mayor</option>
+            <option value="Otra Causa">Otra Causa</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field-row field-hidden" id="cual-row">
+        <div class="field">
+          <label for="cual">¿Cuál?</label>
+          <input type="text" id="cual" placeholder="Especifique la causa">
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="explicacion">Descripción / Justificación</label>
+          <textarea id="explicacion" placeholder="Describa brevemente la situación..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tipo de permiso -->
+    <div class="card">
+      <div class="card-title">Tipo de Permiso</div>
+      <div class="radio-group">
+        <label class="radio-option">
+          <input type="radio" name="tipo_permiso" value="Remunerado" checked>
+          Remunerado
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="tipo_permiso" value="No Remunerado">
+          No Remunerado
+        </label>
+      </div>
+    </div>
+
+    <!-- Observaciones -->
+    <div class="card">
+      <div class="card-title">Observaciones</div>
+      <div class="field-row">
+        <div class="field">
+          <label for="observaciones">Observaciones adicionales</label>
+          <textarea id="observaciones" placeholder="Información adicional relevante para Talento Humano..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div id="alert-submit" class="alert"></div>
+
+    <button type="button" class="btn btn-primary" id="btn-submit" onclick="enviarSolicitud()">
+      Enviar Solicitud de Permiso
+    </button>
+
+  </div><!-- /section-form -->
+
+</div><!-- /container -->
+
+<script>
+  let _empData = null;
+
+  function showAlert(id, tipo, msg) {
+    const el = document.getElementById(id);
+    el.className = `alert alert-${tipo} show`;
+    el.textContent = msg;
+  }
+  function hideAlert(id) {
+    const el = document.getElementById(id);
+    el.className = 'alert';
+    el.textContent = '';
+  }
+
+  async function verificarEmpleado() {
+    const cedula = document.getElementById('cedula').value.trim();
+    if (!cedula || cedula.length < 5) {
+      showAlert('alert-global', 'error', 'Ingrese un número de cédula válido.');
+      return;
+    }
+
+    const btn = document.getElementById('btn-verificar');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Verificando...';
+    hideAlert('alert-global');
+
+    try {
+      const resp = await fetch(`/api/solicitudes/verificar-empleado?cedula=${encodeURIComponent(cedula)}`);
+      const data = await resp.json();
+
+      if (!resp.ok || !data.success) {
+        showAlert('alert-global', 'error', data.error || 'Empleado no encontrado. Verifique su cédula.');
+        document.getElementById('emp-card').classList.remove('show');
+        document.getElementById('section-form').classList.remove('show');
+        _empData = null;
+        return;
+      }
+
+      _empData = data;
+      document.getElementById('emp-nombre').textContent = data.nombre;
+      document.getElementById('emp-meta').textContent = [data.cargo, data.area].filter(Boolean).join(' · ');
+      document.getElementById('emp-card').classList.add('show');
+      document.getElementById('section-form').classList.add('show');
+      showAlert('alert-global', 'info', 'Empleado verificado. Complete el formulario y envíe su solicitud.');
+
+    } catch (err) {
+      showAlert('alert-global', 'error', 'Error de conexión. Intente nuevamente.');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = 'Verificar Empleado';
+    }
+  }
+
+  function toggleCual() {
+    const motivo = document.getElementById('motivo').value;
+    const row = document.getElementById('cual-row');
+    row.classList.toggle('field-hidden', motivo !== 'Otra Causa');
+  }
+
+  function calcularDias() {
+    const desde = document.getElementById('fecha_desde').value;
+    const hasta = document.getElementById('fecha_hasta').value;
+    if (desde && hasta) {
+      const d1 = new Date(desde), d2 = new Date(hasta);
+      const dias = Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1;
+      if (dias > 0) document.getElementById('total_dias').value = dias;
+    }
+  }
+
+  async function enviarSolicitud() {
+    hideAlert('alert-submit');
+
+    if (!_empData) {
+      showAlert('alert-submit', 'error', 'Primero verifique su cédula.');
+      return;
+    }
+
+    const cedula       = document.getElementById('cedula').value.trim();
+    const email        = document.getElementById('email_solicitante').value.trim();
+    const fecha_desde  = document.getElementById('fecha_desde').value;
+    const fecha_hasta  = document.getElementById('fecha_hasta').value;
+    const hora_inicio  = document.getElementById('hora_inicio').value;
+    const hora_fin     = document.getElementById('hora_fin').value;
+    const total_dias   = document.getElementById('total_dias').value;
+    const motivo       = document.getElementById('motivo').value;
+    const cual         = document.getElementById('cual').value.trim();
+    const explicacion  = document.getElementById('explicacion').value.trim();
+    const tipo_permiso = document.querySelector('input[name="tipo_permiso"]:checked').value;
+    const observaciones= document.getElementById('observaciones').value.trim();
+
+    if (!email) { showAlert('alert-submit', 'error', 'Ingrese su correo electrónico.'); return; }
+    if (!fecha_desde || !fecha_hasta) { showAlert('alert-submit', 'error', 'Ingrese las fechas del permiso.'); return; }
+    if (!motivo) { showAlert('alert-submit', 'error', 'Seleccione el motivo del permiso.'); return; }
+    if (new Date(fecha_desde) > new Date(fecha_hasta)) {
+      showAlert('alert-submit', 'error', 'La fecha de inicio no puede ser posterior a la fecha final.');
+      return;
+    }
+
+    const btn = document.getElementById('btn-submit');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Enviando solicitud...';
+
+    try {
+      const resp = await fetch('/api/solicitudes/permiso', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cedula, email_solicitante: email,
+          fecha_desde, fecha_hasta,
+          hora_inicio, hora_fin, total_dias,
+          motivo, cual, explicacion,
+          tipo_permiso, observaciones,
+        }),
+      });
+
+      const data = await resp.json();
+
+      if (resp.ok && data.success) {
+        showAlert('alert-submit', 'success',
+          `Solicitud enviada exitosamente. ${data.mensaje}`);
+        btn.textContent = 'Solicitud Enviada';
+        document.getElementById('section-form').querySelectorAll('input,select,textarea,button').forEach(el => el.disabled = true);
+      } else {
+        showAlert('alert-submit', 'error', data.error || 'Error al procesar la solicitud.');
+        btn.disabled = false;
+        btn.textContent = 'Enviar Solicitud de Permiso';
+      }
+    } catch (err) {
+      showAlert('alert-submit', 'error', 'Error de conexión. Intente nuevamente.');
+      btn.disabled = false;
+      btn.textContent = 'Enviar Solicitud de Permiso';
+    }
+  }
+
+  // Enter en cédula dispara verificación
+  document.getElementById('cedula').addEventListener('keydown', e => {
+    if (e.key === 'Enter') verificarEmpleado();
+  });
+</script>
+</body>
+</html>
