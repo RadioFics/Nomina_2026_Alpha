@@ -306,9 +306,9 @@ def _capa_vacaciones(datos: dict) -> io.BytesIO:
     # ── Información del empleado ──────────────────────────────────────────────
     # Los valores van en la columna derecha (x=248.4–552.5); escribir en x=253.
     # y_top coincide con el top de la etiqueta correspondiente (misma fila).
-    _txt(c, 253, 130.1, datos.get('nombre', ''), max_width=290)
-    _txt(c, 253, 153.0, datos.get('cedula', ''), max_width=290)
-    _txt(c, 253, 174.0, datos.get('cargo',  ''), max_width=290)
+    _txt(c, 251, 145, datos.get('nombre', ''), max_width=290)
+    _txt(c, 251, 168, datos.get('cedula', ''), max_width=290)
+    _txt(c, 251, 188, datos.get('cargo',  ''), max_width=290)
 
     # ── Período Solicitado ────────────────────────────────────────────────────
     # Parsear fechas en formato YYYY-MM-DD o DD/MM/YYYY → devuelve (DD, MM, AA)
@@ -333,17 +333,17 @@ def _capa_vacaciones(datos: dict) -> io.BytesIO:
 
     # Fila de datos (top=231.1, bottom=242.5, h=11.4 pt) — tamaño 8pt para que quepa.
     # X de cada celda medido con pdfplumber; se escribe 8–10 pt dentro del borde izq.
-    _txt(c, 258, 240, dd1, size=8, max_width=28)
-    _txt(c, 305, 240, mm1, size=8, max_width=30)
-    _txt(c, 358, 240, aa1, size=8, max_width=30)
-    _txt(c, 408, 240, dd2, size=8, max_width=28)
-    _txt(c, 460, 240, mm2, size=8, max_width=30)
-    _txt(c, 514, 240, aa2, size=8, max_width=30)
+    _txt(c, 265, 243, dd1, size=8, max_width=28)
+    _txt(c, 312, 243, mm1, size=8, max_width=30)
+    _txt(c, 365, 243, aa1, size=8, max_width=30)
+    _txt(c, 415, 243, dd2, size=8, max_width=28)
+    _txt(c, 467, 243, mm2, size=8, max_width=30)
+    _txt(c, 520, 243, aa2, size=8, max_width=30)
 
     # ── Días de Vacaciones disfrutados ────────────────────────────────────────
     # El recuadro está en x=329.9–416.9, top=264.1–286.6 (h=22.5 pt).
     # Con y_top=279 y lift=4, la línea base cae en pdfplumber y≈275 = centro del rect.
-    _txt(c, 355, 279, str(datos.get('dias_vacaciones', '')), size=11, max_width=55)
+    _txt(c, 370, 285, str(datos.get('dias_vacaciones', '')), size=11, max_width=55)
 
     # ── Tabla Actividades / Reemplazo / Observaciones ─────────────────────────
     # Columnas calibradas con ancho exacto; inicio en primera fila de datos (y=368).
@@ -353,11 +353,11 @@ def _capa_vacaciones(datos: dict) -> io.BytesIO:
     obs         = datos.get('observaciones', '')
 
     for i, linea in enumerate(textwrap.wrap(actividades, width=30)[:6]):
-        _txt(c, 78,  368 + i * 11, linea, size=8, max_width=185)
+        _txt(c, 78,  375 + i * 11, linea, size=8, max_width=185)
     for i, linea in enumerate(textwrap.wrap(reemplazo, width=18)[:6]):
-        _txt(c, 277, 368 + i * 11, linea, size=8, max_width=115)
+        _txt(c, 277, 375 + i * 11, linea, size=8, max_width=115)
     for i, linea in enumerate(textwrap.wrap(obs, width=21)[:6]):
-        _txt(c, 407, 368 + i * 11, linea, size=8, max_width=138)
+        _txt(c, 407, 375 + i * 11, linea, size=8, max_width=138)
 
     # ── Bloque de datos estructurado (invisible) ──────────────────────────────
     c.setFont('Helvetica', 4)
