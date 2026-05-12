@@ -1,5 +1,20 @@
+-- ============================================================================
+-- ⚠️⚠️⚠️  ARCHIVO LEGACY — NO EJECUTAR EN PRODUCCIÓN  ⚠️⚠️⚠️
+-- ============================================================================
+-- Este archivo es un PROTOTIPO INICIAL con nombres de tabla en camelCase
+-- (Ocasionales, Fijas) que NO corresponden a las tablas reales del sistema.
+--
+-- Tablas REALES usadas por el código:
+--   NO_NOVED   ← reemplaza "Ocasionales"
+--   NO_FIJAS   ← reemplaza "Fijas" (con columnas COD_* en vez de camelCase)
+--
+-- Si ejecutas este script crearás tablas huérfanas que el código nunca usará.
+--
+-- ✅ REFERENCIA CORRECTA: Ver DATABASE_SETUP_ORDER.md en la raíz del proyecto.
+-- ============================================================================
+
 -- Base de datos: MineDax
--- Tablas para el módulo de nómina
+-- Tablas para el módulo de nómina  (PROTOTIPO — NO USAR)
 
 -- ===== TABLA: Ocasionales =====
 CREATE TABLE Ocasionales (

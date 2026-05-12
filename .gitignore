@@ -177,3 +177,11 @@ filesV2_*.zip
 /uploads/
 /tmp/
 /_scratch/
+
+# Carpeta temporal de PDFs generados en runtime por solicitudesController
+# (se crea automáticamente al iniciar; no debe subirse al repo)
+temp/
+
+# Mantener la carpeta de logs para PM2 pero ignorar los archivos de log
+# (logs/ ya está cubierto arriba; logs/.gitkeep se fuerza con !)
+!logs/.gitkeep

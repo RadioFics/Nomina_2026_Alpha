@@ -13,11 +13,12 @@
 //    5. Envía PDF al correo de RRHH y al correo del solicitante.
 // ============================================================================
 
-const { executeQuery } = require('../config/database');
-const { enviarEmail }  = require('../config/mailer');
-const { spawn }        = require('child_process');
-const fs               = require('fs');
-const path             = require('path');
+const { executeQuery }       = require('../config/database');
+const { enviarEmail }        = require('../config/mailer');
+const { subirPDFaSharePoint } = require('../config/sharepoint');
+const { spawn }              = require('child_process');
+const fs                     = require('fs');
+const path                   = require('path');
 
 const DEFAULT_COD_EMPR = 1;
 const TEMPLATES_DIR    = path.join(__dirname, '..', 'templates');
@@ -27,20 +28,49 @@ const PYTHON_SCRIPT    = path.join(__dirname, '..', 'python', 'rellenar_pdf.py')
 // ─── DB helpers ──────────────────────────────────────────────────────────────
 
 async function _resolverEmpleado(cedula) {
+  // Consulta base: solo GN_FUNCI + GN_TERCE, las mismas tablas que usa
+  // buscarCedulasConCoincidencia (confirmadas como existentes en la BD real).
   const r = await executeQuery(`
     SELECT TOP 1
       f.COD_FUNCI,
       t.NOM_COMP,
-      f.DES_CARG AS CARGO,
-      a.NOM_AREA AS AREA
+      f.COD_CARGO,
+      f.COD_CCOST
     FROM dbo.GN_FUNCI  f
     INNER JOIN dbo.GN_TERCE t ON t.COD_TERC = f.COD_TERC
-    LEFT  JOIN dbo.GN_AREAS a ON a.COD_AREA = f.COD_AREA
     WHERE f.COD_EMPR = @codEmpr
       AND t.NUM_IDEN = CAST(@cedula AS BIGINT)
       AND f.ACT_ESTA = 'A'
   `, { codEmpr: DEFAULT_COD_EMPR, cedula: String(cedula).trim() });
-  return r.recordset && r.recordset[0] ? r.recordset[0] : null;
+
+  if (!r.recordset || !r.recordset[0]) return null;
+
+  const row = r.recordset[0];
+  let cargo = '', area = '';
+
+  // Intento opcional: traer descripción de cargo (tabla MAE_CARGO si existe)
+  try {
+    if (row.COD_CARGO) {
+      const rc = await executeQuery(
+        `SELECT TOP 1 NOM_CARGO FROM dbo.MAE_CARGO WHERE COD_CARGO = @cod`,
+        { cod: row.COD_CARGO }
+      );
+      if (rc.recordset && rc.recordset[0]) cargo = rc.recordset[0].NOM_CARGO || '';
+    }
+  } catch (_) { /* tabla inexistente — no bloquea */ }
+
+  // Intento opcional: traer descripción de centro de costo (MAE_CCOST si existe)
+  try {
+    if (row.COD_CCOST) {
+      const rd = await executeQuery(
+        `SELECT TOP 1 NOM_CCOST FROM dbo.MAE_CCOST WHERE COD_CCOST = @cod`,
+        { cod: row.COD_CCOST }
+      );
+      if (rd.recordset && rd.recordset[0]) area = rd.recordset[0].NOM_CCOST || '';
+    }
+  } catch (_) { /* tabla inexistente — no bloquea */ }
+
+  return { COD_FUNCI: row.COD_FUNCI, NOM_COMP: row.NOM_COMP, CARGO: cargo, AREA: area, COD_CCOST: row.COD_CCOST || null };
 }
 
 async function _resolverPeriodo() {
@@ -101,7 +131,7 @@ async function _buscarEnPeriodo(codPeriod, codFunci, codConc) {
 
 // ─── Insertar / actualizar NO_NOVED + NO_AUSEN ───────────────────────────────
 
-async function _registrarNoved({ codFunci, periodo, codConc, fechaIni, fechaFin, diasTotal, obs, diag }) {
+async function _registrarNoved({ codFunci, codCcost, periodo, codConc, fechaIni, fechaFin, diasTotal, obs }) {
   const codEmpr = DEFAULT_COD_EMPR;
 
   const dup = await _buscarDuplicado(codFunci, codConc, fechaIni, fechaFin);
@@ -120,9 +150,9 @@ async function _registrarNoved({ codFunci, periodo, codConc, fechaIni, fechaFin,
         SET ACT_ESTA='A', ACT_USUA='SELF_SVC', ACT_HORA=SYSDATETIME()
         WHERE COD_EMPR=@codEmpr AND COD_NOVED=@codNoved;
       ELSE
-        INSERT INTO dbo.NO_AUSEN (COD_EMPR,COD_NOVED,FEC_INI,FEC_FIN,DIAS_TOTAL,DIAGNOSTICO,ACT_USUA,ACT_HORA,ACT_ESTA)
-        VALUES (@codEmpr,@codNoved,CONVERT(date,@fechaIni),CONVERT(date,@fechaFin),@diasTotal,@diag,'SELF_SVC',SYSDATETIME(),'A');
-    `, { codEmpr, codNoved: dup.COD_NOVED, fechaIni, fechaFin, diasTotal, diag });
+        INSERT INTO dbo.NO_AUSEN (COD_EMPR,COD_NOVED,FEC_INI,FEC_FIN,DIAS_TOTAL,ACT_USUA,ACT_HORA,ACT_ESTA)
+        VALUES (@codEmpr,@codNoved,CONVERT(date,@fechaIni),CONVERT(date,@fechaFin),@diasTotal,'SELF_SVC',SYSDATETIME(),'A');
+    `, { codEmpr, codNoved: dup.COD_NOVED, fechaIni, fechaFin, diasTotal });
     return { estado: 'REACTIVADO', codNoved: dup.COD_NOVED };
   }
 
@@ -136,31 +166,34 @@ async function _registrarNoved({ codFunci, periodo, codConc, fechaIni, fechaFin,
     `, { codEmpr, codNoved: enPer.COD_NOVED, fechaIni, fechaFin, obs });
     await executeQuery(`
       IF NOT EXISTS (SELECT 1 FROM dbo.NO_AUSEN WHERE COD_EMPR=@codEmpr AND COD_NOVED=@codNoved)
-        INSERT INTO dbo.NO_AUSEN (COD_EMPR,COD_NOVED,FEC_INI,FEC_FIN,DIAS_TOTAL,DIAGNOSTICO,ACT_USUA,ACT_HORA,ACT_ESTA)
-        VALUES (@codEmpr,@codNoved,CONVERT(date,@fechaIni),CONVERT(date,@fechaFin),@diasTotal,@diag,'SELF_SVC',SYSDATETIME(),'A');
+        INSERT INTO dbo.NO_AUSEN (COD_EMPR,COD_NOVED,FEC_INI,FEC_FIN,DIAS_TOTAL,ACT_USUA,ACT_HORA,ACT_ESTA)
+        VALUES (@codEmpr,@codNoved,CONVERT(date,@fechaIni),CONVERT(date,@fechaFin),@diasTotal,'SELF_SVC',SYSDATETIME(),'A');
       ELSE
         UPDATE dbo.NO_AUSEN
         SET FEC_INI=CONVERT(date,@fechaIni),FEC_FIN=CONVERT(date,@fechaFin),
             DIAS_TOTAL=@diasTotal,ACT_ESTA='A',ACT_USUA='SELF_SVC',ACT_HORA=SYSDATETIME()
         WHERE COD_EMPR=@codEmpr AND COD_NOVED=@codNoved;
-    `, { codEmpr, codNoved: enPer.COD_NOVED, fechaIni, fechaFin, diasTotal, diag });
+    `, { codEmpr, codNoved: enPer.COD_NOVED, fechaIni, fechaFin, diasTotal });
     return { estado: 'ACTUALIZADO', codNoved: enPer.COD_NOVED };
   }
 
+  // ── INSERT nuevo registro ─────────────────────────────────────────────────
+  // COD_CCOST se incluye cuando la tabla lo tiene; si el valor es nulo se omite
+  // de forma segura porque la columna acepta NULL.
   const ins = await executeQuery(`
     INSERT INTO dbo.NO_NOVED (
       COD_EMPR, COD_FUNCI, COD_CONC, COD_PERIOD,
       FEC_REGI, OBS_NOVED, IND_APLICADO,
       ACT_USUA, ACT_HORA, ACT_ESTA,
-      FEC_INI, FEC_FIN
+      FEC_INI, FEC_FIN, COD_CCOST
     ) VALUES (
       @codEmpr, @codFunci, @codConc, @codPeriod,
       CONVERT(date,GETDATE()), @obs, 'N',
       'SELF_SVC', GETDATE(), 'A',
-      CONVERT(date,@fechaIni), CONVERT(date,@fechaFin)
+      CONVERT(date,@fechaIni), CONVERT(date,@fechaFin), @codCcost
     );
     SELECT SCOPE_IDENTITY() AS codNoved;
-  `, { codEmpr, codFunci, codConc, codPeriod: periodo.COD_PERIOD, obs, fechaIni, fechaFin });
+  `, { codEmpr, codFunci, codConc, codPeriod: periodo.COD_PERIOD, obs, fechaIni, fechaFin, codCcost: codCcost || null });
 
   const codNoved = ins.recordset && ins.recordset[0] ? ins.recordset[0].codNoved : null;
 
@@ -168,12 +201,12 @@ async function _registrarNoved({ codFunci, periodo, codConc, fechaIni, fechaFin,
     await executeQuery(`
       INSERT INTO dbo.NO_AUSEN (
         COD_EMPR,COD_NOVED,FEC_INI,FEC_FIN,DIAS_TOTAL,
-        DIAGNOSTICO,ACT_USUA,ACT_HORA,ACT_ESTA
+        ACT_USUA,ACT_HORA,ACT_ESTA
       ) VALUES (
         @codEmpr,@codNoved,CONVERT(date,@fechaIni),CONVERT(date,@fechaFin),@diasTotal,
-        @diag,'SELF_SVC',SYSDATETIME(),'A'
+        'SELF_SVC',SYSDATETIME(),'A'
       )
-    `, { codEmpr, codNoved, fechaIni, fechaFin, diasTotal, diag });
+    `, { codEmpr, codNoved, fechaIni, fechaFin, diasTotal });
   }
 
   return { estado: 'INSERTADO', codNoved };
@@ -184,27 +217,100 @@ async function _registrarNoved({ codFunci, periodo, codConc, fechaIni, fechaFin,
 function _generarPDF(tipo, datos, rutaPlantilla, rutaSalida) {
   return new Promise((resolve, reject) => {
     const tmpJson = `${rutaSalida}.json`;
-    fs.writeFileSync(tmpJson, JSON.stringify(datos, null, 2), 'utf8');
+    try {
+      fs.writeFileSync(tmpJson, JSON.stringify(datos, null, 2), 'utf8');
+    } catch (e) {
+      return reject(new Error(`No se pudo escribir JSON temporal: ${e.message}`));
+    }
 
-    let stdout = '', stderr = '';
-    // Windows: usar 'python'; Linux/VPS: usar 'python3'
-    const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
-    const py = spawn(pythonCmd, [PYTHON_SCRIPT, tipo, tmpJson, rutaPlantilla, rutaSalida]);
+    function cleanup() { try { fs.unlinkSync(tmpJson); } catch (_) {} }
 
-    py.stdout.on('data', d => { stdout += d.toString(); });
-    py.stderr.on('data', d => { stderr += d.toString(); });
+    const isWin = process.platform === 'win32';
 
-    py.on('close', code => {
-      try { fs.unlinkSync(tmpJson); } catch (_) {}
-      if (code !== 0) {
-        return reject(new Error(`rellenar_pdf.py error (code ${code}): ${stderr.slice(0, 400)}`));
+    // Lista de candidatos en orden de prioridad:
+    //   1. PYTHON_PATH en .env  →  ruta absoluta explícita (máxima prioridad)
+    //   2. python  →  ejecutable en PATH del sistema
+    //   3. py      →  Windows Python Launcher
+    //   4. python3 →  entornos Linux/alternativos
+    //   5. .venv   →  venv del proyecto (último: puede no tener los paquetes)
+    const cmds = [];
+
+    // 1. Ruta explícita configurada en .env (más confiable en entornos con venv activo)
+    const envPython = process.env.PYTHON_PATH;
+    if (envPython && envPython.trim() && fs.existsSync(envPython.trim())) {
+      cmds.push(envPython.trim());
+    }
+
+    // 2-4. Comandos genéricos según plataforma
+    if (isWin) cmds.push('python', 'py', 'python3');
+    else        cmds.push('python3', 'python');
+
+    // 5. Venv del proyecto como último recurso
+    const venvPy = path.join(__dirname, '..', '.venv', 'Scripts', 'python.exe');
+    if (isWin && fs.existsSync(venvPy) && !cmds.includes(venvPy)) {
+      cmds.push(venvPy);
+    }
+
+    let cmdIdx = 0;
+
+    function tryNext() {
+      if (cmdIdx >= cmds.length) {
+        cleanup();
+        return reject(new Error(
+          `Python no encontrado. Se probaron: ${cmds.join(', ')}. ` +
+          `Instale Python 3 (python.org) y marque "Add python.exe to PATH" durante la instalación.`
+        ));
       }
+
+      const pythonCmd = cmds[cmdIdx++];
+      let   py, stdout = '', stderr = '';
+
       try {
-        resolve(JSON.parse(stdout.trim()));
+        // ⚠️  NUNCA usar shell:true aquí.
+        // Con shell:true, cmd.exe divide los argumentos en espacios y corta las
+        // rutas que contengan espacios (como "OneDrive - Collective Mining...").
+        // Sin shell, Node.js pasa el array de argumentos directamente al proceso
+        // y los espacios en rutas no causan ningún problema.
+        py = spawn(pythonCmd, [PYTHON_SCRIPT, tipo, tmpJson, rutaPlantilla, rutaSalida], {
+          windowsHide: true,   // evitar ventana CMD emergente en Windows
+        });
       } catch (e) {
-        reject(new Error(`JSON parse: ${stdout.slice(0, 200)}`));
+        return tryNext();   // el spawn en sí falló — probar siguiente
       }
-    });
+
+      py.on('error', (err) => {
+        if (err.code === 'ENOENT') return tryNext();   // comando no existe
+        cleanup();
+        reject(new Error(`Error ejecutando "${pythonCmd}": ${err.message}`));
+      });
+
+      py.stdout.on('data', d => { stdout += d.toString(); });
+      py.stderr.on('data', d => { stderr += d.toString(); });
+
+      py.on('close', code => {
+        if (code !== 0) {
+          // Windows shell devuelve 9009 o mensaje "is not recognized" cuando
+          // el ejecutable no existe en PATH — en ese caso probamos el siguiente.
+          const notFound = code === 9009 ||
+            stderr.toLowerCase().includes('not recognized') ||
+            stderr.toLowerCase().includes('no se reconoce') ||
+            stderr.toLowerCase().includes('was not found');
+          if (notFound) return tryNext();
+          cleanup();
+          return reject(new Error(
+            `rellenar_pdf.py falló con "${pythonCmd}" (código ${code}):\n${stderr.slice(0, 600)}`
+          ));
+        }
+        cleanup();
+        try {
+          resolve(JSON.parse(stdout.trim()));
+        } catch (e) {
+          reject(new Error(`Respuesta inesperada de Python ("${pythonCmd}"): ${stdout.slice(0, 300)}`));
+        }
+      });
+    }
+
+    tryNext();
   });
 }
 
@@ -259,6 +365,26 @@ function _isoADDMMYYYY(iso) {
 
 // ─── Endpoints ────────────────────────────────────────────────────────────────
 
+// GET /api/solicitudes/conceptos-ausentismo
+// Devuelve los tipos de ausentismo/permiso disponibles en NO_CONCE.
+// Ruta pública — no requiere JWT.
+exports.listarConceptosAusentismo = async (req, res) => {
+  try {
+    const r = await executeQuery(`
+      SELECT COD_CONC AS codConc, NOM_CONC AS nombre, TIP_CONC AS tipo
+      FROM dbo.NO_CONCE
+      WHERE TIP_NATU IN ('AUSENTISMO','PERMISO') AND ACT_ESTA = 'A'
+        AND COD_CONC <> 63        -- excluir Vacaciones (tiene su propio formulario)
+      ORDER BY TIP_NATU DESC, NOM_CONC ASC
+    `);
+    res.json({ success: true, conceptos: r.recordset || [] });
+  } catch (err) {
+    // Si NO_CONCE no existe o falla, devolvemos lista vacía — el form usa los hardcoded
+    console.error('[solicitudes] conceptos-ausentismo:', err.message);
+    res.json({ success: true, conceptos: [] });
+  }
+};
+
 exports.verificarEmpleado = async (req, res) => {
   const { cedula } = req.query;
   if (!cedula || String(cedula).trim().length < 5) {
@@ -287,12 +413,19 @@ exports.enviarSolicitudPermiso = async (req, res) => {
     cedula, email_solicitante,
     fecha_desde, fecha_hasta,
     hora_inicio, hora_fin, total_dias,
-    motivo, cual, explicacion,
+    tipo_ausentismo,         // ← tipo para la BD (COD_CONC) — campo principal
+    motivo_pdf,              // ← motivo para marcar checkbox en el PDF (opcional)
+    cual, explicacion,
     tipo_permiso, observaciones,
+    cod_conc: codConcBody,   // ← COD_CONC numérico explícito enviado por el form
   } = req.body;
 
-  if (!cedula || !fecha_desde || !fecha_hasta || !motivo) {
-    return res.status(400).json({ success: false, error: 'Faltan campos obligatorios: cedula, fecha_desde, fecha_hasta, motivo' });
+  // Compatibilidad con versión anterior que usaba campo "motivo"
+  const tipoAusentismo = tipo_ausentismo || req.body.motivo || '';
+  const motivoPDF      = motivo_pdf      || '';
+
+  if (!cedula || !fecha_desde || !fecha_hasta || !tipoAusentismo) {
+    return res.status(400).json({ success: false, error: 'Faltan campos obligatorios: cedula, fecha_desde, fecha_hasta, tipo_ausentismo' });
   }
 
   let pdfSalida = null;
@@ -310,29 +443,39 @@ exports.enviarSolicitudPermiso = async (req, res) => {
       return res.status(409).json({ success: false, error: 'No hay período de nómina activo en el sistema' });
     }
 
-    // 3. Mapear motivo → COD_CONC
-    const motivoUpper = (motivo || '').toUpperCase();
-    let codConc = 68; // Permiso Remunerado por defecto
-    if (motivoUpper.includes('COMPENSATORIO')) codConc = 74;
-    else if (motivoUpper.includes('FAMILIA'))    codConc = 75;
+    // 3. Mapear tipo_ausentismo → COD_CONC
+    // Prioridad: (a) cod_conc numérico del form; (b) mapeo por nombre; (c) default 68
+    let codConc;
+    if (codConcBody && !isNaN(Number(codConcBody))) {
+      codConc = Number(codConcBody);
+    } else {
+      const upper = tipoAusentismo.toUpperCase();
+      if      (upper.includes('COMPENSATORIO')) codConc = 74;
+      else if (upper.includes('FAMILIA'))       codConc = 75;
+      else                                      codConc = 68; // Permiso Remunerado
+    }
 
     // 4. Registrar en BD
-    const fechaIni   = fecha_desde; // YYYY-MM-DD desde input type="date"
-    const fechaFin   = fecha_hasta;
-    const diasTotal  = parseFloat(total_dias) || 1;
-    const diagSlice  = (motivo || 'PERMISO').slice(0, 20);
-    const obs        = [motivo, hora_inicio ? `${hora_inicio}-${hora_fin}` : '', observaciones]
-                         .filter(Boolean).join(' | ').slice(0, 500) || 'Permiso auto-servicio';
+    const fechaIni  = fecha_desde;
+    const fechaFin  = fecha_hasta;
+    const diasTotal = parseFloat(total_dias) || 1;
+
+    // OBS_NOVED: solo explicación y observaciones del solicitante.
+    // Formato: "E: <texto> | O: <texto>" — omitir partes vacías.
+    const obsParts = [];
+    if ((explicacion  || '').trim()) obsParts.push(`E: ${explicacion.trim()}`);
+    if ((observaciones|| '').trim()) obsParts.push(`O: ${observaciones.trim()}`);
+    const obs = obsParts.join(' | ').slice(0, 500) || 'Permiso auto-servicio';
 
     const resultado = await _registrarNoved({
-      codFunci: emp.COD_FUNCI,
+      codFunci:  emp.COD_FUNCI,
+      codCcost:  emp.COD_CCOST || null,
       periodo,
       codConc,
       fechaIni,
       fechaFin,
       diasTotal,
       obs,
-      diag: diagSlice,
     });
 
     // 5. Preparar datos para el PDF
@@ -342,10 +485,10 @@ exports.enviarSolicitudPermiso = async (req, res) => {
     const anioHoy    = String(hoy.getFullYear());
 
     const datosPDF = {
-      nombre:       emp.NOM_COMP.trim(),
+      nombre:       (emp.NOM_COMP || '').trim(),
       cedula:       String(cedula).trim(),
-      cargo:        emp.CARGO.trim(),
-      area:         (emp.AREA || '').trim(),
+      cargo:        (emp.CARGO || '').trim(),
+      area:         (emp.AREA  || '').trim(),
       fecha_dia:    diaHoy,
       fecha_mes:    mesHoy,
       fecha_anio:   anioHoy,
@@ -354,30 +497,41 @@ exports.enviarSolicitudPermiso = async (req, res) => {
       hora_inicio:  hora_inicio  || '',
       hora_fin:     hora_fin     || '',
       total_dias:   String(total_dias || ''),
-      motivo:       motivo       || '',
-      cual:         cual         || '',
-      explicacion:  explicacion  || '',
-      tipo_permiso: tipo_permiso || 'Remunerado',
+      // motivo: el campo PDF determina qué checkbox se marca en el formato.
+      // Si se dejó vacío, el script no marcará ningún checkbox pero igual
+      // rellena nombre, fechas y demás campos del documento.
+      motivo:        motivoPDF || tipoAusentismo,
+      cual:          cual         || '',
+      explicacion:   explicacion  || '',
+      tipo_permiso:  tipo_permiso || 'Remunerado',
       observaciones: observaciones || '',
+      cod_conc:      codConc,   // ← embebido en bloque [FORMS] para import determinístico
     };
 
     // 6. Generar PDF
     if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
-    const ts       = Date.now();
-    pdfSalida      = path.join(TEMP_DIR, `permiso_${cedula}_${ts}.pdf`);
+    const ts        = Date.now();
+    pdfSalida       = path.join(TEMP_DIR, `permiso_${cedula}_${ts}.pdf`);
     const plantilla = path.join(TEMPLATES_DIR, 'FORMATO_SOLICITUD_PERMISO.pdf');
 
-    let pdfOk = false;
+    let pdfOk    = false;
+    let pdfErrMsg = null;
     try {
       await _generarPDF('permiso', datosPDF, plantilla, pdfSalida);
       pdfOk = true;
     } catch (pdfErr) {
+      pdfErrMsg = pdfErr.message;
       console.error('[solicitudes] Error generando PDF de permiso:', pdfErr.message);
+    }
+
+    // 6b. Subir PDF a SharePoint (no bloqueante — si falla, el flujo continúa)
+    if (pdfOk) {
+      await subirPDFaSharePoint(pdfSalida, `Permiso_${(emp.NOM_COMP||'').trim().replace(/ /g,'_')}_${ts}.pdf`);
     }
 
     // 7. Enviar correos
     const fechasLabel = `${_isoADDMMYYYY(fecha_desde)} al ${_isoADDMMYYYY(fecha_hasta)}`;
-    const adjunto = pdfOk ? [{ filename: `Permiso_${emp.NOM_COMP.trim()}.pdf`, path: pdfSalida }] : [];
+    const adjunto = pdfOk ? [{ filename: `Permiso_${(emp.NOM_COMP||'').trim()}.pdf`, path: pdfSalida }] : [];
 
     const destinos = [];
     if (process.env.MAIL_RRHH) destinos.push(process.env.MAIL_RRHH);
@@ -390,8 +544,8 @@ exports.enviarSolicitudPermiso = async (req, res) => {
         await enviarEmail({
           from:        `"Collective Mining Nómina" <${process.env.MAIL_USER}>`,
           to:          emailRRHH,
-          subject:     `Solicitud de Permiso — ${emp.NOM_COMP.trim()} — ${fechasLabel}`,
-          html:        _emailRRHH('permiso', emp.NOM_COMP.trim(), cedula, fechasLabel, email_solicitante),
+          subject:     `Solicitud de Permiso — ${(emp.NOM_COMP||'').trim()} — ${fechasLabel}`,
+          html:        _emailRRHH('permiso', (emp.NOM_COMP||'').trim(), cedula, fechasLabel, email_solicitante),
           attachments: adjunto,
         });
       }
@@ -401,18 +555,22 @@ exports.enviarSolicitudPermiso = async (req, res) => {
           from:        `"Collective Mining Nómina" <${process.env.MAIL_USER}>`,
           to:          email_solicitante,
           subject:     `Tu Solicitud de Permiso — ${fechasLabel}`,
-          html:        _emailConfirmacion('permiso', emp.NOM_COMP.trim(), `Período: ${fechasLabel}`),
+          html:        _emailConfirmacion('permiso', (emp.NOM_COMP||'').trim(), `Período: ${fechasLabel}`),
           attachments: adjunto,
         });
       }
     }
 
     res.json({
-      success: true,
-      estado:  resultado.estado,
-      codNoved: resultado.codNoved,
-      nombre:  emp.NOM_COMP.trim(),
-      mensaje: `Solicitud de permiso registrada (${resultado.estado}). ${pdfOk ? 'PDF enviado por correo.' : 'Advertencia: el PDF no pudo generarse.'}`,
+      success:     true,
+      estado:      resultado.estado,
+      codNoved:    resultado.codNoved,
+      nombre:      (emp.NOM_COMP||'').trim(),
+      pdfGenerado: pdfOk,
+      pdfError:    pdfOk ? null : pdfErrMsg,
+      mensaje:     `Solicitud de permiso registrada (${resultado.estado}). ` +
+                   (pdfOk ? 'PDF generado y enviado por correo.' :
+                    `Advertencia: el PDF no pudo generarse. Causa: ${pdfErrMsg}`),
     });
 
   } catch (err) {
@@ -465,21 +623,21 @@ exports.enviarSolicitudVacaciones = async (req, res) => {
 
     // 4. Registrar en BD (COD_CONC = 63 — Vacaciones Disfrutadas)
     const resultado = await _registrarNoved({
-      codFunci: emp.COD_FUNCI,
+      codFunci:  emp.COD_FUNCI,
+      codCcost:  emp.COD_CCOST || null,
       periodo,
       codConc:   63,
       fechaIni,
       fechaFin,
       diasTotal,
       obs,
-      diag: `Vacaciones - ${emp.NOM_COMP.trim()}`.slice(0, 20),
     });
 
     // 5. Preparar datos para PDF
     const datosPDF = {
-      nombre:          emp.NOM_COMP.trim(),
+      nombre:          (emp.NOM_COMP || '').trim(),
       cedula:          String(cedula).trim(),
-      cargo:           emp.CARGO.trim(),
+      cargo:           (emp.CARGO || '').trim(),
       fecha_inicio:    fecha_inicio,
       fecha_fin:       fecha_fin,
       dias_vacaciones: String(diasTotal),
@@ -502,17 +660,22 @@ exports.enviarSolicitudVacaciones = async (req, res) => {
       console.error('[solicitudes] Error generando PDF de vacaciones:', pdfErr.message);
     }
 
+    // 6b. Subir PDF a SharePoint (no bloqueante — si falla, el flujo continúa)
+    if (pdfOk) {
+      await subirPDFaSharePoint(pdfSalida, `Vacaciones_${(emp.NOM_COMP||'').trim().replace(/ /g,'_')}_${ts}.pdf`);
+    }
+
     // 7. Enviar correos
     const fechasLabel = `${_isoADDMMYYYY(fecha_inicio)} al ${_isoADDMMYYYY(fecha_fin)}`;
-    const adjunto = pdfOk ? [{ filename: `Vacaciones_${emp.NOM_COMP.trim()}.pdf`, path: pdfSalida }] : [];
+    const adjunto = pdfOk ? [{ filename: `Vacaciones_${(emp.NOM_COMP||'').trim()}.pdf`, path: pdfSalida }] : [];
 
     const emailRRHH = process.env.MAIL_RRHH;
     if (emailRRHH) {
       await enviarEmail({
         from:        `"Collective Mining Nómina" <${process.env.MAIL_USER}>`,
         to:          emailRRHH,
-        subject:     `Solicitud de Vacaciones — ${emp.NOM_COMP.trim()} — ${fechasLabel}`,
-        html:        _emailRRHH('vacaciones', emp.NOM_COMP.trim(), cedula, fechasLabel, email_solicitante),
+        subject:     `Solicitud de Vacaciones — ${(emp.NOM_COMP||'').trim()} — ${fechasLabel}`,
+        html:        _emailRRHH('vacaciones', (emp.NOM_COMP||'').trim(), cedula, fechasLabel, email_solicitante),
         attachments: adjunto,
       });
     }
@@ -522,7 +685,7 @@ exports.enviarSolicitudVacaciones = async (req, res) => {
         from:        `"Collective Mining Nómina" <${process.env.MAIL_USER}>`,
         to:          email_solicitante,
         subject:     `Tu Solicitud de Vacaciones — ${fechasLabel}`,
-        html:        _emailConfirmacion('vacaciones', emp.NOM_COMP.trim(), `Período: ${fechasLabel} (${diasTotal} días)`),
+        html:        _emailConfirmacion('vacaciones', (emp.NOM_COMP||'').trim(), `Período: ${fechasLabel} (${diasTotal} días)`),
         attachments: adjunto,
       });
     }
@@ -531,7 +694,7 @@ exports.enviarSolicitudVacaciones = async (req, res) => {
       success: true,
       estado:  resultado.estado,
       codNoved: resultado.codNoved,
-      nombre:  emp.NOM_COMP.trim(),
+      nombre:  (emp.NOM_COMP||'').trim(),
       mensaje: `Solicitud de vacaciones registrada (${resultado.estado}). ${pdfOk ? 'PDF enviado por correo.' : 'Advertencia: el PDF no pudo generarse.'}`,
     });
 

@@ -28,10 +28,17 @@ const required = {
 
 // Variables opcionales
 const optional = {
-  NODE_ENV: 'Ambiente (development/production)',
-  JWT_SECRET: 'Clave secreta para JWT',
-  MAIL_USER: 'Usuario de correo (opcional)',
-  MAIL_PASS: 'Contraseña de correo (opcional)'
+  NODE_ENV:        'Ambiente (development/production)',
+  JWT_SECRET:      'Clave secreta para JWT',
+  MAIL_USER:       'Usuario de correo (para envío de emails)',
+  MAIL_PASS:       'Contraseña de correo (App Password de Gmail)',
+  MAIL_RRHH:       'Email de RRHH para notificaciones de solicitudes',
+  APP_URL:         'URL pública de la app (para links en emails)',
+  SP_TENANT_ID:    'Azure AD Tenant ID (SharePoint upload)',
+  SP_CLIENT_ID:    'Azure AD App Client ID (SharePoint upload)',
+  SP_CLIENT_SECRET:'Azure AD Client Secret (SharePoint upload)',
+  SP_DRIVE_ID:     'SharePoint Drive ID (SharePoint upload)',
+  SP_FOLDER_PATH:  'Carpeta destino en SharePoint (default: Solicitudes_TH)',
 };
 
 let allValid = true;
@@ -138,6 +145,40 @@ if (jwtSecret && nodeEnv === 'production' && jwtSecret.length < 32) {
   console.log(`     💡 En producción, usar mínimo 32 caracteres aleatorios`);
 } else if (jwtSecret) {
   console.log(`  ✅ JWT_SECRET: Configurado (${jwtSecret.length} caracteres)`);
+}
+
+console.log('');
+
+// ============================================================================
+// PASO 5: Verificar grupos de variables opcionales interdependientes
+// ============================================================================
+
+console.log('📦 PASO 5: Verificando integridad de grupos opcionales\n');
+
+// Grupo EMAIL: si alguna está, todas deben estar
+const emailVars = ['MAIL_USER', 'MAIL_PASS', 'MAIL_RRHH', 'APP_URL'];
+const emailDefinidas = emailVars.filter(v => process.env[v]);
+if (emailDefinidas.length > 0 && emailDefinidas.length < emailVars.length) {
+  const faltantes = emailVars.filter(v => !process.env[v]);
+  console.log(`  ⚠️  EMAIL INCOMPLETO: Faltan ${faltantes.join(', ')}`);
+  console.log(`     💡 Los formularios de permiso/vacaciones no enviarán correos hasta completarlas`);
+} else if (emailDefinidas.length === emailVars.length) {
+  console.log(`  ✅ EMAIL: Variables de correo completas`);
+} else {
+  console.log(`  ⚠️  EMAIL: No configurado (solo correo, sin envío automático)`);
+}
+
+// Grupo SHAREPOINT: si alguna SP_* está, todas las críticas deben estar
+const spVarsReq = ['SP_TENANT_ID', 'SP_CLIENT_ID', 'SP_CLIENT_SECRET', 'SP_DRIVE_ID'];
+const spDefinidas = spVarsReq.filter(v => process.env[v]);
+if (spDefinidas.length > 0 && spDefinidas.length < spVarsReq.length) {
+  const faltantes = spVarsReq.filter(v => !process.env[v]);
+  console.log(`  ❌ SHAREPOINT INCOMPLETO: Faltan ${faltantes.join(', ')}`);
+  console.log(`     ⚠️  Con configuración parcial el upload a SharePoint fallará silenciosamente`);
+} else if (spDefinidas.length === spVarsReq.length) {
+  console.log(`  ✅ SHAREPOINT: Variables de integración completas`);
+} else {
+  console.log(`  ℹ️  SHAREPOINT: No configurado (los PDFs no se subirán automáticamente)`);
 }
 
 console.log('');

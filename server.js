@@ -104,6 +104,12 @@ server.listen(PORT, '0.0.0.0', async () => {
   console.log(`     Local (esta máquina):  http://localhost:${PORT}`);
   console.log(`     Desde la red:          http://${localIP}:${PORT}`);
 
+  console.log('\n  📋 FORMULARIOS PÚBLICOS (sin inicio de sesión):');
+  console.log(`     Permiso    local:  http://localhost:${PORT}/solicitud/permiso`);
+  console.log(`     Permiso    red:    http://${localIP}:${PORT}/solicitud/permiso`);
+  console.log(`     Vacaciones local:  http://localhost:${PORT}/solicitud/vacaciones`);
+  console.log(`     Vacaciones red:    http://${localIP}:${PORT}/solicitud/vacaciones`);
+
   console.log('\n  🔗 COMPARTIR CON SUCURSALES:');
   console.log(`     URL de acceso: http://${localIP}:${PORT}`);
   console.log(`     BD centralizada: ${process.env.SERVER || 'DESKTOP-VEABB8R\\SQLEXPRESS'}`);

@@ -70,17 +70,18 @@ def _y(top_pdfplumber: float) -> float:
 
 def _txt(c, x: float, y_top: float, valor: str,
          font: str = 'Helvetica', size: float = 9.0,
-         max_width: float = 0, color=(0, 0, 0)):
+         max_width: float = 0, color=(0, 0, 0), lift: float = 4.0):
     """
     Dibuja `valor` en la posición (x, y_top) en coordenadas pdfplumber.
-    y_top es el valor `bottom` del texto de la etiqueta correspondiente,
-    de modo que la línea base queda alineada.
+    y_top es el valor `bottom` del texto de la etiqueta correspondiente.
+    El parámetro `lift` desplaza el texto hacia arriba (en puntos) para que
+    flote con claridad por encima de la línea subrayada del formulario.
     """
     if not valor:
         return
     c.setFont(font, size)
     c.setFillColorRGB(*color)
-    rl_y = _y(y_top)
+    rl_y = _y(y_top) + lift          # +lift pt → texto por encima de la línea
     if max_width > 0:
         # Truncar para que quepa en el ancho disponible
         valor = valor[:int(max_width / (size * 0.55))]
@@ -153,22 +154,37 @@ def _capa_permiso(datos: dict) -> io.BytesIO:
     c = canvas.Canvas(buf, pagesize=(PAGE_W, PAGE_H))
 
     # ── Información Personal ─────────────────────────────────────────────────
-    _txt(c, 95,  157.9, datos.get('nombre', ''),  max_width=270)
-    _txt(c, 413, 157.9, datos.get('cedula', ''),  max_width=150)
-    _txt(c, 86,  179.6, datos.get('cargo',  ''),  max_width=270)
-    _txt(c, 402, 179.6, datos.get('area',   ''),  max_width=150)
+    # Coordenadas calibradas con pdfplumber sobre la plantilla real.
+    # x  = inicio del subrayado del campo (extraído con page.lines).
+    # y  = top del subrayado (coordenada pdfplumber, convierte _y + lift).
+    # Subrayados obtenidos: Nombre  x0=92.9  top=158.5
+    #                       Cédula  x0=415.1 top=158.5
+    #                       Cargo   x0=92.9  top=180.2
+    #                       Área    x0=415.1 top=180.2
+    _txt(c, 95,  158.5, datos.get('nombre', ''),  max_width=280)
+    _txt(c, 418, 158.5, datos.get('cedula', ''),  max_width=138)
+    _txt(c, 95,  180.2, datos.get('cargo',  ''),  max_width=280)
+    _txt(c, 418, 180.2, datos.get('area',   ''),  max_width=138)
 
-    # Fecha (Día / Mes / Año)
-    _txt(c, 175, 136.1, datos.get('fecha_dia',  ''), max_width=80)
-    _txt(c, 335, 136.1, datos.get('fecha_mes',  ''), max_width=80)
-    _txt(c, 480, 136.1, datos.get('fecha_anio', ''), max_width=80)
+    # Fecha de emisión — cada valor sobre su propio subrayado:
+    #   Día  subrayado x0=212.0 top=136.8
+    #   Mes  subrayado x0=373.1 top=136.8
+    #   Año  subrayado x0=517.2 top=136.8
+    _txt(c, 215, 136.8, datos.get('fecha_dia',  ''), max_width=32)
+    _txt(c, 376, 136.8, datos.get('fecha_mes',  ''), max_width=32)
+    _txt(c, 520, 136.8, datos.get('fecha_anio', ''), max_width=38)
 
     # ── Datos de Permiso ──────────────────────────────────────────────────────
-    _txt(c, 233, 222.9, datos.get('fecha_desde', ''), max_width=130)
-    _txt(c, 407, 222.9, datos.get('fecha_hasta', ''), max_width=130)
-    _txt(c, 233, 244.6, datos.get('hora_inicio', ''), max_width=130)
-    _txt(c, 407, 244.6, datos.get('hora_fin',    ''), max_width=130)
-    _txt(c, 118, 266.4, str(datos.get('total_dias', '')), max_width=200)
+    # Fecha Permiso  De  subrayado x0=254.0 top=223.5
+    #               Hasta subrayado x0=415.1 top=223.5
+    _txt(c, 257, 223.5, datos.get('fecha_desde', ''), max_width=112)
+    _txt(c, 418, 223.5, datos.get('fecha_hasta', ''), max_width=95)
+    # Horas          De  subrayado x0=254.0 top=245.2
+    #               Hasta subrayado x0=415.1 top=245.2
+    _txt(c, 257, 245.2, datos.get('hora_inicio', ''), max_width=112)
+    _txt(c, 418, 245.2, datos.get('hora_fin',    ''), max_width=95)
+    # Total de Dias — va justo después de la etiqueta (x1≈114), subrayado top=267.0
+    _txt(c, 118, 267.0, str(datos.get('total_dias', '')), max_width=185)
 
     # ── Motivo del Permiso ────────────────────────────────────────────────────
     motivo = datos.get('motivo', '')
@@ -188,12 +204,16 @@ def _capa_permiso(datos: dict) -> io.BytesIO:
             _check(c, cx, ct, ch)
             break
 
-    _txt(c, 411, 354.6, datos.get('cual',       ''), max_width=150)
-    _txt(c, 109, 381.2, datos.get('explicacion', ''), max_width=460)
+    # ¿Cuál?  subrayado x0=415.1 top=355.2
+    _txt(c, 418, 355.2, datos.get('cual',       ''), max_width=95)
+    # Explicación  subrayado x0=92.9 top=381.8
+    _txt(c, 109, 381.8, datos.get('explicacion', ''), max_width=450)
 
     # ── Firmas — Solicitante ──────────────────────────────────────────────────
-    _txt(c, 95, 476.8, datos.get('nombre', ''), max_width=110)
-    _txt(c, 95, 494.9, datos.get('cedula', ''), max_width=110)
+    # Nombre y cédula del solicitante se omiten intencionalmente:
+    # el solicitante los llenará a mano al firmar el documento físico.
+    # (Antes se rellenaban automáticamente pero producían superposición con la
+    #  etiqueta "Nombre" de la columna "Jefe Inmediato" del mismo recuadro.)
 
     # ── Tipo Permiso ──────────────────────────────────────────────────────────
     tipo = datos.get('tipo_permiso', '').lower()
@@ -203,12 +223,14 @@ def _capa_permiso(datos: dict) -> io.BytesIO:
         _check(c, 354.4, 593.2, 12.7)   # No Remunerado
 
     # ── Observaciones ─────────────────────────────────────────────────────────
+    # Tres líneas de escritura en la sección OBSERVACIONES (tops extraídos de
+    # la plantilla con pdfplumber): 664.1 / 690.8 / 717.4
     obs = datos.get('observaciones', '')
     if obs:
-        # Máximo ~90 caracteres por línea; hasta 2 líneas en el espacio disponible
-        lineas = textwrap.wrap(obs, width=95)[:2]
-        for i, linea in enumerate(lineas):
-            _txt(c, 53, 650 + i * 13, linea, max_width=510)
+        _OBS_TOPS = [664.1, 690.8, 717.4]
+        lineas = textwrap.wrap(obs, width=95)
+        for i, linea in enumerate(lineas[:len(_OBS_TOPS)]):
+            _txt(c, 53, _OBS_TOPS[i], linea, max_width=500)
 
     # ── Bloque de datos estructurado (invisible) ──────────────────────────────
     # El texto blanco no es visible en el PDF impreso pero pdfplumber lo extrae,
@@ -232,6 +254,7 @@ def _capa_permiso(datos: dict) -> io.BytesIO:
         f'TIPO_PERMISO: {datos.get("tipo_permiso", "")}',
         f'EXPLICACION: {datos.get("explicacion", "")}',
         f'OBSERVACIONES: {datos.get("observaciones", "")}',
+        f'COD_CONC: {datos.get("cod_conc", "")}',
     ]
     for i, linea in enumerate(lineas_datos):
         c.drawString(5, 8 + i * 5, linea)
@@ -249,45 +272,55 @@ def _capa_vacaciones(datos: dict) -> io.BytesIO:
     """
     Genera la capa transparente con los datos de vacaciones, calibrada con las
     coordenadas exactas extraídas del FORMATO SOLICITUD DE VACACIONES.pdf
-    (612 × 792 pt, US Letter).
+    (612 × 792 pt, US Letter) mediante pdfplumber.
 
-    Mapa de coordenadas:
-      Nombre y Apellidos : x=215, bot=139.1
-      Cédula             : x=192, bot=162.0
-      Cargo              : x=107, bot=183.0
-      DESDE DD           : x=262, bot=240  (fila de datos, bajo el sub-header)
-      DESDE MM           : x=307, bot=240
-      DESDE AA           : x=361, bot=240
-      HASTA DD           : x=414, bot=240
-      HASTA MM           : x=465, bot=240
-      HASTA AA           : x=519, bot=240
-      Días vacaciones    : x=245, bot=278
-      Actividades        : x=75,  bot=385
-      Reemplazo          : x=285, bot=385
-      Observaciones      : x=445, bot=385
+    Estructura del formulario (coordenadas pdfplumber):
+
+    Información del empleado
+      Columna etiquetas : x=71.4  → x=248.0  (divisor físico en x=248.0)
+      Columna valores   : x=248.4 → x=552.5  → escribir en x=253
+      Nombre row top    : 121.5   | label top=130.1
+      Cédula row top    : 145.9   | label top=153.0
+      Cargo  row top    : 167.2   | label top=174.0
+
+    Período Solicitado — fila de datos (top=231.1 → bottom=242.5, h=11.4):
+      DD-DESDE  x=248.4–289.4  → x=258   MM-DESDE  x=289.9–342.0  → x=305
+      AA-DESDE  x=342.4–394.8  → x=358   DD-HASTA  x=395.2–447.1  → x=408
+      MM-HASTA  x=447.6–499.8  → x=460   AA-HASTA  x=500.3–552.5  → x=514
+
+    Días de Vacaciones disfrutados
+      Recuadro de verificación: x0=329.9 x1=416.9 top=264.1 bottom=286.6
+      Escribir en x=355, y_top=279 (centrado vertical en el rect)
+
+    Tabla Actividades / Reemplazo / Observaciones
+      Actividades   x=71.4–269.2  (w=197.8) → x=78,  max_width=185, wrap=30
+      Reemplazo     x=269.7–399.3 (w=129.6) → x=277, max_width=115, wrap=18
+      Observaciones x=399.8–552.5 (w=152.7) → x=407, max_width=138, wrap=21
+      Fila 1 datos: top=359.9–398.4 (h=38.5) | Fila 2: top=398.4–441.2 (h=42.8)
+      Inicio y_top=368, paso=11, máx 6 líneas
     """
 
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=(PAGE_W, PAGE_H))
 
     # ── Información del empleado ──────────────────────────────────────────────
-    _txt(c, 215, 139.1, datos.get('nombre', ''), max_width=340)
-    _txt(c, 192, 162.0, datos.get('cedula', ''), max_width=370)
-    _txt(c, 107, 183.0, datos.get('cargo',  ''), max_width=450)
+    # Los valores van en la columna derecha (x=248.4–552.5); escribir en x=253.
+    # y_top coincide con el top de la etiqueta correspondiente (misma fila).
+    _txt(c, 253, 130.1, datos.get('nombre', ''), max_width=290)
+    _txt(c, 253, 153.0, datos.get('cedula', ''), max_width=290)
+    _txt(c, 253, 174.0, datos.get('cargo',  ''), max_width=290)
 
     # ── Período Solicitado ────────────────────────────────────────────────────
-    # Parsear fechas en formato YYYY-MM-DD o DD/MM/YYYY
+    # Parsear fechas en formato YYYY-MM-DD o DD/MM/YYYY → devuelve (DD, MM, AA)
     def _parse(fecha_str):
         if not fecha_str:
             return '', '', ''
         fecha_str = str(fecha_str).strip()
         try:
             if '-' in fecha_str and len(fecha_str) == 10:
-                # YYYY-MM-DD
                 y, m, d = fecha_str.split('-')
-                return d, m, y[2:]
+                return d, m, y[2:]    # AA = últimos 2 dígitos del año
             elif '/' in fecha_str:
-                # DD/MM/YYYY o DD/MM/YY
                 partes = fecha_str.split('/')
                 d, m, y = partes[0], partes[1], partes[2]
                 return d, m, y[-2:]
@@ -298,34 +331,33 @@ def _capa_vacaciones(datos: dict) -> io.BytesIO:
     dd1, mm1, aa1 = _parse(datos.get('fecha_inicio', ''))
     dd2, mm2, aa2 = _parse(datos.get('fecha_fin',    ''))
 
-    # Las celdas de datos están en la fila debajo del sub-header DD/MM/AA (top≈213)
-    # La fila de datos ocupa top≈228 a top≈248 → usamos bot=245
-    _txt(c, 262, 245, dd1, max_width=30)
-    _txt(c, 308, 245, mm1, max_width=30)
-    _txt(c, 362, 245, aa1, max_width=30)
-    _txt(c, 414, 245, dd2, max_width=30)
-    _txt(c, 466, 245, mm2, max_width=30)
-    _txt(c, 520, 245, aa2, max_width=30)
+    # Fila de datos (top=231.1, bottom=242.5, h=11.4 pt) — tamaño 8pt para que quepa.
+    # X de cada celda medido con pdfplumber; se escribe 8–10 pt dentro del borde izq.
+    _txt(c, 258, 240, dd1, size=8, max_width=28)
+    _txt(c, 305, 240, mm1, size=8, max_width=30)
+    _txt(c, 358, 240, aa1, size=8, max_width=30)
+    _txt(c, 408, 240, dd2, size=8, max_width=28)
+    _txt(c, 460, 240, mm2, size=8, max_width=30)
+    _txt(c, 514, 240, aa2, size=8, max_width=30)
 
     # ── Días de Vacaciones disfrutados ────────────────────────────────────────
-    # La caja de días aparece a la derecha del label (label bot=273.5)
-    # La caja está aproximadamente en x=220-370, centrada verticalmente en top=265-280
-    _txt(c, 245, 278, str(datos.get('dias_vacaciones', '')), size=11, max_width=100)
+    # El recuadro está en x=329.9–416.9, top=264.1–286.6 (h=22.5 pt).
+    # Con y_top=279 y lift=4, la línea base cae en pdfplumber y≈275 = centro del rect.
+    _txt(c, 355, 279, str(datos.get('dias_vacaciones', '')), size=11, max_width=55)
 
-    # ── Tabla de gestión (Actividades / Reemplazo / Observaciones) ────────────
-    # Las celdas de datos están en la primera fila de datos, top≈355-450
-    # Usamos la primera sub-fila (bot≈385)
+    # ── Tabla Actividades / Reemplazo / Observaciones ─────────────────────────
+    # Columnas calibradas con ancho exacto; inicio en primera fila de datos (y=368).
+    # Paso de 11 pt (fuente 8 pt + interlineado 3 pt), 6 líneas → cubre ambas filas.
     actividades = datos.get('actividades', '')
     reemplazo   = datos.get('reemplazo',   '')
     obs         = datos.get('observaciones', '')
 
-    # Cada columna tiene ancho aproximado: act=200, reemp=155, obs=150
-    for i, (linea) in enumerate(textwrap.wrap(actividades, width=28)[:4]):
-        _txt(c, 75,  372 + i * 12, linea, size=8, max_width=195)
-    for i, (linea) in enumerate(textwrap.wrap(reemplazo, width=22)[:4]):
-        _txt(c, 285, 372 + i * 12, linea, size=8, max_width=150)
-    for i, (linea) in enumerate(textwrap.wrap(obs, width=22)[:4]):
-        _txt(c, 445, 372 + i * 12, linea, size=8, max_width=120)
+    for i, linea in enumerate(textwrap.wrap(actividades, width=30)[:6]):
+        _txt(c, 78,  368 + i * 11, linea, size=8, max_width=185)
+    for i, linea in enumerate(textwrap.wrap(reemplazo, width=18)[:6]):
+        _txt(c, 277, 368 + i * 11, linea, size=8, max_width=115)
+    for i, linea in enumerate(textwrap.wrap(obs, width=21)[:6]):
+        _txt(c, 407, 368 + i * 11, linea, size=8, max_width=138)
 
     # ── Bloque de datos estructurado (invisible) ──────────────────────────────
     c.setFont('Helvetica', 4)

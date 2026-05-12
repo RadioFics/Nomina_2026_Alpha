@@ -174,7 +174,11 @@ function resolverCodConcPermiso(motivo) {
  * Si ya existe y está activo → retorna como 'ACUMULADO'.
  */
 async function insertarOReactivarPermiso({ codEmpr, codFunci, periodo, datos }) {
-  const COD_CONC_PERMISO = resolverCodConcPermiso(datos.motivo);
+  // Preferir COD_CONC embebido en el bloque [FORMS] del PDF (determinístico);
+  // solo caer en la heurística por motivo si el PDF no lo trae.
+  const COD_CONC_PERMISO = (datos.cod_conc && !isNaN(Number(datos.cod_conc)))
+    ? Number(datos.cod_conc)
+    : resolverCodConcPermiso(datos.motivo);
 
   const fechaIni = datos.fecha_inicio || datos.fecha_novedad;
   const fechaFin = datos.fecha_fin    || datos.fecha_novedad || fechaIni;
@@ -220,14 +224,13 @@ async function insertarOReactivarPermiso({ codEmpr, codFunci, periodo, datos }) 
           SET ACT_ESTA='A', ACT_USUA='PDF_IMP', ACT_HORA=SYSDATETIME()
           WHERE COD_EMPR=@codEmpr AND COD_NOVED=@codNoved;
         ELSE
-          INSERT INTO dbo.NO_AUSEN (COD_EMPR, COD_NOVED, FEC_INI, FEC_FIN, DIAS_TOTAL, DIAGNOSTICO, ACT_USUA, ACT_HORA, ACT_ESTA)
-          VALUES (@codEmpr, @codNoved, CONVERT(date,@fechaIni), CONVERT(date,@fechaFin), 1, @diag, 'PDF_IMP', SYSDATETIME(), 'A');
+          INSERT INTO dbo.NO_AUSEN (COD_EMPR, COD_NOVED, FEC_INI, FEC_FIN, DIAS_TOTAL, ACT_USUA, ACT_HORA, ACT_ESTA)
+          VALUES (@codEmpr, @codNoved, CONVERT(date,@fechaIni), CONVERT(date,@fechaFin), 1, 'PDF_IMP', SYSDATETIME(), 'A');
       `, {
         codEmpr,
         codNoved: duplicado.COD_NOVED,
         fechaIni,
-        fechaFin,
-        diag: (datos.motivo || 'PERMISO REMUNERADO').slice(0, 20)
+        fechaFin
       });
       return {
         success: true,
@@ -266,12 +269,10 @@ async function insertarOReactivarPermiso({ codEmpr, codFunci, periodo, datos }) 
           INSERT INTO dbo.NO_AUSEN (
             COD_EMPR, COD_NOVED,
             FEC_INI, FEC_FIN, DIAS_TOTAL,
-            DIAGNOSTICO,
             ACT_USUA, ACT_HORA, ACT_ESTA
           ) VALUES (
             @codEmpr, @codNoved,
             CONVERT(date,@fechaIni), CONVERT(date,@fechaFin), 1,
-            @diag,
             'PDF_IMP', SYSDATETIME(), 'A'
           );
         ELSE
@@ -286,8 +287,7 @@ async function insertarOReactivarPermiso({ codEmpr, codFunci, periodo, datos }) 
         codEmpr,
         codNoved: enPeriodo.COD_NOVED,
         fechaIni,
-        fechaFin,
-        diag: (datos.motivo || 'PERMISO REMUNERADO').slice(0, 20)
+        fechaFin
       });
       return {
         success: true,
@@ -329,27 +329,23 @@ async function insertarOReactivarPermiso({ codEmpr, codFunci, periodo, datos }) 
     // Los permisos remunerados tienen TIP_NATU='AUSENTISMO' en NO_CONCE,
     // por eso deben aparecer en la vista de Ausentismos. La fila en NO_AUSEN
     // usa las mismas fechas del permiso; DIAS_TOTAL = 1 día (o fracción).
-    // DIAGNOSTICO usa el motivo extraído del PDF (máx 20 chars).
+    // DIAGNOSTICO se deja en NULL (no se rellena — campo solo informativo).
     if (codNoved) {
-      const motivoDiag = (datos.motivo || 'PERMISO REMUNERADO').slice(0, 20);
       await executeQuery(`
         INSERT INTO dbo.NO_AUSEN (
           COD_EMPR, COD_NOVED,
           FEC_INI,  FEC_FIN,  DIAS_TOTAL,
-          DIAGNOSTICO,
           ACT_USUA, ACT_HORA, ACT_ESTA
         ) VALUES (
           @codEmpr, @codNoved,
           CONVERT(date, @fechaIni), CONVERT(date, @fechaFin), 1,
-          @diagnostico,
           'PDF_IMP', SYSDATETIME(), 'A'
         )
       `, {
         codEmpr,
         codNoved,
         fechaIni,
-        fechaFin,
-        diagnostico: motivoDiag
+        fechaFin
       });
     }
 
@@ -445,12 +441,10 @@ async function insertarOReactivarVacaciones({ codEmpr, codFunci, periodo, datos 
           INSERT INTO dbo.NO_AUSEN (
             COD_EMPR, COD_NOVED,
             FEC_INI, FEC_FIN, DIAS_TOTAL,
-            DIAGNOSTICO,
             ACT_USUA, ACT_HORA, ACT_ESTA
           ) VALUES (
             @codEmpr, @codNoved,
             CONVERT(date,@fechaIni), CONVERT(date,@fechaFin), @diasTotal,
-            @diag,
             'PDF_IMP', SYSDATETIME(), 'A'
           );
         ELSE
@@ -467,8 +461,7 @@ async function insertarOReactivarVacaciones({ codEmpr, codFunci, periodo, datos 
         codNoved: enPeriodoVac.COD_NOVED,
         fechaIni,
         fechaFin,
-        diasTotal,
-        diag: `Vacaciones PDF - ${datos.nombre || ''}`.trim().slice(0, 20)
+        diasTotal
       });
       return {
         success: true,
@@ -513,12 +506,10 @@ async function insertarOReactivarVacaciones({ codEmpr, codFunci, periodo, datos 
       INSERT INTO dbo.NO_AUSEN (
         COD_EMPR, COD_NOVED,
         FEC_INI,  FEC_FIN,  DIAS_TOTAL,
-        DIAGNOSTICO,
         ACT_USUA, ACT_HORA, ACT_ESTA
       ) VALUES (
         @codEmpr, @codNoved,
         CONVERT(date, @fechaIni), CONVERT(date, @fechaFin), @diasTotal,
-        @diagnostico,
         'PDF_IMP', SYSDATETIME(), 'A'
       )
     `, {
@@ -526,8 +517,7 @@ async function insertarOReactivarVacaciones({ codEmpr, codFunci, periodo, datos 
       codNoved,
       fechaIni,
       fechaFin,
-      diasTotal,
-      diagnostico: `Vacaciones PDF - ${datos.nombre || ''}`.trim().slice(0, 20)
+      diasTotal
     });
 
     return {
@@ -544,11 +534,10 @@ async function insertarOReactivarVacaciones({ codEmpr, codFunci, periodo, datos 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function construirObs(datos) {
-  const partes = [];
-  if (datos.motivo)      partes.push(datos.motivo);
-  if (datos.hora_inicio) partes.push(`${datos.hora_inicio}-${datos.hora_fin || ''}`);
-  if (datos.observaciones) partes.push(datos.observaciones);
-  const obs = partes.join(' | ').trim();
+  // Formato alineado con solicitudesController: "E: <explicacion> | O: <observaciones>"
+  // Las observaciones del PDF vienen ya en ese formato desde procesar_pdf.py;
+  // si llegan en formato anterior (sin prefijo) se pasan tal cual.
+  const obs = (datos.observaciones || '').trim();
   return obs.slice(0, 500) || 'Permiso importado desde PDF';
 }
 
@@ -560,7 +549,12 @@ function procesarPDFconPython(rutaArchivo) {
     let stdout = '';
     let stderr = '';
 
-    const py = spawn('python3', [script, rutaArchivo]);
+    // Usar PYTHON_PATH del .env si está configurado; si no, fallback a python3 / python
+    const envPy = process.env.PYTHON_PATH && process.env.PYTHON_PATH.trim();
+    const pythonCmd = (envPy && fs.existsSync(envPy)) ? envPy
+      : (process.platform === 'win32' ? 'python' : 'python3');
+
+    const py = spawn(pythonCmd, [script, rutaArchivo], { windowsHide: true });
     py.stdout.on('data', d => { stdout += d.toString(); });
     py.stderr.on('data', d => { stderr += d.toString(); });
 

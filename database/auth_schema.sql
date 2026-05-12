@@ -1,5 +1,27 @@
 -- ============================================================================
--- SCHEMA DE AUTENTICACIÓN Y AUTORIZACIÓN
+-- ⚠️⚠️⚠️  ARCHIVO LEGACY — NO EJECUTAR EN PRODUCCIÓN  ⚠️⚠️⚠️
+-- ============================================================================
+-- Este archivo es un PROTOTIPO INICIAL que YA NO CORRESPONDE a la base de
+-- datos real. Fue creado durante la fase de diseño del sistema.
+--
+-- PROBLEMA: Define GN_USUAR con columnas INCORRECTAS:
+--   ID_USUAR (UNIQUEIDENTIFIER)  ← la BD real usa COD_USUA (INT)
+--   CEDULA                       ← la BD real usa DIR_ELEC para email
+--   NOMBRE_USUAR                 ← la BD real usa NOM_USUA
+--   PASSW_HASH                   ← la BD real usa la misma columna PASSW_HASH ✓
+--   ESTA_ACTIVO (BIT)            ← la BD real usa IND_BLOQ (CHAR)
+--   NIVEL_USUAR (INT)            ← la BD real usa COD_GUSU (FK a GN_GUSU)
+--
+-- Ejecutar este script DESTRUIRÍA el esquema real o generaría errores graves.
+--
+-- ✅ REFERENCIA CORRECTA: La estructura real de GN_USUAR está documentada en
+--    DATABASE_SETUP_ORDER.md en la raíz del proyecto.
+--    Los controladores de autenticación usan: COD_USUA, DIR_ELEC, NOM_USUA,
+--    IND_BLOQ, INT_FALL, COD_GUSU, FEC_ULCA.
+-- ============================================================================
+
+-- ============================================================================
+-- SCHEMA DE AUTENTICACIÓN Y AUTORIZACIÓN  (PROTOTIPO — NO USAR)
 -- Base de datos: MineDax
 -- Tablas: GN_USUAR, GN_ROL_USUAR, GN_MODULO_ACCESO
 -- ============================================================================

@@ -114,12 +114,22 @@ const checkPermission = (modulo, accion) => {
 };
 
 /**
- * Middleware para verificar nivel de usuario
- * Níveis: 1=Empleado, 2=Supervisor, 3=Admin
+ * Middleware para verificar nivel de usuario basado en COD_GUSU
+ *
+ * Convención de grupos (tabla GN_GUSU):
+ *   COD_GUSU 1 → Empleado  (solo puede ver sus propios datos)
+ *   COD_GUSU 2 → Supervisor
+ *   COD_GUSU 3 → Administrador (acceso total)
+ *
+ * Uso:  router.get('/ruta', verifyToken, checkLevel(3), handler)
+ *
+ * ⚠️  CORRECCIÓN: la versión anterior usaba req.nivel, que nunca es asignado
+ *    por verifyToken. Ahora usa req.cod_gusu (sí asignado en verifyToken).
  */
 const checkLevel = (nivelMinimo) => {
   return (req, res, next) => {
-    if (req.nivel < nivelMinimo) {
+    const nivel = Number(req.cod_gusu) || 0;
+    if (nivel < nivelMinimo) {
       return res.status(403).json({
         status: 'error',
         message: 'Nivel de usuario insuficiente para esta acción'

@@ -1,0 +1,17 @@
+# ============================================================================
+#  requirements.txt — Dependencias Python para MineDax
+#
+#  Instalación en el VPS:
+#    pip install -r requirements.txt
+#    (o en entorno virtual: python -m venv venv && venv\Scripts\activate && pip install -r requirements.txt)
+#
+#  Usado por:
+#    python/rellenar_pdf.py  →  rellena plantillas PDF oficiales de Collective Mining
+#    (invocado por solicitudesController.js via child_process.spawn)
+# ============================================================================
+
+# Lectura y escritura de PDFs con formularios AcroForm
+pypdf==4.3.1
+
+# Generación de texto/imágenes sobre PDFs (coordenadas exactas)
+reportlab==4.2.2

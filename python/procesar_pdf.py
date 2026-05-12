@@ -1015,9 +1015,30 @@ def _leer_bloque_forms(text: str) -> dict:
 
 def extraer_formulario_generado_permiso(text: str, pdf_path: str) -> dict:
     """
-    Extrae datos de permiso (CM-TH-FR-003) desde PDF generado por Power Automate.
-    El marcador [FORMS] en el encabezado identifica este tipo.
-    Todos los campos son texto nativo → extracción 100 % fiable.
+    Extrae datos de permiso (CM-TH-FR-003) desde PDF generado por rellenar_pdf.py.
+
+    ESTRATEGIA PRINCIPAL — bloque [FORMS]:
+        rellenar_pdf.py incrusta un bloque de datos estructurado invisible al final
+        de cada PDF que genera.  Ese bloque es 100 % determinístico y no depende
+        de la posición visual del texto, por lo que es siempre preferible al regex.
+
+        Formato del bloque:
+            [FORMS]
+            NOMBRE: CALLE PALMETT JUAN ESTEBAN
+            CEDULA: 1034986488
+            FECHA_DESDE: 12/05/2026
+            FECHA_HASTA: 21/05/2026
+            HORA_INICIO: 08:00
+            HORA_FIN: 17:00
+            TOTAL_DIAS: 1
+            MOTIVO: Calamidad Domestica
+            TIPO_PERMISO: Remunerado
+            EXPLICACION: ...
+            OBSERVACIONES: ...
+
+    FALLBACK — regex sobre texto visible:
+        Solo se usa cuando el bloque [FORMS] no está presente o está vacío
+        (p. ej. PDFs escaneados o de versiones anteriores del sistema).
     """
     data = {
         'tipo_novedad':      'PERMISO',
@@ -1033,6 +1054,7 @@ def extraer_formulario_generado_permiso(text: str, pdf_path: str) -> dict:
         'hora_fin':          None,
         'cantidad':          None,
         'motivo':            None,
+        'cod_conc':          None,   # COD_CONC explícito embebido en bloque [FORMS]
         'es_remunerado':     False,
         'observaciones':     None,
         'email_solicitante': None,
@@ -1042,122 +1064,163 @@ def extraer_formulario_generado_permiso(text: str, pdf_path: str) -> dict:
         'errores':           []
     }
 
-    tn = normalizar(text)
+    _MOTIVO_MAP = [
+        ('dia de la familia', 'DIA_FAMILIA'),
+        ('familia',           'DIA_FAMILIA'),
+        ('compensatorio',     'COMPENSATORIO'),
+        ('compensatorio',     'COMPENSATORIO'),
+        ('fuerza mayor',      'FUERZA_MAYOR'),
+        ('calamidad',         'CALAMIDAD'),
+        ('medico',            'MEDICO'),
+        ('médico',            'MEDICO'),
+        ('estudio',           'ESTUDIO'),
+        ('otra causa',        'OTRA'),
+        ('vacaciones',        'VACACIONES'),
+    ]
 
-    # ── Nombre ──────────────────────────────────────────────────────────────────
-    # Plantilla: "Nombre: Juan Pérez García   Cédula: 1234567890"
-    nombre_m = re.search(
-        r'Nombre:\s*([A-Za-záéíóúñÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s]{3,60}?)'
-        r'(?=\s+C[eé]dula:|\s*$)',
-        tn, re.IGNORECASE
-    )
-    if nombre_m:
-        data['nombre'] = nombre_m.group(1).strip()
+    def _mapear_motivo(raw: str) -> str:
+        r = raw.strip().lower()
+        for kw, cod in _MOTIVO_MAP:
+            if kw in r:
+                return cod
+        return raw.strip().upper()[:20] or 'COMPENSATORIO'
 
-    # ── Cédula ──────────────────────────────────────────────────────────────────
-    cedula_m = re.search(r'C[eé]dula:\s*(\d{7,11})', tn, re.IGNORECASE)
-    if cedula_m:
-        data['cedula'] = cedula_m.group(1).strip()
+    # ══════════════════════════════════════════════════════════════════════════
+    #  RUTA 1: bloque [FORMS] — lectura directa, sin regex ni ambigüedades
+    # ══════════════════════════════════════════════════════════════════════════
+    bloque = _leer_bloque_forms(text)
 
-    # ── Cargo ────────────────────────────────────────────────────────────────────
-    cargo_m = re.search(
-        r'Cargo:\s*([A-Za-záéíóúñÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s,]{2,60}?)'
-        r'(?=\s+[AÁ]rea:|\s*$)',
-        tn, re.IGNORECASE
-    )
-    if cargo_m:
-        data['cargo'] = cargo_m.group(1).strip()
+    if bloque:
+        # Campos de identidad
+        data['nombre'] = bloque.get('nombre') or None
+        data['cedula'] = bloque.get('cedula') or None
+        data['cargo']  = bloque.get('cargo')  or None
+        data['area']   = bloque.get('area')   or None
 
-    # ── Área ─────────────────────────────────────────────────────────────────────
-    area_m = re.search(
-        r'[AÁ]rea:\s*([A-Za-záéíóúñÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s,]{1,50}?)'
-        r'(?=\s+(?:DATOS|Fecha|$))',
-        tn, re.IGNORECASE
-    )
-    if area_m:
-        data['area'] = area_m.group(1).strip()
-
-    # ── Fechas del permiso ───────────────────────────────────────────────────────
-    # Plantilla: "Fecha Permiso: De: 15/05/2026    Hasta: 15/05/2026"
-    fechas_m = re.search(
-        r'Fecha\s+Permiso:.*?De:\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4})'
-        r'.*?Hasta:\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4})',
-        tn, re.IGNORECASE
-    )
-    if fechas_m:
-        fi = parse_fecha_ddmmyyyy(fechas_m.group(1))
-        ff = parse_fecha_ddmmyyyy(fechas_m.group(2))
+        # Fechas — guardadas en DD/MM/YYYY por rellenar_pdf.py
+        fi = parse_fecha_ddmmyyyy(bloque.get('fecha_desde', ''))
+        ff = parse_fecha_ddmmyyyy(bloque.get('fecha_hasta', ''))
         data['fecha_novedad'] = fi
         data['fecha_inicio']  = fi
         data['fecha_fin']     = ff
 
-    # ── Horas ────────────────────────────────────────────────────────────────────
-    horas_m = re.search(
-        r'Horas:.*?De:\s*(\d{1,2}:\d{2}(?:\s*(?:AM|PM|am|pm))?)'
-        r'.*?Hasta:\s*(\d{1,2}:\d{2}(?:\s*(?:AM|PM|am|pm))?)',
-        tn, re.IGNORECASE
-    )
-    if horas_m:
-        data['hora_inicio'] = horas_m.group(1).strip()
-        data['hora_fin']    = horas_m.group(2).strip()
+        # Horas (opcionales — pueden estar vacías si el usuario no las ingresó)
+        hi = (bloque.get('hora_inicio') or '').strip()
+        hf = (bloque.get('hora_fin')    or '').strip()
+        if hi: data['hora_inicio'] = hi
+        if hf: data['hora_fin']    = hf
 
-    # ── Total de días ─────────────────────────────────────────────────────────────
-    # Power Automate siempre genera un número (0.5, 1, 2, …)
-    total_m = re.search(r'Total\s+de\s+D[ií]as:\s*(\d+(?:[.,]\d)?)', tn, re.IGNORECASE)
-    if total_m:
-        try:
-            v = float(total_m.group(1).replace(',', '.'))
-            data['cantidad'] = int(v) if v == int(v) else v
-        except ValueError:
-            pass
+        # Total días
+        td_raw = (bloque.get('total_dias') or '').strip()
+        if td_raw:
+            try:
+                v = float(td_raw.replace(',', '.'))
+                data['cantidad'] = int(v) if v == int(v) else v
+            except ValueError:
+                pass
 
-    # ── Motivo ──────────────────────────────────────────────────────────────────
-    # Plantilla: "Tipo: Médico"  — valor directo del desplegable de Microsoft Forms
-    tipo_m = re.search(r'\bTipo:\s*([^\n\r]{2,40})', tn, re.IGNORECASE)
-    if tipo_m:
-        tipo_raw = tipo_m.group(1).strip().lower()
-        _motivo_map = [
-            ('dia de la familia', 'DIA_FAMILIA'),
-            ('familia',           'DIA_FAMILIA'),
-            ('compensatorio',     'COMPENSATORIO'),
-            ('fuerza mayor',      'FUERZA_MAYOR'),
-            ('calamidad',         'CALAMIDAD'),
-            ('medico',            'MEDICO'),
-            ('médico',            'MEDICO'),
-            ('estudio',           'ESTUDIO'),
-            ('otra causa',        'OTRA'),
-            ('vacaciones',        'VACACIONES'),
-        ]
-        for kw, cod in _motivo_map:
-            if kw in tipo_raw:
-                data['motivo'] = cod
-                break
-        if not data['motivo']:
-            # Guardar literal del Forms para auditoría
-            data['motivo'] = tipo_m.group(1).strip().upper()[:20]
-    if not data['motivo']:
-        data['motivo'] = 'COMPENSATORIO'
+        # Motivo
+        data['motivo'] = _mapear_motivo(bloque.get('motivo', '')) or 'COMPENSATORIO'
 
-    # ── Tipo permiso (Remunerado / No Remunerado) ────────────────────────────────
-    # Plantilla: "TIPO PERMISO: Remunerado"
-    tipo_perm_m = re.search(r'TIPO\s+PERMISO:\s*([^\n\r]{2,30})', tn, re.IGNORECASE)
-    if tipo_perm_m:
-        tp = tipo_perm_m.group(1).strip().lower()
+        # Tipo permiso
+        tp = (bloque.get('tipo_permiso') or '').lower()
         data['es_remunerado'] = ('remunerado' in tp) and ('no remunerado' not in tp)
 
-    # ── Observaciones ────────────────────────────────────────────────────────────
-    obs_m = re.search(r'OBSERVACIONES?:\s*([^\n]{5,500})', tn, re.IGNORECASE)
-    if obs_m:
-        data['observaciones'] = obs_m.group(1).strip()
+        # Observaciones — combinar explicacion + observaciones del bloque
+        obs_parts = []
+        expl = (bloque.get('explicacion')   or '').strip()
+        obs  = (bloque.get('observaciones') or '').strip()
+        if expl: obs_parts.append(f'E: {expl}')
+        if obs:  obs_parts.append(f'O: {obs}')
+        if obs_parts:
+            data['observaciones'] = ' | '.join(obs_parts)[:500]
 
-    # ── Email solicitante ────────────────────────────────────────────────────────
-    # Plantilla: "Correo electrónico: juan@collectivemining.com"
-    email_m = re.search(
-        r'(?:Correo|Email|E-mail)[^:]*:\s*([\w.+-]+@[\w-]+\.[a-z]{2,})',
-        tn, re.IGNORECASE
-    )
-    if email_m:
-        data['email_solicitante'] = email_m.group(1).strip()
+        # COD_CONC embebido — evita la heurística de resolverCodConcPermiso en el controller
+        cc_raw = (bloque.get('cod_conc') or '').strip()
+        if cc_raw.isdigit():
+            data['cod_conc'] = int(cc_raw)
+
+    else:
+        # ══════════════════════════════════════════════════════════════════════
+        #  RUTA 2: regex sobre texto visible (fallback para PDFs sin bloque)
+        # ══════════════════════════════════════════════════════════════════════
+        tn = normalizar(text)
+
+        nombre_m = re.search(
+            r'Nombre:\s*([A-Za-záéíóúñÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s]{3,60}?)'
+            r'(?=\s+C[eé]dula:|\s*$)',
+            tn, re.IGNORECASE
+        )
+        if nombre_m:
+            data['nombre'] = nombre_m.group(1).strip()
+
+        cedula_m = re.search(r'C[eé]dula:\s*(\d{7,11})', tn, re.IGNORECASE)
+        if cedula_m:
+            data['cedula'] = cedula_m.group(1).strip()
+
+        cargo_m = re.search(
+            r'Cargo:\s*([A-Za-záéíóúñÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s,]{2,60}?)'
+            r'(?=\s+[AÁ]rea:|\s*$)',
+            tn, re.IGNORECASE
+        )
+        if cargo_m:
+            data['cargo'] = cargo_m.group(1).strip()
+
+        area_m = re.search(
+            r'[AÁ]rea:\s*([A-Za-záéíóúñÁÉÍÓÚÑ0-9][A-Za-záéíóúñÁÉÍÓÚÑ0-9\s,\-]{1,50}?)'
+            r'(?=\s+(?:DATOS|Fecha|$))',
+            tn, re.IGNORECASE
+        )
+        if area_m:
+            data['area'] = area_m.group(1).strip()
+
+        fechas_m = re.search(
+            r'Fecha\s+Permiso:.*?De:\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4})'
+            r'.*?Hasta:\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4})',
+            tn, re.IGNORECASE
+        )
+        if fechas_m:
+            fi = parse_fecha_ddmmyyyy(fechas_m.group(1))
+            ff = parse_fecha_ddmmyyyy(fechas_m.group(2))
+            data['fecha_novedad'] = fi
+            data['fecha_inicio']  = fi
+            data['fecha_fin']     = ff
+
+        horas_m = re.search(
+            r'Horas:.*?De:\s*(\d{1,2}:\d{2}(?:\s*(?:AM|PM|am|pm))?)'
+            r'.*?Hasta:\s*(\d{1,2}:\d{2}(?:\s*(?:AM|PM|am|pm))?)',
+            tn, re.IGNORECASE
+        )
+        if horas_m:
+            data['hora_inicio'] = horas_m.group(1).strip()
+            data['hora_fin']    = horas_m.group(2).strip()
+
+        total_m = re.search(r'Total\s+de\s+D[ií]as:\s*(\d+(?:[.,]\d)?)', tn, re.IGNORECASE)
+        if total_m:
+            try:
+                v = float(total_m.group(1).replace(',', '.'))
+                data['cantidad'] = int(v) if v == int(v) else v
+            except ValueError:
+                pass
+
+        tipo_m = re.search(r'\bTipo:\s*([^\n\r]{2,40})', tn, re.IGNORECASE)
+        data['motivo'] = _mapear_motivo(tipo_m.group(1) if tipo_m else '') or 'COMPENSATORIO'
+
+        tipo_perm_m = re.search(r'TIPO\s+PERMISO:\s*([^\n\r]{2,30})', tn, re.IGNORECASE)
+        if tipo_perm_m:
+            tp = tipo_perm_m.group(1).strip().lower()
+            data['es_remunerado'] = ('remunerado' in tp) and ('no remunerado' not in tp)
+
+        obs_m = re.search(r'OBSERVACIONES?:\s*([^\n]{5,500})', tn, re.IGNORECASE)
+        if obs_m:
+            data['observaciones'] = obs_m.group(1).strip()
+
+        email_m = re.search(
+            r'(?:Correo|Email|E-mail)[^:]*:\s*([\w.+-]+@[\w-]+\.[a-z]{2,})',
+            tn, re.IGNORECASE
+        )
+        if email_m:
+            data['email_solicitante'] = email_m.group(1).strip()
 
     # ── Validaciones ─────────────────────────────────────────────────────────────
     if not data['cedula']:       data['errores'].append('Cédula no detectada')
