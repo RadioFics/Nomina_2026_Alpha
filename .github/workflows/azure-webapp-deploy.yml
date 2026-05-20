@@ -28,13 +28,11 @@ jobs:
           npm prune --production || true
 
       - name: Archive app
+        shell: pwsh
         run: |
-          powershell -Command "
-            \$exclude = @('.git','.github','.vscode','.claude','.env','app.zip','temp','logs','iisnode')
-            \$files = Get-ChildItem -Path '.' -Force | Where-Object { \$_.Name -notin \$exclude }
-            Compress-Archive -Path \$files.FullName -DestinationPath app.zip -Force
-            Write-Host ('Tamaño del paquete: ' + [math]::Round((Get-Item app.zip).Length/1MB,1) + ' MB')
-          "
+          Compress-Archive -Path ".\*" -DestinationPath "app.zip" -Force
+          $mb = [math]::Round((Get-Item "app.zip").Length / 1MB, 1)
+          Write-Host "Tamaño del paquete: $mb MB"
 
       - name: Deploy to Azure WebApp
         uses: azure/webapps-deploy@v3
