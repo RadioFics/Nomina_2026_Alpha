@@ -11,6 +11,11 @@ let isReconfiguring = false;
 /**
  * Construye un objeto de configuración válido
  * @param {Object} source - Objeto con claves: SERVER, DATABASE, UID, PWD (o minúsculas)
+ *
+ * Compatibilidad dual local ↔ Azure:
+ *   - Local (NODE_ENV=development):  encrypt=false, trustServerCertificate=true
+ *   - Azure SQL (NODE_ENV=production): encrypt=true, trustServerCertificate=false
+ *   - Se puede forzar manualmente con DB_ENCRYPT=true / DB_TRUST_CERT=true en .env
  */
 function buildConfig(source) {
   const server   = source.SERVER   || source.server;
@@ -25,16 +30,25 @@ function buildConfig(source) {
     );
   }
 
+  // Azure SQL requiere encrypt:true. SQL Server Express local requiere encrypt:false.
+  // Se detecta automáticamente por NODE_ENV, o se puede forzar con DB_ENCRYPT.
+  const isProduction = (source.NODE_ENV || process.env.NODE_ENV) === 'production';
+  const isAzureSQL   = server.includes('.database.windows.net');
+  const needsEncrypt = isProduction || isAzureSQL || source.DB_ENCRYPT === 'true';
+
   return {
     server,
     database,
+    // Puerto explícito: Azure SQL usa 1433 estándar; SQL Express local puede ser dinámico
+    port: parseInt(source.DB_PORT || process.env.DB_PORT || '1433', 10),
     authentication: {
       type: 'default',
       options: { userName: uid, password: pwd }
     },
     options: {
-      encrypt: false,
-      trustServerCertificate: true,
+      encrypt: needsEncrypt,
+      // En Azure SQL el certificado es válido; localmente a veces no, por eso trustServerCertificate
+      trustServerCertificate: !needsEncrypt || source.DB_TRUST_CERT === 'true',
       enableKeepAlive: true,
       connectionTimeout: 15000,
       requestTimeout: 30000,
