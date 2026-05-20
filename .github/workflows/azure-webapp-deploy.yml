@@ -1,9 +1,7 @@
 name: Build and deploy Node.js app to Azure Web App
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:   # desactivado — usar main_nominacollectivemining.yml
 
 jobs:
   build-and-deploy:
