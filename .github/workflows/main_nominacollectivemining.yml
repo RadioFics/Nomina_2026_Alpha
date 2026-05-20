@@ -13,10 +13,7 @@
 name: Deploy MineDax → Azure App Service
 
 on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
+  workflow_dispatch:   # desactivado — Azure Deployment Center gestiona el deploy
 
 jobs:
   build-and-deploy:
@@ -86,5 +83,4 @@ jobs:
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'NominaCollectiveMining'
-          slot-name: 'Production'
           package: app.zip
