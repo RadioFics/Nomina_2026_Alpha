@@ -52,8 +52,11 @@ jobs:
         run: node --check server.js
 
       # ── 6. Crear paquete de despliegue ───────────────────────────────────
+      #    node_modules SE INCLUYE porque Windows App Service (iisnode) no
+      #    ejecuta npm install automáticamente en el servidor. Los módulos
+      #    se instalaron en el paso anterior con npm ci --omit=dev.
       #    Se excluyen: .git, .env (secretos van en App Settings de Azure),
-      #    node_modules (Azure los reinstala en el servidor), temp, logs
+      #    devDependencies ya están excluidas por npm ci --omit=dev.
       - name: Create deployment zip
         run: |
           zip -r app.zip . \
@@ -61,9 +64,10 @@ jobs:
             --exclude ".github/*" \
             --exclude ".vscode/*" \
             --exclude ".claude/*" \
-            --exclude "node_modules/*" \
+            --exclude "node_modules/.cache/*" \
             --exclude "temp/*" \
             --exclude "logs/*" \
+            --exclude "iisnode/*" \
             --exclude "*.log" \
             --exclude ".env" \
             --exclude "app.zip"
