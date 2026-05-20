@@ -91,9 +91,25 @@ function getLocalIP() {
 
 const PORT = process.env.PORT || 3000;
 
+// iisnode (Azure App Service Windows) pasa el PORT como ruta de named pipe,
+// p.ej. "\\.\pipe\...". En ese caso NO se puede pasar host '0.0.0.0'.
+// Si PORT es numérico usamos TCP; si es string/pipe usamos solo el path.
+const isNamedPipe = isNaN(Number(PORT));
+
 const server = http.createServer(app);
 
-server.listen(PORT, '0.0.0.0', async () => {
+// Función auxiliar para iniciar el servidor respetando el tipo de PORT
+function startListen(callback) {
+  if (isNamedPipe) {
+    // iisnode: named pipe — sin host
+    server.listen(PORT, callback);
+  } else {
+    // TCP local o Docker: bind a todas las interfaces
+    server.listen(Number(PORT), '0.0.0.0', callback);
+  }
+}
+
+startListen(async () => {
   const localIP = getLocalIP();
 
   console.log('\n╔════════════════════════════════════════════════════════════╗');
@@ -196,17 +212,17 @@ server.on('error', (err) => {
     retryCount++;
 
     if (retryCount === 1) {
-      console.log(`\n[⚠️  ADVERTENCIA] Puerto ${PORT} en uso. Intentando limpiar procesos antiguos...\n`);
+      console.log(`\n[⚠️  ADVERTENCIA] Puerto/pipe ${PORT} en uso. Intentando limpiar procesos antiguos...\n`);
       if (killNodeProcesses()) {
         console.log('[✓] Procesos Node antiguos eliminados. Reintentando...\n');
         setTimeout(() => {
           server.close();
-          server.listen(PORT, '0.0.0.0');
+          startListen();
         }, 1000);
       } else {
         setTimeout(() => {
           server.close();
-          server.listen(PORT, '0.0.0.0');
+          startListen();
         }, 2000);
       }
     } else if (retryCount < MAX_RETRIES) {
@@ -214,17 +230,18 @@ server.on('error', (err) => {
       console.log(`[⚠️  REINTENTANDO] Intento ${retryCount}/${MAX_RETRIES}...\n`);
       setTimeout(() => {
         server.close();
-        server.listen(PORT, '0.0.0.0');
+        startListen();
       }, waitTime);
     } else {
-      console.error(`\n[❌ ERROR] No se pudo liberar el puerto ${PORT} después de ${MAX_RETRIES} intentos.`);
+      console.error(`\n[❌ ERROR] No se pudo liberar el puerto/pipe ${PORT} después de ${MAX_RETRIES} intentos.`);
       console.error('\n📋 Soluciones manuales:');
-      console.error(`  1. Ejecuta: .\kill-server.ps1`);
+      console.error(`  1. Ejecuta: .\\kill-server.ps1`);
       console.error(`  2. O: Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force`);
       console.error(`  3. O usa otro puerto: PORT=3001 npm start\n`);
       process.exit(1);
     }
   } else {
+    console.error('[ERROR] Error inesperado del servidor:', err.message);
     throw err;
   }
 });

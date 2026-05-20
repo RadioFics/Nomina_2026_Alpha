@@ -30,6 +30,10 @@ jobs:
       - name: Archive app
         shell: pwsh
         run: |
+          # Eliminar archivos sensibles antes de empaquetar (nunca deben ir a Azure)
+          @('.env', '.env.local', '.env.production.local') | ForEach-Object {
+            if (Test-Path $_) { Remove-Item $_ -Force; Write-Host "Excluido: $_" }
+          }
           Compress-Archive -Path ".\*" -DestinationPath "app.zip" -Force
           $mb = [math]::Round((Get-Item "app.zip").Length / 1MB, 1)
           Write-Host "Tamaño del paquete: $mb MB"
