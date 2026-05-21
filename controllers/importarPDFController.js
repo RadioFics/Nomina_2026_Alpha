@@ -17,6 +17,7 @@ const { spawn }        = require('child_process');
 const fs               = require('fs');
 const path             = require('path');
 const multer           = require('multer');
+const logger           = require('../config/logger');
 
 const DEFAULT_COD_EMPR = 1;
 
@@ -551,23 +552,49 @@ function procesarPDFconPython(rutaArchivo) {
 
     // Usar PYTHON_PATH del .env si está configurado; si no, intentar python3 (siempre)
     // NOTA: en Azure App Service Windows, 'python' puede apuntar a Python 2 — usar siempre python3.
+    // Prioridad: PYTHON_PATH en .env → python3 → python (fallback Azure Windows)
     const envPy = process.env.PYTHON_PATH && process.env.PYTHON_PATH.trim();
-    const pythonCmd = (envPy && fs.existsSync(envPy)) ? envPy : 'python3';
+    const pythonCmd2 = (envPy && fs.existsSync(envPy)) ? envPy : 'python3';
 
-    const py = spawn(pythonCmd, [script, rutaArchivo], { windowsHide: true });
-    py.stdout.on('data', d => { stdout += d.toString(); });
-    py.stderr.on('data', d => { stderr += d.toString(); });
+    const trySpawn = (cmd) => {
+      const py = spawn(cmd, [script, rutaArchivo], { windowsHide: true });
 
-    py.on('close', code => {
-      if (code !== 0) {
-        return reject(new Error(`Python error (code ${code}): ${stderr.slice(0, 300)}`));
-      }
-      try {
-        resolve(JSON.parse(stdout.trim()));
-      } catch (e) {
-        reject(new Error(`JSON parse error: ${e.message} | stdout: ${stdout.slice(0, 200)}`));
-      }
-    });
+      py.on('error', (err) => {
+        if (err.code === 'ENOENT' && cmd === 'python3' && !envPy) {
+          logger.warn('importarPDF', cmd + ' no encontrado en PATH, reintentando con python', err.message);
+          return trySpawn('python');
+        }
+        logger.error('importarPDF',
+          'No se pudo iniciar Python (' + cmd + '): ' + err.message,
+          'Codigo: ' + err.code + '\nScript: ' + script + '\nArchivo: ' + rutaArchivo + '\nSugerencia: Configure PYTHON_PATH en App Settings de Azure.'
+        );
+        reject(new Error('No se pudo iniciar Python (' + cmd + '): ' + err.message + '. Configure PYTHON_PATH en las variables de entorno de Azure.'));
+      });
+
+      py.stdout.on('data', d => { stdout += d.toString(); });
+      py.stderr.on('data', d => { stderr += d.toString(); });
+
+      py.on('close', code => {
+        if (code !== 0) {
+          logger.error('importarPDF',
+            'Python termino con codigo ' + code,
+            'stderr: ' + stderr.slice(0, 1000) + '\nstdout: ' + stdout.slice(0, 500) + '\nArchivo: ' + path.basename(rutaArchivo)
+          );
+          return reject(new Error('Python error (code ' + code + '): ' + stderr.slice(0, 300)));
+        }
+        try {
+          resolve(JSON.parse(stdout.trim()));
+        } catch (e) {
+          logger.error('importarPDF',
+            'Respuesta de Python no es JSON valido: ' + e.message,
+            'stdout (primeros 500 chars): ' + stdout.slice(0, 500)
+          );
+          reject(new Error('JSON parse error: ' + e.message + ' | stdout: ' + stdout.slice(0, 200)));
+        }
+      });
+    };
+
+    trySpawn(pythonCmd2);
   });
 }
 
@@ -704,6 +731,11 @@ exports.importarPDFs = [
         }
 
       } catch (err) {
+        logger.error('importarPDF',
+          'Error al procesar ' + file.originalname + ': ' + err.message,
+          err.stack,
+          { usuario: req.nom_usua || req.cod_gusu || null, ruta: 'POST /api/pdf/importar' }
+        );
         archivos.push({
           archivo:     file.originalname,
           tipoNovedad: null,

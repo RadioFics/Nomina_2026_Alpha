@@ -7,6 +7,8 @@ const http = require('http');
 const { execSync } = require('child_process');
 require('dotenv').config();
 
+const logger = require('./config/logger');
+
 const app = express();
 
 // Confiar en el primer proxy/router (necesario para req.protocol y req.get('host') correcto)
@@ -16,6 +18,9 @@ app.set('trust proxy', 1);
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+
+// Logging de requests con errores HTTP (4xx/5xx) hacia GN_LOG_APP
+app.use(logger.middlewareRequest);
 
 // Servir archivos estáticos (HTML, CSS, JS)
 app.use(express.static(__dirname));
@@ -66,11 +71,8 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Servidor de nómina funcionando' });
 });
 
-// Manejo de errores
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'Error interno del servidor', details: err.message });
-});
+// Middleware de errores Express no capturados hacia GN_LOG_APP
+app.use(logger.middlewareError);
 
 // ============================================================================
 // INICIAR SERVIDOR CENTRAL (Accesible desde múltiples máquinas)
@@ -109,8 +111,22 @@ function startListen(callback) {
   }
 }
 
+// Captura de errores globales de Node.js hacia GN_LOG_APP
+process.on('unhandledRejection', (reason) => {
+  const detalle = reason instanceof Error ? reason.stack : String(reason);
+  logger.error('node', 'Unhandled Promise Rejection', detalle);
+});
+
+process.on('uncaughtException', (err) => {
+  logger.error('node', 'Uncaught Exception: ' + err.message, err.stack);
+  setTimeout(() => process.exit(1), 500);
+});
+
 startListen(async () => {
   const localIP = getLocalIP();
+
+  // Inicializar tabla GN_LOG_APP (crea si no existe)
+  await logger.init().catch(() => {});
 
   console.log('\n╔════════════════════════════════════════════════════════════╗');
   console.log('║         ✓ SERVIDOR CENTRAL DE NÓMINA FUNCIONANDO          ║');
@@ -242,6 +258,7 @@ server.on('error', (err) => {
     }
   } else {
     console.error('[ERROR] Error inesperado del servidor:', err.message);
+    logger.error('node', 'Error inesperado del servidor HTTP: ' + err.message, err.stack);
     throw err;
   }
 });
