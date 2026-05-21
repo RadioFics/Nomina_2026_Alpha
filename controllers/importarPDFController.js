@@ -550,25 +550,38 @@ function procesarPDFconPython(rutaArchivo) {
     let stdout = '';
     let stderr = '';
 
-    // Usar PYTHON_PATH del .env si está configurado; si no, intentar python3 (siempre)
-    // NOTA: en Azure App Service Windows, 'python' puede apuntar a Python 2 — usar siempre python3.
-    // Prioridad: PYTHON_PATH en .env → python3 → python (fallback Azure Windows)
-    const envPy = process.env.PYTHON_PATH && process.env.PYTHON_PATH.trim();
-    const pythonCmd2 = (envPy && fs.existsSync(envPy)) ? envPy : 'python3';
+    // Cadena de candidatos: PYTHON_PATH (sin fs.existsSync) → py → python → python3
+    // En Azure App Service Windows, fs.existsSync() sobre rutas D:\ puede dar false
+    // aunque el ejecutable sí exista — por eso se confía directamente en el env var.
+    const envPy = (process.env.PYTHON_PATH || '').trim();
+    const candidatos = envPy
+      ? [envPy, 'py', 'python', 'python3']
+      : ['py', 'python', 'python3'];
+    let intentoIdx = 0;
 
     const trySpawn = (cmd) => {
       const py = spawn(cmd, [script, rutaArchivo], { windowsHide: true });
 
       py.on('error', (err) => {
-        if (err.code === 'ENOENT' && cmd === 'python3' && !envPy) {
-          logger.warn('importarPDF', cmd + ' no encontrado en PATH, reintentando con python', err.message);
-          return trySpawn('python');
+        if (err.code === 'ENOENT' && intentoIdx < candidatos.length - 1) {
+          intentoIdx++;
+          const siguiente = candidatos[intentoIdx];
+          logger.warn('importarPDF',
+            cmd + ' ENOENT, reintentando con: ' + siguiente,
+            'Probados: ' + candidatos.slice(0, intentoIdx).join(', ') + ' | PYTHON_PATH=' + (envPy || 'no definido')
+          );
+          return trySpawn(siguiente);
         }
         logger.error('importarPDF',
-          'No se pudo iniciar Python (' + cmd + '): ' + err.message,
-          'Codigo: ' + err.code + '\nScript: ' + script + '\nArchivo: ' + rutaArchivo + '\nSugerencia: Configure PYTHON_PATH en App Settings de Azure.'
+          'Python no encontrado tras ' + (intentoIdx + 1) + ' intento(s): ' + err.message,
+          'Candidatos probados: ' + candidatos.slice(0, intentoIdx + 1).join(', ') +
+          '\nPYTHON_PATH=' + (envPy || 'no definido') +
+          '\nVerifique la ruta en Azure App Settings o use /api/health/python para diagnosticar.'
         );
-        reject(new Error('No se pudo iniciar Python (' + cmd + '): ' + err.message + '. Configure PYTHON_PATH en las variables de entorno de Azure.'));
+        reject(new Error(
+          'Python no encontrado. Probados: ' + candidatos.slice(0, intentoIdx + 1).join(', ') +
+          '. Verifique PYTHON_PATH en App Settings de Azure o consulte /api/health/python.'
+        ));
       });
 
       py.stdout.on('data', d => { stdout += d.toString(); });

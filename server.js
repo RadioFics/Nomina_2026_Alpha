@@ -71,6 +71,36 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Servidor de nómina funcionando' });
 });
 
+// Diagnóstico de Python: prueba cada candidato con --version y reporta cuál funciona.
+// Acceder a /api/health/python después de un deploy para confirmar el intérprete.
+app.get('/api/health/python', (req, res) => {
+  const { spawn } = require('child_process');
+  const envPy = (process.env.PYTHON_PATH || '').trim();
+  const candidatos = envPy
+    ? [envPy, 'py', 'python', 'python3']
+    : ['py', 'python', 'python3'];
+
+  const resultados = [];
+  let pendientes = candidatos.length;
+
+  candidatos.forEach((cmd) => {
+    const inicio = Date.now();
+    const proc = spawn(cmd, ['--version'], { windowsHide: true });
+    let out = '';
+    proc.stdout.on('data', d => { out += d.toString().trim(); });
+    proc.stderr.on('data', d => { out += d.toString().trim(); }); // Python 2 escribe a stderr
+    proc.on('error', (err) => {
+      resultados.push({ cmd, ok: false, error: err.code, ms: Date.now() - inicio });
+      if (--pendientes === 0) res.json({ PYTHON_PATH: envPy || '(no definido)', candidatos: resultados });
+    });
+    proc.on('close', (code) => {
+      resultados.push({ cmd, ok: code === 0, version: out, ms: Date.now() - inicio });
+      if (--pendientes === 0) res.json({ PYTHON_PATH: envPy || '(no definido)', candidatos: resultados });
+    });
+  });
+});
+
+
 // Middleware de errores Express no capturados hacia GN_LOG_APP
 app.use(logger.middlewareError);
 
