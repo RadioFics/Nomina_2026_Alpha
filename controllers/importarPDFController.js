@@ -549,10 +549,10 @@ function procesarPDFconPython(rutaArchivo) {
     let stdout = '';
     let stderr = '';
 
-    // Usar PYTHON_PATH del .env si está configurado; si no, fallback a python3 / python
+    // Usar PYTHON_PATH del .env si está configurado; si no, intentar python3 (siempre)
+    // NOTA: en Azure App Service Windows, 'python' puede apuntar a Python 2 — usar siempre python3.
     const envPy = process.env.PYTHON_PATH && process.env.PYTHON_PATH.trim();
-    const pythonCmd = (envPy && fs.existsSync(envPy)) ? envPy
-      : (process.platform === 'win32' ? 'python' : 'python3');
+    const pythonCmd = (envPy && fs.existsSync(envPy)) ? envPy : 'python3';
 
     const py = spawn(pythonCmd, [script, rutaArchivo], { windowsHide: true });
     py.stdout.on('data', d => { stdout += d.toString(); });

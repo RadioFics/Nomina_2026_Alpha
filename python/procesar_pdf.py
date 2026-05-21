@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-procesar_pdf.py  —  Extractor de PDFs de Novedades MineDax
+procesar_pdf.py  -  Extractor de PDFs de Novedades MineDax
 ===========================================================
 Soporta:
   CM-TH-FR-003  Solicitud de Permiso     → tipo_novedad = 'PERMISO'
