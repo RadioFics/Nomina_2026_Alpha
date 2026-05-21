@@ -18,6 +18,7 @@ import os
 import re
 import json
 from datetime import datetime, date
+from typing import Optional
 
 # ─── Dependencias opcionales ──────────────────────────────────────────────────
 try:
@@ -110,7 +111,7 @@ def parse_fecha_ddmmyyyy(s: str):
     return None
 
 
-def corregir_digito_ocr(valor_str: str) -> int | None:
+def corregir_digito_ocr(valor_str: str) -> Optional[int]:
     """
     Corrige confusiones comunes de OCR en dígitos numéricos:
       '3' puede ser '9', '1' puede ser '7', '0' puede ser '6', etc.

@@ -550,37 +550,50 @@ function procesarPDFconPython(rutaArchivo) {
     let stdout = '';
     let stderr = '';
 
-    // Cadena de candidatos: PYTHON_PATH (sin fs.existsSync) → py → python → python3
-    // En Azure App Service Windows, fs.existsSync() sobre rutas D:\ puede dar false
-    // aunque el ejecutable sí exista — por eso se confía directamente en el env var.
-    const envPy = (process.env.PYTHON_PATH || '').trim();
+    // Cadena de candidatos con argumentos previos al script.
+    // PYTHON_PATH: ejecutable Python (ej: C:\Windows\py.exe)
+    // PYTHON_ARGS: args antes del script  (ej: -3   para forzar Python 3 via py launcher)
+    const envPy   = (process.env.PYTHON_PATH || '').trim();
+    const envArgs = (process.env.PYTHON_ARGS || '').trim().split(/\s+/).filter(Boolean);
+
+    // Candidatos: { cmd, pre } donde pre son args que van ANTES del script
     const candidatos = envPy
-      ? [envPy, 'py', 'python', 'python3']
-      : ['py', 'python', 'python3'];
+      ? [
+          { cmd: envPy,           pre: envArgs },   // PYTHON_PATH configurado
+          { cmd: 'C:\\Windows\\py.exe', pre: ['-3'] }, // py launcher con Python 3
+          { cmd: 'python',        pre: [] },
+          { cmd: 'python3',       pre: [] },
+        ]
+      : [
+          { cmd: 'C:\\Windows\\py.exe', pre: ['-3'] }, // py -3 (Python 3.6+ en Azure)
+          { cmd: 'python',        pre: [] },
+          { cmd: 'python3',       pre: [] },
+        ];
     let intentoIdx = 0;
 
-    const trySpawn = (cmd) => {
-      const py = spawn(cmd, [script, rutaArchivo], { windowsHide: true });
+    const trySpawn = ({ cmd, pre }) => {
+      const py = spawn(cmd, [...pre, script, rutaArchivo], { windowsHide: true });
 
       py.on('error', (err) => {
         if (err.code === 'ENOENT' && intentoIdx < candidatos.length - 1) {
           intentoIdx++;
           const siguiente = candidatos[intentoIdx];
           logger.warn('importarPDF',
-            cmd + ' ENOENT, reintentando con: ' + siguiente,
-            'Probados: ' + candidatos.slice(0, intentoIdx).join(', ') + ' | PYTHON_PATH=' + (envPy || 'no definido')
+            cmd + ' ENOENT, reintentando con: ' + siguiente.cmd + ' ' + siguiente.pre.join(' '),
+            'Probados hasta ahora: ' + candidatos.slice(0, intentoIdx).map(c => c.cmd + ' ' + c.pre.join(' ')).join(', ')
           );
           return trySpawn(siguiente);
         }
+        const probados = candidatos.slice(0, intentoIdx + 1).map(c => c.cmd + ' ' + c.pre.join(' ')).join(', ');
         logger.error('importarPDF',
           'Python no encontrado tras ' + (intentoIdx + 1) + ' intento(s): ' + err.message,
-          'Candidatos probados: ' + candidatos.slice(0, intentoIdx + 1).join(', ') +
+          'Candidatos probados: ' + probados +
           '\nPYTHON_PATH=' + (envPy || 'no definido') +
-          '\nVerifique la ruta en Azure App Settings o use /api/health/python para diagnosticar.'
+          '\nPYTHON_ARGS=' + (envArgs.join(' ') || 'no definido')
         );
         reject(new Error(
-          'Python no encontrado. Probados: ' + candidatos.slice(0, intentoIdx + 1).join(', ') +
-          '. Verifique PYTHON_PATH en App Settings de Azure o consulte /api/health/python.'
+          'Python no encontrado. Probados: ' + probados +
+          '. Configure PYTHON_PATH=C:\\Windows\\py.exe y PYTHON_ARGS=-3 en App Settings de Azure.'
         ));
       });
 
@@ -607,7 +620,7 @@ function procesarPDFconPython(rutaArchivo) {
       });
     };
 
-    trySpawn(candidatos[0]);
+    trySpawn(candidatos[0]);  // Empieza con el primer candidato
   });
 }
 

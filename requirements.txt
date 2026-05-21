@@ -13,24 +13,46 @@
 #    python/procesar_pdf.py   → extrae datos de PDFs de permisos y vacaciones
 # ============================================================================
 
+# ============================================================================
+#  INSTALACION EN AZURE APP SERVICE WINDOWS (Python 3.6.8 via "py -3"):
+#
+#  PASO 1 — Crear carpeta de destino y fijar PYTHONPATH en App Settings:
+#    En Azure Portal → Configuration → Application settings:
+#      PYTHONPATH = D:\home\site\pythonpkgs
+#      PYTHON_PATH = C:\Windows\py.exe
+#      PYTHON_ARGS = -3
+#
+#  PASO 2 — Instalar en Kudu CMD (https://<app>.scm.azurewebsites.net/DebugConsole):
+#    mkdir D:\home\site\pythonpkgs
+#    py -3 -m pip install --target D:\home\site\pythonpkgs "pypdf==4.3.1"
+#    py -3 -m pip install --target D:\home\site\pythonpkgs "Pillow>=8.0.0,<9.0.0"
+#    py -3 -m pip install --target D:\home\site\pythonpkgs "pytesseract==0.3.7"
+#    py -3 -m pip install --target D:\home\site\pythonpkgs --no-deps "pdfplumber==0.5.28"
+#    py -3 -m pip install --target D:\home\site\pythonpkgs --no-deps "pdfminer.six==20200517"
+#    py -3 -m pip install --target D:\home\site\pythonpkgs "chardet==5.0.0" "sortedcontainers==2.4.0"
+#    py -3 -m pip install --target D:\home\site\pythonpkgs "Wand==0.6.13"
+#
+#  PASO 3 — Verificar en Kudu:
+#    py -3 -c "import sys; sys.path.insert(0,'D:\\home\\site\\pythonpkgs'); import pdfplumber; print('OK')"
+#
+#  NOTA sobre reportlab: solo disponible como fuente para Python 3.6 (requiere
+#  compilador MSVC que no existe en Azure App Service). Se instala localmente
+#  para desarrollo; en producción se omite o se usa un servidor con compilador.
+# ============================================================================
+
 # ── rellenar_pdf.py ───────────────────────────────────────────────────────────
-
-# Lectura y escritura de PDFs con formularios AcroForm
 pypdf==4.3.1
-
-# Generación de texto/imágenes sobre PDFs (coordenadas exactas)
-reportlab==4.2.2
+# reportlab: instalar solo en entorno con compilador C (desarrollo local)
+# reportlab==3.6.8
 
 # ── procesar_pdf.py ───────────────────────────────────────────────────────────
-
-# Extracción de texto y tablas de PDFs nativos (Word → PDF, Power Automate)
-pdfplumber>=0.10.0
-
-# Procesamiento de imágenes para OCR (PDFs escaneados)
-Pillow>=9.0.0
-
-# OCR: envuelve el binario Tesseract instalado en el sistema
-# NOTA: requiere también instalar el ejecutable Tesseract OCR por separado:
-#   Windows: https://github.com/UB-Mannheim/tesseract/wiki
-#   Linux:   apt-get install tesseract-ocr tesseract-ocr-spa
-pytesseract>=0.3.10
+# pdfplumber 0.5.28: última versión 0.5.x; instalar con --no-deps (ver arriba)
+# pdfminer.six 20200517: instalar con --no-deps para evitar pycryptodome
+# chardet + sortedcontainers: dependencias de pdfminer sin compilación C
+pdfplumber==0.5.28
+pdfminer.six==20200517
+chardet==5.0.0
+sortedcontainers==2.4.0
+Wand==0.6.13
+Pillow>=8.0.0,<9.0.0
+pytesseract==0.3.7
