@@ -138,41 +138,102 @@ async function queryPeriodo(codPeriod, codEmpr) {
 }
 
 // ─── Helper: invocar script Python ───────────────────────────────────────────
+// Compatibilidad multi-plataforma para Azure App Service:
+//   • Windows (IIS/iisnode): el ejecutable es 'python' (no existe 'python3')
+//   • Linux  (App Service):  el ejecutable es 'python3'
+//   • Override manual: variable de entorno PYTHON_CMD en App Settings de Azure
+//
 // Se fuerza UTF-8 en toda la comunicación con el proceso hijo para garantizar
-// el correcto manejo de tildes, ñ, apóstrofes y cualquier carácter Unicode
-// en nombres y conceptos (lenguas romance y anglosajonas).
+// el correcto manejo de tildes, ñ, apóstrofes y cualquier carácter Unicode.
 
-function invocarPython(jsonData, outputPath) {
+// Lista de candidatos probados en orden.  Si PYTHON_CMD está configurado en
+// las variables de entorno de Azure, se usa exclusivamente ese valor.
+const PYTHON_CANDIDATES = process.env.PYTHON_CMD
+  ? [process.env.PYTHON_CMD]
+  : (os.platform() === 'win32'
+      ? ['python', 'py', 'python3']   // Azure Windows: 'python' primero
+      : ['python3', 'python']);        // Azure Linux:   'python3' primero
+
+/**
+ * Intenta lanzar el script Python con un ejecutable concreto.
+ * Rechaza con { notFound: true } si el ejecutable no existe en el PATH.
+ */
+function invocarPythonConExe(exe, jsonData, outputPath) {
   return new Promise((resolve, reject) => {
-    const py = spawn('python3', [PYTHON_SCRIPT, outputPath], {
-      // Forzar que el proceso hijo herede UTF-8 en su entorno.
-      // PYTHONUTF8=1 activa el modo UTF-8 de Python (PEP 540) en Windows y Linux.
-      // PYTHONIOENCODING=utf-8 es el mecanismo clásico compatible con Python 3.6+.
+    const py = spawn(exe, [PYTHON_SCRIPT, outputPath], {
       env: {
         ...process.env,
-        PYTHONUTF8:        '1',
-        PYTHONIOENCODING:  'utf-8',
+        PYTHONUTF8:       '1',
+        PYTHONIOENCODING: 'utf-8',
       },
     });
 
-    // Leer stderr como UTF-8 para que los mensajes de error con tildes no se corrompan
-    let stderr = '';
+    let stderr   = '';
+    let settled  = false;
+
     py.stderr.setEncoding('utf8');
     py.stderr.on('data', d => { stderr += d; });
 
+    // Ignorar errores de escritura en stdin cuando el proceso no existe
+    py.stdin.on('error', () => {});
+
     py.on('close', code => {
+      if (settled) return;
+      settled = true;
       if (code === 0) resolve();
-      else reject(new Error(`Script Python falló (code ${code}): ${stderr}`));
+      else reject(Object.assign(
+        new Error(`Script Python (${exe}) falló (code ${code}): ${stderr}`),
+        { notFound: false }
+      ));
     });
 
-    py.on('error', err => reject(new Error(`No se pudo lanzar Python: ${err.message}`)));
+    py.on('error', err => {
+      if (settled) return;
+      settled = true;
+      // ENOENT = ejecutable no encontrado en el PATH → intentar el siguiente
+      reject(Object.assign(err, {
+        notFound: err.code === 'ENOENT',
+        message:  `No se pudo lanzar Python (${exe}): ${err.message}`,
+      }));
+    });
 
     // Escribir JSON en UTF-8 explícito (Buffer.from garantiza la codificación
     // independientemente del locale del sistema operativo).
-    const jsonStr = JSON.stringify(jsonData);
-    py.stdin.write(Buffer.from(jsonStr, 'utf8'));
-    py.stdin.end();
+    try {
+      const jsonStr = JSON.stringify(jsonData);
+      py.stdin.write(Buffer.from(jsonStr, 'utf8'));
+      py.stdin.end();
+    } catch (_) {
+      // stdin puede lanzar si el proceso ya falló; el handler de 'error' ya lo captura
+    }
   });
+}
+
+/**
+ * Itera los candidatos de Python y usa el primero que funcione.
+ * Si el ejecutable existe pero el script falla, propaga el error inmediatamente
+ * (no tiene sentido probar otro Python si el script tiene un bug).
+ */
+async function invocarPython(jsonData, outputPath) {
+  let lastErr;
+  for (const exe of PYTHON_CANDIDATES) {
+    try {
+      await invocarPythonConExe(exe, jsonData, outputPath);
+      console.log(`[exportarAdecco] Python ejecutado con: ${exe}`);
+      return;
+    } catch (err) {
+      lastErr = err;
+      if (!err.notFound) {
+        // El ejecutable existe pero el script falló → no probar otro candidato
+        throw err;
+      }
+      console.warn(`[exportarAdecco] Ejecutable '${exe}' no encontrado en PATH, probando siguiente...`);
+    }
+  }
+  throw lastErr || new Error(
+    `Python no encontrado. Candidatos probados: ${PYTHON_CANDIDATES.join(', ')}. ` +
+    `Configure la variable de entorno PYTHON_CMD en Azure App Settings.`
+  );
 }
 
 // ─── Controlador principal: exportar ─────────────────────────────────────────

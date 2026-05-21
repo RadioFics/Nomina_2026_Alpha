@@ -28,6 +28,16 @@ if [ -f "$REQUIREMENTS" ]; then
   echo "[startup] Instalando dependencias Python..."
   pip3 install -r "$REQUIREMENTS" --quiet --no-cache-dir 2>&1 | tail -5
   echo "[startup] Dependencias Python instaladas."
+
+  # Verificar openpyxl explícitamente (requerido por scripts/generar_adecco.py).
+  # Si por alguna razón no quedó instalado desde requirements.txt, se fuerza aquí.
+  if ! python3 -c "import openpyxl" 2>/dev/null; then
+    echo "[startup] openpyxl no detectado — instalando manualmente..."
+    pip3 install "openpyxl>=3.1.0" --quiet --no-cache-dir
+    echo "[startup] openpyxl instalado."
+  else
+    echo "[startup] openpyxl OK: $(python3 -c 'import openpyxl; print(openpyxl.__version__)')"
+  fi
 else
   echo "[startup] AVISO: requirements.txt no encontrado — saltando pip install."
 fi

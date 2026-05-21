@@ -56,3 +56,9 @@ sortedcontainers==2.4.0
 Wand==0.6.13
 Pillow>=8.0.0,<9.0.0
 pytesseract==0.3.7
+
+# ── generar_adecco.py (exportación ADECCO) ───────────────────────────────────
+# openpyxl: manipulación de archivos .xlsx (plantilla FORMATO_LIBRE_ADECCO).
+# Requerido por scripts/generar_adecco.py. Sin este paquete el endpoint
+# /api/exportar-adecco falla con ModuleNotFoundError en Azure.
+openpyxl>=3.1.0
