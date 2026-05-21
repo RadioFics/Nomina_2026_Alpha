@@ -71,63 +71,72 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Servidor de nómina funcionando' });
 });
 
-// Diagnóstico completo de Python: busca el ejecutable en el sistema de archivos.
-// GET /api/health/python — sin autenticacion, solo para diagnostico post-deploy.
+// Diagnóstico completo de Python — busca en PATH, rutas fijas y Site Extensions.
+// GET /api/health/python — sin autenticacion, solo para diagnostico.
 app.get('/api/health/python', (req, res) => {
-  const { execSync } = require('child_process');
+  const { execSync, spawnSync } = require('child_process');
   const fs2 = require('fs');
 
-  const envPy   = (process.env.PYTHON_PATH || '').trim();
-  const result  = { PYTHON_PATH_configurado: envPy || '(no definido)', busqueda: {}, rutas_encontradas: [], recomendacion: '' };
+  const envPy  = (process.env.PYTHON_PATH || '').trim();
+  const result = {
+    PYTHON_PATH_configurado: envPy || '(no definido)',
+    donde_busco: {},
+    rutas_encontradas: [],
+    py_launcher: {},
+    recomendacion: ''
+  };
 
-  // 1. Buscar con WHERE (cmd de Windows) — encuentra ejecutables en el PATH del sistema
+  // 1. WHERE en CMD
   try {
-    const whereOut = execSync('where python py python3 2>&1', { shell: 'cmd.exe', timeout: 8000 }).toString().trim();
-    result.busqueda.where = whereOut.split('\n').map(l => l.trim()).filter(Boolean);
+    const out = execSync('where python py 2>&1', { shell: 'cmd.exe', timeout: 8000 }).toString().trim();
+    result.donde_busco.where = out.split('\n').map(l => l.trim()).filter(Boolean);
   } catch (e) {
-    result.busqueda.where = e.stdout ? e.stdout.toString().trim().split('\n').map(l=>l.trim()).filter(Boolean) : ['(ninguno en PATH)'];
+    result.donde_busco.where = (e.stdout||'').toString().trim().split('\n').map(l=>l.trim()).filter(Boolean);
   }
 
-  // 2. Listar rutas típicas de Python en Azure App Service Windows
-  const rutas_a_verificar = [
-    // Python 3.8.5 x86 — extension instalada via Azure Portal
-    'D:\\home\\Python385\\python.exe',
-    'D:\\home\\Python38\\python.exe',
-    'D:\\Python385\\python.exe',
-    'D:\\Python38\\python.exe',
-    'C:\\Python385\\python.exe',
-    'C:\\Python38\\python.exe',
-    // Python 3.9 / 3.10 (por si se actualiza)
-    'D:\\home\\Python39\\python.exe',
-    'D:\\Python39\\python.exe',
-    'C:\\Python39\\python.exe',
-    // Python 2.7 y 3.4 (disponibles pero insuficientes — solo para referencia)
-    'D:\\Python34\\python.exe',
-    'C:\\Python34\\python.exe',
-  ];
-  rutas_a_verificar.forEach(ruta => {
-    if (fs2.existsSync(ruta)) result.rutas_encontradas.push(ruta);
+  // 2. Python Launcher con version especifica
+  ['py -3.8', 'py -3', 'py -2.7'].forEach(cmd => {
+    const parts = cmd.split(' ');
+    const r = spawnSync(parts[0], [...parts.slice(1), '--version'], { windowsHide: true, timeout: 5000 });
+    const ver = (r.stdout||'').toString().trim() || (r.stderr||'').toString().trim();
+    result.py_launcher[cmd] = r.error ? r.error.code : (ver || 'status=' + r.status);
   });
 
-  // 3. Listar contenido de D:\ para detectar carpetas Python
-  try {
-    const dirD = fs2.readdirSync('D:\\').filter(n => /python/i.test(n));
-    result.busqueda.carpetas_D = dirD;
-  } catch(e) { result.busqueda.carpetas_D = ['(sin acceso a D:\\)' + e.message]; }
+  // 3. Listar directorios clave (D:\ raiz, D:\home, D:\home\site\ext)
+  ['D:\\', 'C:\\', 'D:\\home', 'D:\\home\\site', 'D:\\home\\site\\ext'].forEach(dir => {
+    try {
+      const items = fs2.readdirSync(dir).filter(n => /python/i.test(n)).sort();
+      if (items.length) result.donde_busco['dir_' + dir.replace(/[:\\]/g, '_')] = items;
+      else result.donde_busco['dir_' + dir.replace(/[:\\]/g, '_')] = '(sin carpetas Python)';
+    } catch(e) {
+      result.donde_busco['dir_' + dir.replace(/[:\\]/g, '_')] = '(sin acceso: ' + e.code + ')';
+    }
+  });
 
-  try {
-    const dirC = fs2.readdirSync('C:\\').filter(n => /python/i.test(n));
-    result.busqueda.carpetas_C = dirC;
-  } catch(e) { result.busqueda.carpetas_C = ['(sin acceso a C:\\)' + e.message]; }
+  // 4. Verificar rutas candidatas incluyendo Site Extensions
+  [
+    'D:\\home\\site\\ext\\Python385x86\\python.exe',
+    'D:\\home\\site\\ext\\Python385\\python.exe',
+    'D:\\home\\site\\ext\\python385x86\\python.exe',
+    'D:\\home\\Python385\\python.exe',
+    'D:\\Python385\\python.exe',
+    'C:\\Python385\\python.exe',
+    'C:\\Python38\\python.exe',
+    'D:\\Python34\\python.exe',
+    'C:\\Python34\\python.exe',
+    'C:\\Python27\\python.exe',
+  ].forEach(r => { if (fs2.existsSync(r)) result.rutas_encontradas.push(r); });
 
-  // 4. Recomendar
-  const encontradas = [...result.busqueda.where.filter(l => l.endsWith('.exe')), ...result.rutas_encontradas];
-  if (encontradas.length > 0) {
-    result.recomendacion = 'Use como PYTHON_PATH: ' + encontradas[0];
-  } else if (result.busqueda.carpetas_D.length > 0) {
-    result.recomendacion = 'Carpeta Python detectada en D:\\. Ajuste PYTHON_PATH a la ruta completa del python.exe dentro de: ' + result.busqueda.carpetas_D.join(', ');
+  // 5. Recomendacion
+  const buenas = result.rutas_encontradas.filter(r => !r.includes('Python27') && !r.includes('Python34'));
+  const py38ok = result.py_launcher['py -3.8'] && !['ENOENT','EACCES'].includes(result.py_launcher['py -3.8']) && result.py_launcher['py -3.8'].startsWith('Python 3.');
+
+  if (buenas.length > 0) {
+    result.recomendacion = 'PYTHON_PATH = ' + buenas[0];
+  } else if (py38ok) {
+    result.recomendacion = 'py -3.8 funciona (' + result.py_launcher['py -3.8'] + '). Use PYTHON_PATH = C:\\Windows\\py.exe y agregue -3.8 como primer argumento en el controller.';
   } else {
-    result.recomendacion = 'Python no encontrado. Instale via Azure App Service Extensions o configure la version en Portal > Configuracion > General > Python version.';
+    result.recomendacion = 'Python 3.8.5 no encontrado. Revise D:\\home\\site\\ext\\ via Kudu (https://<app>.scm.azurewebsites.net/DebugConsole) y busque la carpeta de la extension.';
   }
 
   res.json(result);
