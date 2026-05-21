@@ -15,20 +15,28 @@ const {
   emailVerificacion
 } = require('../config/mailer');
 
-// Bootstrap idempotente: agrega columnas de verificación de email si no existen.
+// Bootstrap idempotente: agrega columnas de auth que pueden no existir en BD legacy.
+// Se ejecuta al arrancar el servidor. Usa IF NOT EXISTS → seguro en cualquier estado.
 (async () => {
   try {
     await executeQuery(`
+      -- Verificación de email (registro/creación de usuario)
       IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('GN_USUAR') AND name='TOK_VERI')
         ALTER TABLE GN_USUAR ADD TOK_VERI VARCHAR(255) NULL;
       IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('GN_USUAR') AND name='VER_EMAIL')
         ALTER TABLE GN_USUAR ADD VER_EMAIL CHAR(1) DEFAULT 'N' NULL;
       IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('GN_USUAR') AND name='FEC_VERI')
         ALTER TABLE GN_USUAR ADD FEC_VERI DATETIME NULL;
+
+      -- Recuperación de contraseña (olvidé mi contraseña / reset)
+      IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('GN_USUAR') AND name='TOK_RECO')
+        ALTER TABLE GN_USUAR ADD TOK_RECO VARCHAR(255) NULL;
+      IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('GN_USUAR') AND name='FEC_TOKE')
+        ALTER TABLE GN_USUAR ADD FEC_TOKE DATETIME NULL;
     `);
-    console.log('[auth] ✓ Columnas de verificación de email listas.');
+    console.log('[auth] ✓ Columnas de auth listas (TOK_VERI, VER_EMAIL, FEC_VERI, TOK_RECO, FEC_TOKE).');
   } catch (e) {
-    console.error('[auth] ✗ Error en bootstrap de columnas de verificación:', e.message);
+    console.error('[auth] ✗ Error en bootstrap de columnas de auth:', e.message);
   }
 })();
 

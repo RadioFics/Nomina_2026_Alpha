@@ -241,15 +241,33 @@ function _generarPDF(tipo, datos, rutaPlantilla, rutaSalida) {
       cmds.push(envPython.trim());
     }
 
-    // 2-4. Comandos genéricos según plataforma
-    if (isWin) cmds.push('python', 'py', 'python3');
-    else        cmds.push('python3', 'python');
+    // 2-4. Comandos genéricos según plataforma.
+    // Azure Windows IMPORTANTE: 'py -3' invoca Python 3.x (3.6.8 en este servidor).
+    // 'python' en PATH apunta a Python 2.7 → falla; 'py' sin -3 también puede ser 2.7.
+    // PYTHON_ARGS permite configurar '-3' desde Azure App Settings sin tocar código.
+    const pyArgs = (process.env.PYTHON_ARGS || '').trim().split(/\s+/).filter(Boolean);
+    if (isWin) {
+      // Si PYTHON_PATH ya fue agregado arriba con sus PYTHON_ARGS, no duplicar
+      if (!cmds.length || !cmds[0].includes(process.env.PYTHON_PATH || '__')) {
+        cmds.push(['py', ...pyArgs].join(' '));  // 'py -3' como string compuesto
+      }
+      cmds.push('py -3');   // fallback explícito
+      cmds.push('python3');
+    } else {
+      cmds.push('python3', 'python');
+    }
 
     // 5. Venv del proyecto como último recurso
     const venvPy = path.join(__dirname, '..', '.venv', 'Scripts', 'python.exe');
     if (isWin && fs.existsSync(venvPy) && !cmds.includes(venvPy)) {
       cmds.push(venvPy);
     }
+
+    // PYTHONPATH: en Azure Windows los paquetes se instalan con --target
+    // a D:\home\site\pythonpkgs. Sin PYTHONPATH Python no los encuentra.
+    const azurePkgs = 'D:\\home\\site\\pythonpkgs';
+    const pythonPathEnv = process.env.PYTHONPATH ||
+      (isWin ? azurePkgs : '');
 
     let cmdIdx = 0;
 
@@ -271,8 +289,19 @@ function _generarPDF(tipo, datos, rutaPlantilla, rutaSalida) {
         // rutas que contengan espacios (como "OneDrive - Collective Mining...").
         // Sin shell, Node.js pasa el array de argumentos directamente al proceso
         // y los espacios en rutas no causan ningún problema.
-        py = spawn(pythonCmd, [PYTHON_SCRIPT, tipo, tmpJson, rutaPlantilla, rutaSalida], {
+        // Soportar comandos compuestos como 'py -3' (exe + args en string)
+        const parts   = pythonCmd.split(/\s+/);
+        const exe     = parts[0];
+        const preArgs = parts.slice(1);
+        const childEnv = {
+          ...process.env,
+          PYTHONUTF8:       '1',
+          PYTHONIOENCODING: 'utf-8',
+          ...(pythonPathEnv ? { PYTHONPATH: pythonPathEnv } : {}),
+        };
+        py = spawn(exe, [...preArgs, PYTHON_SCRIPT, tipo, tmpJson, rutaPlantilla, rutaSalida], {
           windowsHide: true,   // evitar ventana CMD emergente en Windows
+          env: childEnv,
         });
       } catch (e) {
         return tryNext();   // el spawn en sí falló — probar siguiente
