@@ -138,43 +138,89 @@ async function queryPeriodo(codPeriod, codEmpr) {
 }
 
 // ─── Helper: invocar script Python ───────────────────────────────────────────
-// Compatibilidad multi-plataforma para Azure App Service:
-//   • Windows (IIS/iisnode): el ejecutable es 'python' (no existe 'python3')
-//   • Linux  (App Service):  el ejecutable es 'python3'
-//   • Override manual: variable de entorno PYTHON_CMD en App Settings de Azure
+// Compatibilidad con Azure App Service Windows (iisnode):
 //
-// Se fuerza UTF-8 en toda la comunicación con el proceso hijo para garantizar
-// el correcto manejo de tildes, ñ, apóstrofes y cualquier carácter Unicode.
+//   PROBLEMA #1 — El py launcher requiere la flag "-3" para invocar Python 3.
+//     `py` sin argumentos puede resolver a Python 2.7 si es el default del sistema.
+//     La invocación correcta es: spawn('py', ['-3', script, outputPath])
+//
+//   PROBLEMA #2 — openpyxl se instala en D:\home\site\pythonpkgs (--target).
+//     Python no busca ahí por defecto; hay que inyectar PYTHONPATH en el env del
+//     proceso hijo para que el import openpyxl funcione.
+//
+//   Variables de entorno de Azure App Settings (Configuration → App Settings):
+//     PYTHON_PATH  = C:\Windows\py.exe   (o ruta completa al intérprete)
+//     PYTHON_ARGS  = -3                  (argumentos adicionales; puede incluir -3.6)
+//     PYTHONPATH   = D:\home\site\pythonpkgs  (directorio de paquetes instalados)
+//
+//   Si PYTHON_CMD está configurado, se usa en modo exclusivo (override total).
 
-// Lista de candidatos probados en orden.  Si PYTHON_CMD está configurado en
-// las variables de entorno de Azure, se usa exclusivamente ese valor.
-const PYTHON_CANDIDATES = process.env.PYTHON_CMD
-  ? [process.env.PYTHON_CMD]
-  : (os.platform() === 'win32'
-      ? ['python', 'py', 'python3']   // Azure Windows: 'python' primero
-      : ['python3', 'python']);        // Azure Linux:   'python3' primero
+// ── Construir lista de candidatos [ejecutable, ...args] ──────────────────────
+// Cada candidato es un array: [exe, arg1?, arg2?, ...]
+// Se prueban en orden hasta que uno funcione (ENOENT → siguiente; error real → throw).
+
+const PYTHON_CANDIDATES = (() => {
+  // Override total: PYTHON_CMD (nombre o ruta) + PYTHON_ARGS opcional
+  if (process.env.PYTHON_CMD) {
+    const extra = (process.env.PYTHON_ARGS || '').trim().split(/\s+/).filter(Boolean);
+    return [[process.env.PYTHON_CMD, ...extra]];
+  }
+  // Azure App Setting documentado en requirements.txt: PYTHON_PATH + PYTHON_ARGS
+  if (process.env.PYTHON_PATH) {
+    const extra = (process.env.PYTHON_ARGS || '').trim().split(/\s+/).filter(Boolean);
+    return [[process.env.PYTHON_PATH, ...extra]];
+  }
+  if (os.platform() === 'win32') {
+    // Azure Windows: el launcher py.exe existe pero NECESITA -3 para usar Python 3.
+    // python.exe en PATH apunta a Python 2.7 en este servidor (no sirve).
+    return [
+      ['py', '-3'],      // py launcher → Python 3.x (3.6.8 en este servidor Azure)
+      ['py', '-3.6'],    // explícito por si -3 falla
+      ['python3'],       // por si existe un python3.exe en PATH
+    ];
+  }
+  // Linux / macOS
+  return [['python3'], ['python']];
+})();
+
+// ── PYTHONPATH: directorio donde se instalaron los paquetes con --target ─────
+// En Azure Windows los paquetes se instalan con:
+//   py -m pip install --target D:\home\site\pythonpkgs <paquete>
+// Python no los busca por defecto → hay que agregar la ruta a PYTHONPATH.
+// Si PYTHONPATH ya está en process.env (App Setting configurado), se respeta.
+const AZURE_WIN_PKGS = 'D:\\home\\site\\pythonpkgs';
+const PYTHON_PATH_ENV = (() => {
+  if (process.env.PYTHONPATH) return process.env.PYTHONPATH;
+  if (os.platform() === 'win32') return AZURE_WIN_PKGS;
+  return '';
+})();
 
 /**
- * Intenta lanzar el script Python con un ejecutable concreto.
- * Rechaza con { notFound: true } si el ejecutable no existe en el PATH.
+ * Lanza el script Python con un candidato concreto [exe, ...extraArgs].
+ * Rechaza con { notFound: true } si el ejecutable no existe en PATH (ENOENT).
  */
-function invocarPythonConExe(exe, jsonData, outputPath) {
-  return new Promise((resolve, reject) => {
-    const py = spawn(exe, [PYTHON_SCRIPT, outputPath], {
-      env: {
-        ...process.env,
-        PYTHONUTF8:       '1',
-        PYTHONIOENCODING: 'utf-8',
-      },
-    });
+function invocarPythonConExe(candidato, jsonData, outputPath) {
+  const [exe, ...extraArgs] = candidato;
+  const cmdLabel = [exe, ...extraArgs].join(' ');
 
-    let stderr   = '';
-    let settled  = false;
+  return new Promise((resolve, reject) => {
+    const childEnv = {
+      ...process.env,
+      PYTHONUTF8:       '1',
+      PYTHONIOENCODING: 'utf-8',
+      // Inyectar PYTHONPATH para que Python encuentre paquetes en --target dir
+      ...(PYTHON_PATH_ENV ? { PYTHONPATH: PYTHON_PATH_ENV } : {}),
+    };
+
+    const py = spawn(exe, [...extraArgs, PYTHON_SCRIPT, outputPath], { env: childEnv });
+
+    let stderr  = '';
+    let settled = false;
 
     py.stderr.setEncoding('utf8');
     py.stderr.on('data', d => { stderr += d; });
 
-    // Ignorar errores de escritura en stdin cuando el proceso no existe
+    // Silenciar errores de stdin cuando el proceso no llega a abrirse
     py.stdin.on('error', () => {});
 
     py.on('close', code => {
@@ -182,7 +228,7 @@ function invocarPythonConExe(exe, jsonData, outputPath) {
       settled = true;
       if (code === 0) resolve();
       else reject(Object.assign(
-        new Error(`Script Python (${exe}) falló (code ${code}): ${stderr}`),
+        new Error(`Script Python (${cmdLabel}) falló (code ${code}): ${stderr}`),
         { notFound: false }
       ));
     });
@@ -190,49 +236,47 @@ function invocarPythonConExe(exe, jsonData, outputPath) {
     py.on('error', err => {
       if (settled) return;
       settled = true;
-      // ENOENT = ejecutable no encontrado en el PATH → intentar el siguiente
       reject(Object.assign(err, {
         notFound: err.code === 'ENOENT',
-        message:  `No se pudo lanzar Python (${exe}): ${err.message}`,
+        message:  `No se pudo lanzar Python (${cmdLabel}): ${err.message}`,
       }));
     });
 
-    // Escribir JSON en UTF-8 explícito (Buffer.from garantiza la codificación
-    // independientemente del locale del sistema operativo).
     try {
       const jsonStr = JSON.stringify(jsonData);
       py.stdin.write(Buffer.from(jsonStr, 'utf8'));
       py.stdin.end();
     } catch (_) {
-      // stdin puede lanzar si el proceso ya falló; el handler de 'error' ya lo captura
+      // stdin puede lanzar si el proceso ya falló; el handler de error lo captura
     }
   });
 }
 
 /**
- * Itera los candidatos de Python y usa el primero que funcione.
- * Si el ejecutable existe pero el script falla, propaga el error inmediatamente
- * (no tiene sentido probar otro Python si el script tiene un bug).
+ * Itera los candidatos de Python hasta encontrar uno funcional.
+ * Si el ejecutable existe pero el script falla (error real), propaga inmediatamente.
  */
 async function invocarPython(jsonData, outputPath) {
   let lastErr;
-  for (const exe of PYTHON_CANDIDATES) {
+  for (const candidato of PYTHON_CANDIDATES) {
+    const label = candidato.join(' ');
     try {
-      await invocarPythonConExe(exe, jsonData, outputPath);
-      console.log(`[exportarAdecco] Python ejecutado con: ${exe}`);
+      await invocarPythonConExe(candidato, jsonData, outputPath);
+      console.log(`[exportarAdecco] ✓ Python ejecutado con: ${label} | PYTHONPATH: ${PYTHON_PATH_ENV || '(no configurado)'}`);
       return;
     } catch (err) {
       lastErr = err;
       if (!err.notFound) {
-        // El ejecutable existe pero el script falló → no probar otro candidato
+        // El ejecutable existe pero el script falló → no tiene sentido probar otro
         throw err;
       }
-      console.warn(`[exportarAdecco] Ejecutable '${exe}' no encontrado en PATH, probando siguiente...`);
+      console.warn(`[exportarAdecco] Candidato '${label}' no encontrado en PATH, probando siguiente...`);
     }
   }
+  const intentados = PYTHON_CANDIDATES.map(c => c.join(' ')).join(', ');
   throw lastErr || new Error(
-    `Python no encontrado. Candidatos probados: ${PYTHON_CANDIDATES.join(', ')}. ` +
-    `Configure la variable de entorno PYTHON_CMD en Azure App Settings.`
+    `Python 3 no encontrado. Candidatos probados: [${intentados}]. ` +
+    `Configure PYTHON_PATH=C:\\Windows\\py.exe y PYTHON_ARGS=-3 en Azure App Settings.`
   );
 }
 
