@@ -71,33 +71,62 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Servidor de nómina funcionando' });
 });
 
-// Diagnóstico de Python: prueba cada candidato con --version y reporta cuál funciona.
-// Acceder a /api/health/python después de un deploy para confirmar el intérprete.
+// Diagnóstico completo de Python: busca el ejecutable en el sistema de archivos.
+// GET /api/health/python — sin autenticacion, solo para diagnostico post-deploy.
 app.get('/api/health/python', (req, res) => {
-  const { spawn } = require('child_process');
-  const envPy = (process.env.PYTHON_PATH || '').trim();
-  const candidatos = envPy
-    ? [envPy, 'py', 'python', 'python3']
-    : ['py', 'python', 'python3'];
+  const { execSync } = require('child_process');
+  const fs2 = require('fs');
 
-  const resultados = [];
-  let pendientes = candidatos.length;
+  const envPy   = (process.env.PYTHON_PATH || '').trim();
+  const result  = { PYTHON_PATH_configurado: envPy || '(no definido)', busqueda: {}, rutas_encontradas: [], recomendacion: '' };
 
-  candidatos.forEach((cmd) => {
-    const inicio = Date.now();
-    const proc = spawn(cmd, ['--version'], { windowsHide: true });
-    let out = '';
-    proc.stdout.on('data', d => { out += d.toString().trim(); });
-    proc.stderr.on('data', d => { out += d.toString().trim(); }); // Python 2 escribe a stderr
-    proc.on('error', (err) => {
-      resultados.push({ cmd, ok: false, error: err.code, ms: Date.now() - inicio });
-      if (--pendientes === 0) res.json({ PYTHON_PATH: envPy || '(no definido)', candidatos: resultados });
-    });
-    proc.on('close', (code) => {
-      resultados.push({ cmd, ok: code === 0, version: out, ms: Date.now() - inicio });
-      if (--pendientes === 0) res.json({ PYTHON_PATH: envPy || '(no definido)', candidatos: resultados });
-    });
+  // 1. Buscar con WHERE (cmd de Windows) — encuentra ejecutables en el PATH del sistema
+  try {
+    const whereOut = execSync('where python py python3 2>&1', { shell: 'cmd.exe', timeout: 8000 }).toString().trim();
+    result.busqueda.where = whereOut.split('\n').map(l => l.trim()).filter(Boolean);
+  } catch (e) {
+    result.busqueda.where = e.stdout ? e.stdout.toString().trim().split('\n').map(l=>l.trim()).filter(Boolean) : ['(ninguno en PATH)'];
+  }
+
+  // 2. Listar rutas típicas de Python en Azure App Service Windows
+  const rutas_a_verificar = [
+    'D:\\Python39\\python.exe',
+    'D:\\Python310\\python.exe',
+    'D:\\Python311\\python.exe',
+    'D:\\Python312\\python.exe',
+    'D:\\home\\Python39\\python.exe',
+    'D:\\home\\Python310\\python.exe',
+    'C:\\Python39\\python.exe',
+    'C:\\Python310\\python.exe',
+    'C:\\Python311\\python.exe',
+    'C:\\Python312\\python.exe',
+  ];
+  rutas_a_verificar.forEach(ruta => {
+    if (fs2.existsSync(ruta)) result.rutas_encontradas.push(ruta);
   });
+
+  // 3. Listar contenido de D:\ para detectar carpetas Python
+  try {
+    const dirD = fs2.readdirSync('D:\\').filter(n => /python/i.test(n));
+    result.busqueda.carpetas_D = dirD;
+  } catch(e) { result.busqueda.carpetas_D = ['(sin acceso a D:\\)' + e.message]; }
+
+  try {
+    const dirC = fs2.readdirSync('C:\\').filter(n => /python/i.test(n));
+    result.busqueda.carpetas_C = dirC;
+  } catch(e) { result.busqueda.carpetas_C = ['(sin acceso a C:\\)' + e.message]; }
+
+  // 4. Recomendar
+  const encontradas = [...result.busqueda.where.filter(l => l.endsWith('.exe')), ...result.rutas_encontradas];
+  if (encontradas.length > 0) {
+    result.recomendacion = 'Use como PYTHON_PATH: ' + encontradas[0];
+  } else if (result.busqueda.carpetas_D.length > 0) {
+    result.recomendacion = 'Carpeta Python detectada en D:\\. Ajuste PYTHON_PATH a la ruta completa del python.exe dentro de: ' + result.busqueda.carpetas_D.join(', ');
+  } else {
+    result.recomendacion = 'Python no encontrado. Instale via Azure App Service Extensions o configure la version en Portal > Configuracion > General > Python version.';
+  }
+
+  res.json(result);
 });
 
 
