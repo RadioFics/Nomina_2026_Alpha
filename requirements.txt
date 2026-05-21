@@ -1,17 +1,36 @@
 # ============================================================================
 #  requirements.txt — Dependencias Python para MineDax
 #
-#  Instalación en el VPS:
+#  Instalación:
 #    pip install -r requirements.txt
-#    (o en entorno virtual: python -m venv venv && venv\Scripts\activate && pip install -r requirements.txt)
+#
+#  Requiere Python 3.7 o superior.
+#  En Azure App Service (Windows): instalar desde Kudu console con:
+#    <PYTHON_PATH> -m pip install -r requirements.txt
 #
 #  Usado por:
-#    python/rellenar_pdf.py  →  rellena plantillas PDF oficiales de Collective Mining
-#    (invocado por solicitudesController.js via child_process.spawn)
+#    python/rellenar_pdf.py   → rellena plantillas PDF (AcroForm)
+#    python/procesar_pdf.py   → extrae datos de PDFs de permisos y vacaciones
 # ============================================================================
+
+# ── rellenar_pdf.py ───────────────────────────────────────────────────────────
 
 # Lectura y escritura de PDFs con formularios AcroForm
 pypdf==4.3.1
 
 # Generación de texto/imágenes sobre PDFs (coordenadas exactas)
 reportlab==4.2.2
+
+# ── procesar_pdf.py ───────────────────────────────────────────────────────────
+
+# Extracción de texto y tablas de PDFs nativos (Word → PDF, Power Automate)
+pdfplumber>=0.10.0
+
+# Procesamiento de imágenes para OCR (PDFs escaneados)
+Pillow>=9.0.0
+
+# OCR: envuelve el binario Tesseract instalado en el sistema
+# NOTA: requiere también instalar el ejecutable Tesseract OCR por separado:
+#   Windows: https://github.com/UB-Mannheim/tesseract/wiki
+#   Linux:   apt-get install tesseract-ocr tesseract-ocr-spa
+pytesseract>=0.3.10

@@ -607,7 +607,7 @@ function procesarPDFconPython(rutaArchivo) {
       });
     };
 
-    trySpawn(pythonCmd2);
+    trySpawn(candidatos[0]);
   });
 }
 

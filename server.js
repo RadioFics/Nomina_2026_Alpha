@@ -90,16 +90,20 @@ app.get('/api/health/python', (req, res) => {
 
   // 2. Listar rutas típicas de Python en Azure App Service Windows
   const rutas_a_verificar = [
-    'D:\\Python39\\python.exe',
-    'D:\\Python310\\python.exe',
-    'D:\\Python311\\python.exe',
-    'D:\\Python312\\python.exe',
+    // Python 3.8.5 x86 — extension instalada via Azure Portal
+    'D:\\home\\Python385\\python.exe',
+    'D:\\home\\Python38\\python.exe',
+    'D:\\Python385\\python.exe',
+    'D:\\Python38\\python.exe',
+    'C:\\Python385\\python.exe',
+    'C:\\Python38\\python.exe',
+    // Python 3.9 / 3.10 (por si se actualiza)
     'D:\\home\\Python39\\python.exe',
-    'D:\\home\\Python310\\python.exe',
+    'D:\\Python39\\python.exe',
     'C:\\Python39\\python.exe',
-    'C:\\Python310\\python.exe',
-    'C:\\Python311\\python.exe',
-    'C:\\Python312\\python.exe',
+    // Python 2.7 y 3.4 (disponibles pero insuficientes — solo para referencia)
+    'D:\\Python34\\python.exe',
+    'C:\\Python34\\python.exe',
   ];
   rutas_a_verificar.forEach(ruta => {
     if (fs2.existsSync(ruta)) result.rutas_encontradas.push(ruta);
