@@ -10,36 +10,68 @@ let isReconfiguring = false;
 
 /**
  * Construye un objeto de configuración válido
- * @param {Object} source - Objeto con claves: SERVER, DATABASE, UID, PWD (o minúsculas)
+ * @param {Object} source - Objeto con claves: SERVER, DATABASE, y opcionalmente UID/PWD
  *
  * Compatibilidad dual local ↔ Azure:
- *   - Local (NODE_ENV=development):  encrypt=false, trustServerCertificate=true
- *   - Azure SQL (NODE_ENV=production): encrypt=true, trustServerCertificate=false
- *   - Se puede forzar manualmente con DB_ENCRYPT=true / DB_TRUST_CERT=true en .env
+ *   - Azure (NODE_ENV=production + Azure SQL): usa Managed Identity (sin contraseña)
+ *   - Local (NODE_ENV=development):            usa SQL auth con UID/PWD del .env
+ *   - Se puede forzar MSI con DB_USE_MSI=true en App Settings
  */
 function buildConfig(source) {
   const server   = source.SERVER   || source.server;
   const database = source.DATABASE || source.database;
-  const uid      = source.UID      || source.uid;
-  const pwd      = source.PWD      || source.pwd;
 
-  if (!server || !database || !uid || !pwd) {
+  if (!server || !database) {
     throw new Error(
       `Faltan parámetros de conexión: SERVER=${server ? '✓' : '✗'}, ` +
-      `DATABASE=${database ? '✓' : '✗'}, UID=${uid ? '✓' : '✗'}, PWD=${pwd ? '✓' : '✗'}`
+      `DATABASE=${database ? '✓' : '✗'}`
     );
   }
 
-  // Azure SQL requiere encrypt:true. SQL Server Express local requiere encrypt:false.
-  // Se detecta automáticamente por NODE_ENV, o se puede forzar con DB_ENCRYPT.
-  const isProduction = (source.NODE_ENV || process.env.NODE_ENV) === 'production';
-  const isAzureSQL   = server.includes('.database.windows.net');
-  const needsEncrypt = isProduction || isAzureSQL || source.DB_ENCRYPT === 'true';
+  const isAzureSQL    = server.includes('.database.windows.net');
+  const isProduction  = (source.NODE_ENV || process.env.NODE_ENV) === 'production';
+  const forceMSI      = source.DB_USE_MSI === 'true';
+  const useManagedIdentity = forceMSI || (isAzureSQL && isProduction);
 
+  // ── Azure producción: Managed Identity (sin usuario ni contraseña) ──────────
+  if (useManagedIdentity) {
+    console.log('[DB] Usando autenticación Managed Identity (Azure AD)');
+    return {
+      server,
+      database,
+      port: 1433,
+      authentication: {
+        type: 'azure-active-directory-msi-app-service'
+      },
+      options: {
+        encrypt: true,
+        trustServerCertificate: false,
+        enableKeepAlive: true,
+        connectionTimeout: 60000,   // 60s para tolerar cold-start de BD serverless
+        requestTimeout: 60000,
+        connectionRetryInterval: 200,
+        maxRetriesOnTransientErrors: 5,
+        useUTC: true
+      }
+    };
+  }
+
+  // ── Desarrollo local: SQL Server auth con UID/PWD del .env ──────────────────
+  const uid = source.UID || source.uid;
+  const pwd = source.PWD || source.pwd;
+
+  if (!uid || !pwd) {
+    throw new Error(
+      `Faltan credenciales SQL: UID=${uid ? '✓' : '✗'}, PWD=${pwd ? '✓' : '✗'}. ` +
+      `En producción configura NODE_ENV=production para usar Managed Identity.`
+    );
+  }
+
+  const needsEncrypt = isAzureSQL || source.DB_ENCRYPT === 'true';
+  console.log('[DB] Usando autenticación SQL Server (desarrollo local)');
   return {
     server,
     database,
-    // Puerto explícito: Azure SQL usa 1433 estándar; SQL Express local puede ser dinámico
     port: parseInt(source.DB_PORT || process.env.DB_PORT || '1433', 10),
     authentication: {
       type: 'default',
@@ -47,7 +79,6 @@ function buildConfig(source) {
     },
     options: {
       encrypt: needsEncrypt,
-      // En Azure SQL el certificado es válido; localmente a veces no, por eso trustServerCertificate
       trustServerCertificate: !needsEncrypt || source.DB_TRUST_CERT === 'true',
       enableKeepAlive: true,
       connectionTimeout: 15000,
