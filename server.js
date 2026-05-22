@@ -50,6 +50,13 @@ const formulariosRoutes      = require('./routes/formularios');
 // Rutas públicas de autoservicio (sin verifyToken) — antes que cualquier middleware de auth
 app.get('/solicitud/permiso',     (req, res) => res.sendFile(path.join(__dirname, 'public', 'solicitud-permiso.html')));
 app.get('/solicitud/vacaciones',  (req, res) => res.sendFile(path.join(__dirname, 'public', 'solicitud-vacaciones.html')));
+
+// URLs cortas — aliases de autoservicio para compartir fácilmente
+// /permiso    → /solicitud/permiso
+// /vacaciones → /solicitud/vacaciones
+app.get('/permiso',    (req, res) => res.redirect(301, '/solicitud/permiso'));
+app.get('/vacaciones', (req, res) => res.redirect(301, '/solicitud/vacaciones'));
+
 app.use('/api/solicitudes', solicitudesRoutes);
 app.use('/api/formularios', formulariosRoutes);
 

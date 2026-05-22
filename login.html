@@ -598,10 +598,21 @@
         <div id="registro" class="tab-content">
           <div class="form-header">
             <h2 class="form-title">Crear Cuenta</h2>
-            <p class="form-description">Ingresa tu email y crea una contraseña</p>
+            <p class="form-description">Ingresa tus datos para acceder al sistema</p>
           </div>
 
           <form id="registroForm">
+            <div class="form-group">
+              <label for="registroNombre">Nombre completo</label>
+              <input
+                type="text"
+                id="registroNombre"
+                name="nombre"
+                placeholder="Juan Pérez"
+                autocomplete="name"
+              >
+            </div>
+
             <div class="form-group">
               <label for="registroEmail">Email</label>
               <input
@@ -760,7 +771,8 @@
     registroForm.addEventListener('submit', async (e) => {
       e.preventDefault();
 
-      const email = document.getElementById('registroEmail').value;
+      const nombre  = (document.getElementById('registroNombre').value || '').trim();
+      const email   = document.getElementById('registroEmail').value;
       const password = document.getElementById('registroPassword').value;
       const confirm = document.getElementById('registroConfirm').value;
 
@@ -781,6 +793,7 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            nombre,
             email,
             contrasena: password,
             contrasena_confirmacion: confirm

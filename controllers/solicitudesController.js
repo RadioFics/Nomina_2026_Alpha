@@ -9,9 +9,9 @@
 //    1. Valida empleado activo en GN_TERCE + GN_FUNCI mediante cédula.
 //    2. Obtiene período activo (PER_EST='A').
 //    3. Registra NO_NOVED + NO_AUSEN (ACT_USUA='SELF_SVC').
-//    4. Genera PDF oficial con rellenar_pdf.py (plantilla + capa de datos).
-//       → Si Python no está disponible en el entorno (ej. Azure Free),
-//         genera un PDF equivalente con pdfkit (Node.js puro) como respaldo.
+//    4. Genera PDF oficial con pdf-lib (pdfPlantillaController) — Node.js puro,
+//       sin dependencias de Python. Usa las plantillas oficiales como base.
+//       → Si la plantilla falla, genera un PDF equivalente con pdfkit como respaldo.
 //    5. Envía PDF al correo de RRHH y al correo del solicitante.
 // ============================================================================
 
@@ -30,7 +30,6 @@ const {
 const path                   = require('path');
 
 const DEFAULT_COD_EMPR = 1;
-const TEMPLATES_DIR    = path.join(__dirname, '..', 'templates');
 const TEMP_DIR         = path.join(__dirname, '..', 'temp');
 
 // ─── DB helpers ──────────────────────────────────────────────────────────────
@@ -218,137 +217,6 @@ async function _registrarNoved({ codFunci, codCcost, periodo, codConc, fechaIni,
   }
 
   return { estado: 'INSERTADO', codNoved };
-}
-
-// ─── Generar PDF con Python ───────────────────────────────────────────────────
-
-function _generarPDF(tipo, datos, rutaPlantilla, rutaSalida) {
-  return new Promise((resolve, reject) => {
-    const tmpJson = `${rutaSalida}.json`;
-    try {
-      fs.writeFileSync(tmpJson, JSON.stringify(datos, null, 2), 'utf8');
-    } catch (e) {
-      return reject(new Error(`No se pudo escribir JSON temporal: ${e.message}`));
-    }
-
-    function cleanup() { try { fs.unlinkSync(tmpJson); } catch (_) {} }
-
-    const isWin = process.platform === 'win32';
-
-    // Lista de candidatos en orden de prioridad:
-    //   1. PYTHON_PATH en .env  →  ruta absoluta explícita (máxima prioridad)
-    //   2. python  →  ejecutable en PATH del sistema
-    //   3. py      →  Windows Python Launcher
-    //   4. python3 →  entornos Linux/alternativos
-    //   5. .venv   →  venv del proyecto (último: puede no tener los paquetes)
-    const cmds = [];
-
-    // 1. Ruta explícita configurada en .env (más confiable en entornos con venv activo)
-    const envPython = process.env.PYTHON_PATH;
-    if (envPython && envPython.trim() && fs.existsSync(envPython.trim())) {
-      cmds.push(envPython.trim());
-    }
-
-    // 2-4. Comandos genéricos según plataforma.
-    // Azure Windows IMPORTANTE: 'py -3' invoca Python 3.x (3.6.8 en este servidor).
-    // 'python' en PATH apunta a Python 2.7 → falla; 'py' sin -3 también puede ser 2.7.
-    // PYTHON_ARGS permite configurar '-3' desde Azure App Settings sin tocar código.
-    const pyArgs = (process.env.PYTHON_ARGS || '').trim().split(/\s+/).filter(Boolean);
-    if (isWin) {
-      // Si PYTHON_PATH ya fue agregado arriba con sus PYTHON_ARGS, no duplicar
-      if (!cmds.length || !cmds[0].includes(process.env.PYTHON_PATH || '__')) {
-        cmds.push(['py', ...pyArgs].join(' '));  // 'py -3' como string compuesto
-      }
-      cmds.push('py -3');   // fallback explícito
-      cmds.push('python3');
-    } else {
-      cmds.push('python3', 'python');
-    }
-
-    // 5. Venv del proyecto como último recurso
-    const venvPy = path.join(__dirname, '..', '.venv', 'Scripts', 'python.exe');
-    if (isWin && fs.existsSync(venvPy) && !cmds.includes(venvPy)) {
-      cmds.push(venvPy);
-    }
-
-    // PYTHONPATH: en Azure Windows los paquetes se instalan con --target
-    // a D:\home\site\pythonpkgs. Sin PYTHONPATH Python no los encuentra.
-    const azurePkgs = 'D:\\home\\site\\pythonpkgs';
-    const pythonPathEnv = process.env.PYTHONPATH ||
-      (isWin ? azurePkgs : '');
-
-    let cmdIdx = 0;
-
-    function tryNext() {
-      if (cmdIdx >= cmds.length) {
-        cleanup();
-        return reject(new Error(
-          `Python no encontrado. Se probaron: ${cmds.join(', ')}. ` +
-          `Instale Python 3 (python.org) y marque "Add python.exe to PATH" durante la instalación.`
-        ));
-      }
-
-      const pythonCmd = cmds[cmdIdx++];
-      let   py, stdout = '', stderr = '';
-
-      try {
-        // ⚠️  NUNCA usar shell:true aquí.
-        // Con shell:true, cmd.exe divide los argumentos en espacios y corta las
-        // rutas que contengan espacios (como "OneDrive - Collective Mining...").
-        // Sin shell, Node.js pasa el array de argumentos directamente al proceso
-        // y los espacios en rutas no causan ningún problema.
-        // Soportar comandos compuestos como 'py -3' (exe + args en string)
-        const parts   = pythonCmd.split(/\s+/);
-        const exe     = parts[0];
-        const preArgs = parts.slice(1);
-        const childEnv = {
-          ...process.env,
-          PYTHONUTF8:       '1',
-          PYTHONIOENCODING: 'utf-8',
-          ...(pythonPathEnv ? { PYTHONPATH: pythonPathEnv } : {}),
-        };
-        py = spawn(exe, [...preArgs, PYTHON_SCRIPT, tipo, tmpJson, rutaPlantilla, rutaSalida], {
-          windowsHide: true,   // evitar ventana CMD emergente en Windows
-          env: childEnv,
-        });
-      } catch (e) {
-        return tryNext();   // el spawn en sí falló — probar siguiente
-      }
-
-      py.on('error', (err) => {
-        if (err.code === 'ENOENT') return tryNext();   // comando no existe
-        cleanup();
-        reject(new Error(`Error ejecutando "${pythonCmd}": ${err.message}`));
-      });
-
-      py.stdout.on('data', d => { stdout += d.toString(); });
-      py.stderr.on('data', d => { stderr += d.toString(); });
-
-      py.on('close', code => {
-        if (code !== 0) {
-          // Windows shell devuelve 9009 o mensaje "is not recognized" cuando
-          // el ejecutable no existe en PATH — en ese caso probamos el siguiente.
-          const notFound = code === 9009 ||
-            stderr.toLowerCase().includes('not recognized') ||
-            stderr.toLowerCase().includes('no se reconoce') ||
-            stderr.toLowerCase().includes('was not found');
-          if (notFound) return tryNext();
-          cleanup();
-          return reject(new Error(
-            `rellenar_pdf.py falló con "${pythonCmd}" (código ${code}):\n${stderr.slice(0, 600)}`
-          ));
-        }
-        cleanup();
-        try {
-          resolve(JSON.parse(stdout.trim()));
-        } catch (e) {
-          reject(new Error(`Respuesta inesperada de Python ("${pythonCmd}"): ${stdout.slice(0, 300)}`));
-        }
-      });
-    }
-
-    tryNext();
-  });
 }
 
 // ─── Email templates ──────────────────────────────────────────────────────────

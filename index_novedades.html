@@ -563,6 +563,11 @@
       <span class="nav-icon">⊟</span> Conexión BD
     </div>
     <div class="nav-divider"></div>
+    <div class="aside-label">Autoservicio</div>
+    <div class="nav-item" data-page="formularios" onclick="navigate('formularios')">
+      <span class="nav-icon">◱</span> Formularios
+    </div>
+    <div class="nav-divider"></div>
     <div class="aside-label">Sistema</div>
     <div class="nav-item" data-page="changelog" onclick="navigate('changelog')">
       <span class="nav-icon">◑</span> Versiones
@@ -1673,6 +1678,75 @@
       </div>
     </div>
 
+    <!-- ===== FORMULARIOS AUTOSERVICIO ===== -->
+    <div class="page" id="page-formularios">
+      <div class="page-title">Autoservicio <span>·</span> Formularios</div>
+      <div class="page-desc">Links directos a los formularios públicos de solicitud — sin login, desde cualquier dispositivo.</div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:860px">
+
+        <!-- PERMISO -->
+        <div class="form-card" style="display:flex;flex-direction:column;gap:18px">
+          <div class="form-card-title">
+            <span style="font-size:18px">◱</span> Solicitud de Permiso
+          </div>
+          <p style="font-size:13px;color:var(--muted);line-height:1.6">
+            El empleado ingresa su cédula, selecciona fechas y tipo de permiso, y envía. El sistema registra la novedad en nómina y envía el formato oficial por correo.
+          </p>
+          <div style="background:var(--surface2);border-radius:8px;padding:14px 16px;display:flex;align-items:center;gap:10px">
+            <span id="urlPermiso" style="font-size:12px;color:var(--cm-blue-light);font-family:monospace;flex:1;word-break:break-all"></span>
+            <button class="btn-sm btn-sm-edit" onclick="copiarLink('urlPermiso', this)" style="white-space:nowrap;flex-shrink:0">Copiar</button>
+          </div>
+          <div style="display:flex;gap:10px">
+            <a id="btnAbrirPermiso" href="#" target="_blank" rel="noopener"
+               style="flex:1;text-align:center;padding:10px;background:var(--cm-blue);color:#fff;border-radius:7px;font-family:'Barlow',sans-serif;font-weight:700;font-size:12px;letter-spacing:0.06em;text-transform:uppercase;text-decoration:none;transition:background .2s"
+               onmouseover="this.style.background='var(--cm-blue-light)'" onmouseout="this.style.background='var(--cm-blue)'">
+              Abrir Formulario ↗
+            </a>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding-top:4px">
+            <div id="qrPermiso" style="background:#fff;padding:10px;border-radius:8px;display:inline-block"></div>
+            <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Código QR — escanear con celular</span>
+          </div>
+        </div>
+
+        <!-- VACACIONES -->
+        <div class="form-card" style="display:flex;flex-direction:column;gap:18px">
+          <div class="form-card-title">
+            <span style="font-size:18px">◫</span> Solicitud de Vacaciones
+          </div>
+          <p style="font-size:13px;color:var(--muted);line-height:1.6">
+            El empleado solicita su período de vacaciones indicando fechas y quien lo reemplaza. El sistema registra en nómina y envía el formato oficial por correo.
+          </p>
+          <div style="background:var(--surface2);border-radius:8px;padding:14px 16px;display:flex;align-items:center;gap:10px">
+            <span id="urlVacaciones" style="font-size:12px;color:var(--cm-blue-light);font-family:monospace;flex:1;word-break:break-all"></span>
+            <button class="btn-sm btn-sm-edit" onclick="copiarLink('urlVacaciones', this)" style="white-space:nowrap;flex-shrink:0">Copiar</button>
+          </div>
+          <div style="display:flex;gap:10px">
+            <a id="btnAbrirVacaciones" href="#" target="_blank" rel="noopener"
+               style="flex:1;text-align:center;padding:10px;background:var(--cm-blue);color:#fff;border-radius:7px;font-family:'Barlow',sans-serif;font-weight:700;font-size:12px;letter-spacing:0.06em;text-transform:uppercase;text-decoration:none;transition:background .2s"
+               onmouseover="this.style.background='var(--cm-blue-light)'" onmouseout="this.style.background='var(--cm-blue)'">
+              Abrir Formulario ↗
+            </a>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding-top:4px">
+            <div id="qrVacaciones" style="background:#fff;padding:10px;border-radius:8px;display:inline-block"></div>
+            <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">Código QR — escanear con celular</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Nota sobre URLs cortas -->
+      <div style="margin-top:20px;max-width:860px;background:rgba(32,167,201,0.06);border:1px solid rgba(32,167,201,0.2);border-radius:10px;padding:16px 20px;font-size:12.5px;color:var(--muted);line-height:1.7">
+        <strong style="color:var(--cm-blue-light)">URLs cortas disponibles:</strong>
+        los formularios también son accesibles desde
+        <code id="urlCorta1" style="background:var(--surface2);padding:2px 7px;border-radius:4px;font-family:monospace;color:var(--text)"></code> y
+        <code id="urlCorta2" style="background:var(--surface2);padding:2px 7px;border-radius:4px;font-family:monospace;color:var(--text)"></code> —
+        ideales para compartir por WhatsApp o imprimir en carteleras.
+      </div>
+    </div>
+
     <!-- ===== CHANGELOG / VERSIONES ===== -->
     <div class="page" id="page-changelog">
       <div class="page-title">Versiones <span>& Cambios</span></div>
@@ -1987,11 +2061,62 @@ function navigate(page) {
     }
   });
 
-  if (page === 'ocasionales') { cargarOcasionalesDelPeriodo(); }
-  if (page === 'fijas')       { cargarFijasDelPeriodo(); }
-  if (page === 'ausentismos') { cargarAusentismosDelPeriodo(); }
-  if (page === 'cambios')     { cargarCambiosDelPeriodo(); }
-  if (page === 'changelog')   { clCargar(); }
+  if (page === 'ocasionales')  { cargarOcasionalesDelPeriodo(); }
+  if (page === 'fijas')        { cargarFijasDelPeriodo(); }
+  if (page === 'ausentismos')  { cargarAusentismosDelPeriodo(); }
+  if (page === 'cambios')      { cargarCambiosDelPeriodo(); }
+  if (page === 'changelog')    { clCargar(); }
+  if (page === 'formularios')  { initFormulariosPage(); }
+}
+
+// ─── AUTOSERVICIO — FORMULARIOS ───────────────────────────────────────────────
+let _formulariosIniciado = false;
+
+function initFormulariosPage() {
+  if (_formulariosIniciado) return;
+  _formulariosIniciado = true;
+
+  const base      = window.location.origin;
+  const urlP      = base + '/solicitud/permiso';
+  const urlV      = base + '/solicitud/vacaciones';
+  const urlCP     = base + '/permiso';
+  const urlCV     = base + '/vacaciones';
+
+  // Rellenar textos y hrefs
+  document.getElementById('urlPermiso').textContent     = urlP;
+  document.getElementById('urlVacaciones').textContent  = urlV;
+  document.getElementById('btnAbrirPermiso').href       = urlP;
+  document.getElementById('btnAbrirVacaciones').href    = urlV;
+  document.getElementById('urlCorta1').textContent      = urlCP;
+  document.getElementById('urlCorta2').textContent      = urlCV;
+
+  // Generar QR con la API pública de qrserver.com (sin dependencias npm)
+  function qrImg(url) {
+    const img = document.createElement('img');
+    img.src   = 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=' + encodeURIComponent(url);
+    img.alt   = url;
+    img.style.cssText = 'width:140px;height:140px;display:block';
+    return img;
+  }
+  document.getElementById('qrPermiso').appendChild(qrImg(urlP));
+  document.getElementById('qrVacaciones').appendChild(qrImg(urlV));
+}
+
+function copiarLink(elementId, btn) {
+  const url = document.getElementById(elementId).textContent;
+  navigator.clipboard.writeText(url).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = '✓ Copiado';
+    btn.style.background = 'rgba(76,175,130,0.2)';
+    btn.style.color = 'var(--success)';
+    setTimeout(() => {
+      btn.textContent = orig;
+      btn.style.background = '';
+      btn.style.color = '';
+    }, 2000);
+  }).catch(() => {
+    prompt('Copia este link:', url);
+  });
 }
 
 // ─── CHANGELOG ───────────────────────────────────────────────────────────────

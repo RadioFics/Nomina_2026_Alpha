@@ -1117,11 +1117,12 @@ function detectarDispositivo(userAgent) {
 /**
  * REGISTRO DE NUEVO USUARIO (Public)
  * POST /api/auth/registro
- * Validar email contra GN_TERCE, crear usuario, enviar email
+ * Crea usuario con cualquier correo válido — sin restricción de GN_TERCE.
+ * El nombre se toma del campo "nombre" del body; si no se envía, se deriva del email.
  */
 exports.registro = async (req, res) => {
   try {
-    const { email, contrasena, contrasena_confirmacion } = req.body;
+    const { email, contrasena, contrasena_confirmacion, nombre: nombreBody } = req.body;
 
     // Validar entrada
     if (!email || !contrasena || !contrasena_confirmacion) {
@@ -1147,24 +1148,8 @@ exports.registro = async (req, res) => {
       });
     }
 
-    // Verificar que el email existe en GN_TERCE
-    const verificarEmailQuery = `
-      SELECT TOP 1 COD_TERC, NOM_COMP, DIR_MAIL
-      FROM GN_TERCE
-      WHERE DIR_MAIL = @email
-    `;
-
-    const terceroResult = await executeQuery(verificarEmailQuery, { email });
-
-    // ✅ CORRECCIÓN: Acceder a recordset correctamente
-    if (!terceroResult || !terceroResult.recordset || terceroResult.recordset.length === 0) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Este email no está registrado en el sistema. Contacta al administrador.'
-      });
-    }
-
-    const tercero = terceroResult.recordset[0];
+    // Nombre de usuario: usar el enviado en el body o derivar del email
+    const nombreUsuario = (nombreBody || '').trim() || email.split('@')[0];
 
     // Verificar que no existe usuario con ese email
     const verificarUsuarioQuery = `
@@ -1175,7 +1160,6 @@ exports.registro = async (req, res) => {
 
     const usuarioExistente = await executeQuery(verificarUsuarioQuery, { email });
 
-    // ✅ CORRECCIÓN: Acceder a recordset correctamente
     if (usuarioExistente && usuarioExistente.recordset && usuarioExistente.recordset.length > 0) {
       return res.status(400).json({
         status: 'error',
@@ -1183,25 +1167,24 @@ exports.registro = async (req, res) => {
       });
     }
 
-    // ✅ CRÍTICO: Obtener COD_FUNCI desde GN_FUNCI usando COD_TERC
-    const obtenerFuncionQuery = `
-      SELECT TOP 1 COD_FUNCI
-      FROM GN_FUNCI
-      WHERE COD_TERC = @codTerc AND COD_EMPR = 1
-    `;
-
-    const funcionResult = await executeQuery(obtenerFuncionQuery, { codTerc: tercero.COD_TERC });
-
+    // COD_FUNCI: intentar encontrar al empleado por email en GN_TERCE (opcional)
     let codFunci = null;
-    if (funcionResult && funcionResult.recordset && funcionResult.recordset.length > 0) {
-      codFunci = funcionResult.recordset[0].COD_FUNCI;
-    }
+    try {
+      const fResult = await executeQuery(`
+        SELECT TOP 1 f.COD_FUNCI
+        FROM GN_FUNCI f
+        INNER JOIN GN_TERCE t ON t.COD_TERC = f.COD_TERC AND t.COD_EMPR = f.COD_EMPR
+        WHERE t.DIR_MAIL = @email AND f.COD_EMPR = 1 AND f.ACT_ESTA = 'A'
+      `, { email });
+      if (fResult && fResult.recordset && fResult.recordset.length > 0) {
+        codFunci = fResult.recordset[0].COD_FUNCI;
+      }
+    } catch (_) { /* tabla sin columna DIR_MAIL — no bloquea */ }
 
     // Hash de contraseña
     const hashedPassword = await bcrypt.hash(contrasena, 10);
 
-    // Insertar nuevo usuario
-    // ✅ CRÍTICO: Asignar COD_GUSU (grupo) - grupo 2 es estándar para usuarios nuevos
+    // Insertar nuevo usuario (COD_GUSU 2 = usuario estándar)
     const crearUsuarioQuery = `
       INSERT INTO GN_USUAR (
         COD_EMPR, NOM_USUA, DIR_ELEC, PAS_HASH, ACT_INAC, IND_BLOQ,
@@ -1216,7 +1199,7 @@ exports.registro = async (req, res) => {
     `;
 
     const crearResult = await executeQuery(crearUsuarioQuery, {
-      nombre: tercero.NOM_COMP,
+      nombre: nombreUsuario,
       email,
       pasHash: hashedPassword,
       codFunci
@@ -1259,12 +1242,12 @@ exports.registro = async (req, res) => {
     // Enviar email de bienvenida + enlace de verificación
     const baseUrlReg = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
     const verifyLink = `${baseUrlReg}/verificar-email.html?token=${tokVeri}`;
-    enviarEmail(emailVerificacion(tercero.NOM_COMP, email, verifyLink))
+    enviarEmail(emailVerificacion(nombreUsuario, email, verifyLink))
       .then(r => {
         if (r.success) console.log(`[REGISTRO] ✓ Email de verificación enviado a: ${email}`);
         else           console.error(`[REGISTRO] ✗ Error email verificación: ${r.error}`);
       });
-    enviarEmail(emailBienvenida(tercero.NOM_COMP, email))
+    enviarEmail(emailBienvenida(nombreUsuario, email))
       .then(r => {
         if (r.success) console.log(`[REGISTRO] ✓ Email de bienvenida enviado a: ${email}`);
         else           console.error(`[REGISTRO] ✗ Error email bienvenida: ${r.error}`);
