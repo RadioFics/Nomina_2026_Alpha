@@ -45,11 +45,13 @@ const changelogRoutes      = require('./routes/changelog');
 const novedadesRoutes      = require('./routes/novedades');
 const importarPDFRoutes      = require('./routes/importarPDF');
 const solicitudesRoutes      = require('./routes/solicitudesPublicas');
+const formulariosRoutes      = require('./routes/formularios');
 
 // Rutas públicas de autoservicio (sin verifyToken) — antes que cualquier middleware de auth
 app.get('/solicitud/permiso',     (req, res) => res.sendFile(path.join(__dirname, 'public', 'solicitud-permiso.html')));
 app.get('/solicitud/vacaciones',  (req, res) => res.sendFile(path.join(__dirname, 'public', 'solicitud-vacaciones.html')));
 app.use('/api/solicitudes', solicitudesRoutes);
+app.use('/api/formularios', formulariosRoutes);
 
 // Usar rutas
 app.use('/api/auth', authRoutes);
@@ -264,6 +266,9 @@ startListen(async () => {
   } catch (_) {}
   try {
     await require('./controllers/cambiosController').ensureDbObjects();
+  } catch (_) {}
+  try {
+    await require('./controllers/formularioController').ensureDbObjects();
   } catch (_) {}
 
   // Cierre automático de períodos vencidos al arrancar

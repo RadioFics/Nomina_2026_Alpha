@@ -10,14 +10,20 @@
 //    2. Obtiene período activo (PER_EST='A').
 //    3. Registra NO_NOVED + NO_AUSEN (ACT_USUA='SELF_SVC').
 //    4. Genera PDF oficial con rellenar_pdf.py (plantilla + capa de datos).
+//       → Si Python no está disponible en el entorno (ej. Azure Free),
+//         genera un PDF equivalente con pdfkit (Node.js puro) como respaldo.
 //    5. Envía PDF al correo de RRHH y al correo del solicitante.
 // ============================================================================
 
-const { executeQuery }       = require('../config/database');
-const { enviarEmail }        = require('../config/mailer');
+const { executeQuery }        = require('../config/database');
+const { enviarEmail }         = require('../config/mailer');
 const { subirPDFaSharePoint } = require('../config/sharepoint');
-const { spawn }              = require('child_process');
-const fs                     = require('fs');
+const { spawn }               = require('child_process');
+const fs                      = require('fs');
+const {
+  generarPDFPermiso: _pdfkitPermiso,
+  generarPDFVacaciones: _pdfkitVacaciones,
+} = require('./formularioController');
 const path                   = require('path');
 
 const DEFAULT_COD_EMPR = 1;
@@ -543,14 +549,39 @@ exports.enviarSolicitudPermiso = async (req, res) => {
     pdfSalida       = path.join(TEMP_DIR, `permiso_${cedula}_${ts}.pdf`);
     const plantilla = path.join(TEMPLATES_DIR, 'FORMATO_SOLICITUD_PERMISO.pdf');
 
-    let pdfOk    = false;
+    let pdfOk     = false;
     let pdfErrMsg = null;
+    let pdfBuffer = null; // buffer pdfkit (respaldo)
+
     try {
       await _generarPDF('permiso', datosPDF, plantilla, pdfSalida);
       pdfOk = true;
     } catch (pdfErr) {
       pdfErrMsg = pdfErr.message;
-      console.error('[solicitudes] Error generando PDF de permiso:', pdfErr.message);
+      console.warn('[solicitudes] Python PDF falló, intentando pdfkit como respaldo:', pdfErr.message);
+      // ── Respaldo pdfkit (Node.js puro — sin dependencia de Python) ──────────
+      try {
+        const datosKit = {
+          nombre:         datosPDF.nombre,
+          cedula:         datosPDF.cedula,
+          cargo:          datosPDF.cargo,
+          area:           datosPDF.area,
+          tipoPermiso:    datosPDF.motivo || tipoAusentismo,
+          fechaInicio:    fecha_desde,
+          horaInicio:     hora_inicio || null,
+          horaFin:        hora_fin    || null,
+          totalHoras:     total_dias  || null,
+          jefeInmediato:  null,
+          motivo:         [explicacion, observaciones].filter(Boolean).join(' — ') || null,
+        };
+        pdfBuffer = await _pdfkitPermiso(datosKit, 'N/A');
+        pdfOk     = true;
+        pdfErrMsg = null;
+        console.log('[solicitudes] PDF generado con pdfkit (respaldo).');
+      } catch (kitErr) {
+        pdfErrMsg = `Python: ${pdfErr.message} | pdfkit: ${kitErr.message}`;
+        console.error('[solicitudes] pdfkit también falló:', kitErr.message);
+      }
     }
 
     // 6b. Subir PDF a SharePoint (no bloqueante — si falla, el flujo continúa)
@@ -560,7 +591,11 @@ exports.enviarSolicitudPermiso = async (req, res) => {
 
     // 7. Enviar correos
     const fechasLabel = `${_isoADDMMYYYY(fecha_desde)} al ${_isoADDMMYYYY(fecha_hasta)}`;
-    const adjunto = pdfOk ? [{ filename: `Permiso_${(emp.NOM_COMP||'').trim()}.pdf`, path: pdfSalida }] : [];
+    // adjunto: usa archivo en disco (Python) o buffer en memoria (pdfkit respaldo)
+    const nombrePDF = `Permiso_${(emp.NOM_COMP||'').trim()}.pdf`;
+    const adjunto = !pdfOk ? [] : pdfBuffer
+      ? [{ filename: nombrePDF, content: pdfBuffer, contentType: 'application/pdf' }]
+      : [{ filename: nombrePDF, path: pdfSalida }];
 
     const destinos = [];
     if (process.env.MAIL_RRHH) destinos.push(process.env.MAIL_RRHH);
@@ -681,12 +716,32 @@ exports.enviarSolicitudVacaciones = async (req, res) => {
     pdfSalida       = path.join(TEMP_DIR, `vacaciones_${cedula}_${ts}.pdf`);
     const plantilla = path.join(TEMPLATES_DIR, 'FORMATO_SOLICITUD_VACACIONES.pdf');
 
-    let pdfOk = false;
+    let pdfOk     = false;
+    let pdfBuffer = null; // buffer pdfkit (respaldo)
+
     try {
       await _generarPDF('vacaciones', datosPDF, plantilla, pdfSalida);
       pdfOk = true;
     } catch (pdfErr) {
-      console.error('[solicitudes] Error generando PDF de vacaciones:', pdfErr.message);
+      console.warn('[solicitudes] Python PDF vacaciones falló, intentando pdfkit:', pdfErr.message);
+      try {
+        const datosKit = {
+          nombre:         datosPDF.nombre,
+          cedula:         datosPDF.cedula,
+          cargo:          datosPDF.cargo,
+          fechaInicio:    fecha_inicio,
+          fechaFin:       fecha_fin,
+          diasSolicita:   diasTotal,
+          anoVacacion:    new Date(fecha_inicio).getFullYear(),
+          jefeInmediato:  null,
+          motivo:         [actividades, observaciones].filter(Boolean).join(' — ') || null,
+        };
+        pdfBuffer = await _pdfkitVacaciones(datosKit, 'N/A');
+        pdfOk     = true;
+        console.log('[solicitudes] PDF vacaciones generado con pdfkit (respaldo).');
+      } catch (kitErr) {
+        console.error('[solicitudes] pdfkit vacaciones también falló:', kitErr.message);
+      }
     }
 
     // 6b. Subir PDF a SharePoint (no bloqueante — si falla, el flujo continúa)
@@ -696,7 +751,10 @@ exports.enviarSolicitudVacaciones = async (req, res) => {
 
     // 7. Enviar correos
     const fechasLabel = `${_isoADDMMYYYY(fecha_inicio)} al ${_isoADDMMYYYY(fecha_fin)}`;
-    const adjunto = pdfOk ? [{ filename: `Vacaciones_${(emp.NOM_COMP||'').trim()}.pdf`, path: pdfSalida }] : [];
+    const nombrePDF = `Vacaciones_${(emp.NOM_COMP||'').trim()}.pdf`;
+    const adjunto = !pdfOk ? [] : pdfBuffer
+      ? [{ filename: nombrePDF, content: pdfBuffer, contentType: 'application/pdf' }]
+      : [{ filename: nombrePDF, path: pdfSalida }];
 
     const emailRRHH = process.env.MAIL_RRHH;
     if (emailRRHH) {
