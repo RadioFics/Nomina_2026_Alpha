@@ -426,4 +426,7 @@ module.exports = {
   ensureDbObjects,
   submitPermiso,
   submitVacaciones,
+  // Exportadas para uso como respaldo desde solicitudesController.js
+  generarPDFPermiso,
+  generarPDFVacaciones,
 };
