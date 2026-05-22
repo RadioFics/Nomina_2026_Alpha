@@ -18,8 +18,11 @@
 const { executeQuery }        = require('../config/database');
 const { enviarEmail }         = require('../config/mailer');
 const { subirPDFaSharePoint } = require('../config/sharepoint');
-const { spawn }               = require('child_process');
 const fs                      = require('fs');
+const {
+  generarPermisoOficial,
+  generarVacacionesOficial,
+} = require('./pdfPlantillaController');
 const {
   generarPDFPermiso: _pdfkitPermiso,
   generarPDFVacaciones: _pdfkitVacaciones,
@@ -29,7 +32,6 @@ const path                   = require('path');
 const DEFAULT_COD_EMPR = 1;
 const TEMPLATES_DIR    = path.join(__dirname, '..', 'templates');
 const TEMP_DIR         = path.join(__dirname, '..', 'temp');
-const PYTHON_SCRIPT    = path.join(__dirname, '..', 'python', 'rellenar_pdf.py');
 
 // ─── DB helpers ──────────────────────────────────────────────────────────────
 
@@ -544,22 +546,19 @@ exports.enviarSolicitudPermiso = async (req, res) => {
     };
 
     // 6. Generar PDF
-    if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
-    const ts        = Date.now();
-    pdfSalida       = path.join(TEMP_DIR, `permiso_${cedula}_${ts}.pdf`);
-    const plantilla = path.join(TEMPLATES_DIR, 'FORMATO_SOLICITUD_PERMISO.pdf');
-
+    //    Primario: pdf-lib carga la plantilla oficial y superpone los datos (Node.js puro).
+    //    Respaldo: pdfkit genera un PDF con diseño corporativo sin plantilla.
     let pdfOk     = false;
     let pdfErrMsg = null;
-    let pdfBuffer = null; // buffer pdfkit (respaldo)
+    let pdfBuffer = null;
 
     try {
-      await _generarPDF('permiso', datosPDF, plantilla, pdfSalida);
-      pdfOk = true;
+      pdfBuffer = await generarPermisoOficial(datosPDF);
+      pdfOk     = true;
+      console.log('[solicitudes] PDF generado con plantilla oficial (pdf-lib).');
     } catch (pdfErr) {
       pdfErrMsg = pdfErr.message;
-      console.warn('[solicitudes] Python PDF falló, intentando pdfkit como respaldo:', pdfErr.message);
-      // ── Respaldo pdfkit (Node.js puro — sin dependencia de Python) ──────────
+      console.warn('[solicitudes] pdf-lib falló, intentando pdfkit como respaldo:', pdfErr.message);
       try {
         const datosKit = {
           nombre:         datosPDF.nombre,
@@ -579,23 +578,25 @@ exports.enviarSolicitudPermiso = async (req, res) => {
         pdfErrMsg = null;
         console.log('[solicitudes] PDF generado con pdfkit (respaldo).');
       } catch (kitErr) {
-        pdfErrMsg = `Python: ${pdfErr.message} | pdfkit: ${kitErr.message}`;
+        pdfErrMsg = `pdf-lib: ${pdfErr.message} | pdfkit: ${kitErr.message}`;
         console.error('[solicitudes] pdfkit también falló:', kitErr.message);
       }
     }
 
-    // 6b. Subir PDF a SharePoint (no bloqueante — si falla, el flujo continúa)
-    if (pdfOk) {
+    // 6b. Subir PDF a SharePoint (buffer en memoria — no bloqueante)
+    const ts = Date.now();
+    if (pdfOk && pdfBuffer) {
+      if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
+      pdfSalida = path.join(TEMP_DIR, `permiso_${cedula}_${ts}.pdf`);
+      try { fs.writeFileSync(pdfSalida, pdfBuffer); } catch (_) {}
       await subirPDFaSharePoint(pdfSalida, `Permiso_${(emp.NOM_COMP||'').trim().replace(/ /g,'_')}_${ts}.pdf`);
     }
 
     // 7. Enviar correos
     const fechasLabel = `${_isoADDMMYYYY(fecha_desde)} al ${_isoADDMMYYYY(fecha_hasta)}`;
-    // adjunto: usa archivo en disco (Python) o buffer en memoria (pdfkit respaldo)
-    const nombrePDF = `Permiso_${(emp.NOM_COMP||'').trim()}.pdf`;
-    const adjunto = !pdfOk ? [] : pdfBuffer
-      ? [{ filename: nombrePDF, content: pdfBuffer, contentType: 'application/pdf' }]
-      : [{ filename: nombrePDF, path: pdfSalida }];
+    const nombrePDF   = `Permiso_${(emp.NOM_COMP||'').trim()}.pdf`;
+    const adjunto     = !pdfOk ? []
+      : [{ filename: nombrePDF, content: pdfBuffer, contentType: 'application/pdf' }];
 
     const destinos = [];
     if (process.env.MAIL_RRHH) destinos.push(process.env.MAIL_RRHH);
@@ -711,19 +712,17 @@ exports.enviarSolicitudVacaciones = async (req, res) => {
     };
 
     // 6. Generar PDF
-    if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
-    const ts        = Date.now();
-    pdfSalida       = path.join(TEMP_DIR, `vacaciones_${cedula}_${ts}.pdf`);
-    const plantilla = path.join(TEMPLATES_DIR, 'FORMATO_SOLICITUD_VACACIONES.pdf');
-
+    //    Primario: pdf-lib carga la plantilla oficial (Node.js puro).
+    //    Respaldo: pdfkit genera PDF con diseño corporativo.
     let pdfOk     = false;
-    let pdfBuffer = null; // buffer pdfkit (respaldo)
+    let pdfBuffer = null;
 
     try {
-      await _generarPDF('vacaciones', datosPDF, plantilla, pdfSalida);
-      pdfOk = true;
+      pdfBuffer = await generarVacacionesOficial(datosPDF);
+      pdfOk     = true;
+      console.log('[solicitudes] PDF vacaciones generado con plantilla oficial (pdf-lib).');
     } catch (pdfErr) {
-      console.warn('[solicitudes] Python PDF vacaciones falló, intentando pdfkit:', pdfErr.message);
+      console.warn('[solicitudes] pdf-lib vacaciones falló, intentando pdfkit:', pdfErr.message);
       try {
         const datosKit = {
           nombre:         datosPDF.nombre,
@@ -744,17 +743,20 @@ exports.enviarSolicitudVacaciones = async (req, res) => {
       }
     }
 
-    // 6b. Subir PDF a SharePoint (no bloqueante — si falla, el flujo continúa)
-    if (pdfOk) {
+    // 6b. Subir PDF a SharePoint (no bloqueante)
+    const ts = Date.now();
+    if (pdfOk && pdfBuffer) {
+      if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
+      pdfSalida = path.join(TEMP_DIR, `vacaciones_${cedula}_${ts}.pdf`);
+      try { fs.writeFileSync(pdfSalida, pdfBuffer); } catch (_) {}
       await subirPDFaSharePoint(pdfSalida, `Vacaciones_${(emp.NOM_COMP||'').trim().replace(/ /g,'_')}_${ts}.pdf`);
     }
 
     // 7. Enviar correos
     const fechasLabel = `${_isoADDMMYYYY(fecha_inicio)} al ${_isoADDMMYYYY(fecha_fin)}`;
-    const nombrePDF = `Vacaciones_${(emp.NOM_COMP||'').trim()}.pdf`;
-    const adjunto = !pdfOk ? [] : pdfBuffer
-      ? [{ filename: nombrePDF, content: pdfBuffer, contentType: 'application/pdf' }]
-      : [{ filename: nombrePDF, path: pdfSalida }];
+    const nombrePDF   = `Vacaciones_${(emp.NOM_COMP||'').trim()}.pdf`;
+    const adjunto     = !pdfOk ? []
+      : [{ filename: nombrePDF, content: pdfBuffer, contentType: 'application/pdf' }];
 
     const emailRRHH = process.env.MAIL_RRHH;
     if (emailRRHH) {
