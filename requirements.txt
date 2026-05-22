@@ -25,6 +25,7 @@
 #  PASO 2 — Instalar en Kudu CMD (https://<app>.scm.azurewebsites.net/DebugConsole):
 #    mkdir D:\home\site\pythonpkgs
 #    py -3 -m pip install --target D:\home\site\pythonpkgs "pypdf==4.3.1"
+#    py -3 -m pip install --target D:\home\site\pythonpkgs "fpdf2>=2.7.4"
 #    py -3 -m pip install --target D:\home\site\pythonpkgs "Pillow>=8.0.0,<9.0.0"
 #    py -3 -m pip install --target D:\home\site\pythonpkgs "pytesseract==0.3.7"
 #    py -3 -m pip install --target D:\home\site\pythonpkgs --no-deps "pdfplumber==0.5.28"
@@ -42,7 +43,10 @@
 
 # ── rellenar_pdf.py ───────────────────────────────────────────────────────────
 pypdf==4.3.1
-# reportlab: instalar solo en entorno con compilador C (desarrollo local)
+# fpdf2: generación de capa de texto sobre plantillas PDF (puro Python, sin C)
+# Reemplaza reportlab (que requería compilador MSVC no disponible en Azure).
+fpdf2>=2.7.4
+# reportlab: NO disponible en Azure App Service (requiere compilador MSVC).
 # reportlab==3.6.8
 
 # ── procesar_pdf.py ───────────────────────────────────────────────────────────

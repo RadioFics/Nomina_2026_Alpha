@@ -6,8 +6,8 @@ Usa las plantillas originales (FORMATO SOLICITUD DE PERMISO 6.pdf y
 FORMATO SOLICITUD DE VACACIONES.pdf) como base y superpone los datos
 como texto en las posiciones exactas medidas con pdfplumber.
 
-Dependencias:
-  pip install pypdf reportlab
+Dependencias (puro Python, sin compilación C):
+  pip install pypdf fpdf2
 
 Uso:
   python rellenar_pdf.py permiso    datos.json  plantilla.pdf  salida.pdf
@@ -47,10 +47,9 @@ except ImportError:
     sys.exit('[ERROR] pypdf no instalado. Ejecuta: pip install pypdf')
 
 try:
-    from reportlab.pdfgen import canvas
-    from reportlab.lib.pagesizes import letter
+    from fpdf import FPDF
 except ImportError:
-    sys.exit('[ERROR] reportlab no instalado. Ejecuta: pip install reportlab')
+    sys.exit('[ERROR] fpdf2 no instalado. Ejecuta: pip install fpdf2')
 
 # Ambos PDFs son US Letter (612 × 792 pt), NO A4.
 PAGE_W, PAGE_H = 612.0, 792.0
@@ -59,132 +58,138 @@ PAGE_W, PAGE_H = 612.0, 792.0
 FORMS_MARKER = '[FORMS]'
 
 
-def _y(top_pdfplumber: float) -> float:
-    """
-    Convierte coordenada Y de pdfplumber (origen arriba, aumenta hacia abajo)
-    a coordenada Y de reportlab (origen abajo, aumenta hacia arriba).
-    Se usa el valor `bottom` del texto para que la línea base quede alineada.
-    """
-    return PAGE_H - top_pdfplumber
+# ══════════════════════════════════════════════════════════════════════════════
+#   HELPERS DE DIBUJO  (equivalentes exactos a los anteriores de reportlab)
+#
+#   Sistema de coordenadas:
+#     - fpdf2 usa origen arriba-izquierda, y aumenta hacia abajo   ← mismo que pdfplumber
+#     - reportlab usaba origen abajo-izquierda, y aumenta hacia arriba
+#
+#   Equivalencia de posición:
+#     reportlab drawString(x,  PAGE_H - y_top + lift,  txt)
+#     == fpdf2   text(x,  y_top - lift,  txt)
+#
+#   Por eso la conversión es simplemente:
+#     fpdf2_y = y_top - lift
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _new_overlay() -> FPDF:
+    """Crea una página PDF en blanco US Letter lista para recibir texto."""
+    pdf = FPDF(unit='pt', format=(PAGE_W, PAGE_H))
+    pdf.set_margins(0, 0, 0)
+    pdf.set_auto_page_break(False)
+    pdf.add_page()
+    return pdf
 
 
-def _txt(c, x: float, y_top: float, valor: str,
+def _txt(pdf: FPDF, x: float, y_top: float, valor: str,
          font: str = 'Helvetica', size: float = 9.0,
          max_width: float = 0, color=(0, 0, 0), lift: float = 4.0):
     """
-    Dibuja `valor` en la posición (x, y_top) en coordenadas pdfplumber.
-    y_top es el valor `bottom` del texto de la etiqueta correspondiente.
-    El parámetro `lift` desplaza el texto hacia arriba (en puntos) para que
-    flote con claridad por encima de la línea subrayada del formulario.
+    Dibuja `valor` con baseline en (x, y_top - lift) en coordenadas fpdf2.
+
+    y_top  → valor `bottom` del texto de la etiqueta en pdfplumber
+             (distancia desde el borde SUPERIOR de la página, aumentando hacia abajo).
+    lift   → desplaza el texto hacia ARRIBA para que flote sobre la línea del formulario.
     """
     if not valor:
         return
-    c.setFont(font, size)
-    c.setFillColorRGB(*color)
-    rl_y = _y(y_top) + lift          # +lift pt → texto por encima de la línea
+    valor = str(valor)
     if max_width > 0:
-        # Truncar para que quepa en el ancho disponible
         valor = valor[:int(max_width / (size * 0.55))]
-    c.drawString(x, rl_y, str(valor))
+    style = 'B' if 'Bold' in font else ''
+    pdf.set_font('Helvetica', style=style, size=size)
+    r, g, b = (int(c * 255) for c in color)
+    pdf.set_text_color(r, g, b)
+    # text(x, y) en fpdf2: y es la distancia desde el borde SUPERIOR hasta la baseline del texto
+    pdf.text(x, y_top - lift, txt=valor)
 
 
-def _check(c, x: float, top: float, h: float):
+def _check(pdf: FPDF, x: float, top: float, h: float):
     """
-    Dibuja una marca ✓ centrada dentro de un checkbox.
+    Dibuja una marca 'X' centrada dentro de un checkbox.
     x, top, h son las coordenadas pdfplumber del rectángulo del checkbox.
+
+    Equivalencia con reportlab:
+      reportlab: rl_y = (PAGE_H - center_y) - 4   (desde abajo)
+      fpdf2:     y    = center_y + 4               (desde arriba)
     """
-    center_y = top + h / 2.0          # centro vertical en pdfplumber
-    rl_y = _y(center_y) - 4.0         # ajuste para centrar el glifo
-    c.setFont('Helvetica-Bold', 10)
-    c.setFillColorRGB(0, 0, 0)
-    c.drawString(x + 2.5, rl_y, '✓')   # ✓
+    center_y = top + h / 2.0
+    pdf.set_font('Helvetica', style='B', size=10)
+    pdf.set_text_color(0, 0, 0)
+    pdf.text(x + 2.5, center_y + 4, txt='X')
+
+
+def _overlay_to_page(pdf: FPDF):
+    """Convierte el FPDF en una página pypdf lista para merge_page()."""
+    buf = io.BytesIO(pdf.output())
+    return PdfReader(buf).pages[0]
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #   CAPA DE TEXTO — PERMISO  (CM-TH-FR-003)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def _capa_permiso(datos: dict) -> io.BytesIO:
+def _capa_permiso(datos: dict):
     """
-    Genera la capa transparente con los datos del permiso, calibrada con las
-    coordenadas exactas extraídas del FORMATO SOLICITUD DE PERMISO 6.pdf
-    (612 × 792 pt, US Letter).
+    Genera la capa con los datos del permiso calibrada con las coordenadas
+    exactas del FORMATO SOLICITUD DE PERMISO 6.pdf (612 × 792 pt, US Letter).
+    Devuelve una página pypdf lista para merge_page().
 
-    Mapa de coordenadas (x0, bottom) pdfplumber → posición de cada campo:
+    Mapa de coordenadas (x, y_top pdfplumber) → cada campo:
 
     Información Personal
-      Nombre       : x=95,  bot=157.9
-      Cédula       : x=413, bot=157.9
-      Cargo        : x=86,  bot=179.6
-      Área         : x=402, bot=179.6
-      Fecha Día    : x=175, bot=136.1
-      Fecha Mes    : x=335, bot=136.1
-      Fecha Año    : x=480, bot=136.1
+      Nombre       : x=95,  y_top=158.5
+      Cédula       : x=418, y_top=158.5
+      Cargo        : x=95,  y_top=180.2
+      Área         : x=418, y_top=180.2
+      Fecha Día    : x=215, y_top=136.8
+      Fecha Mes    : x=376, y_top=136.8
+      Fecha Año    : x=520, y_top=136.8
 
     Datos de Permiso
-      Fecha desde  : x=233, bot=222.9
-      Fecha hasta  : x=407, bot=222.9
-      Hora inicio  : x=233, bot=244.6
-      Hora fin     : x=407, bot=244.6
-      Total días   : x=118, bot=266.4
+      Fecha desde  : x=257, y_top=223.5
+      Fecha hasta  : x=418, y_top=223.5
+      Hora inicio  : x=257, y_top=245.2
+      Hora fin     : x=418, y_top=245.2
+      Total días   : x=118, y_top=267.0
 
-    Motivo — checkboxes (x0, top, height):
-      Estudio      : (212, 302.4, 12.7)
-      Calamidad    : (212, 315.7, 12.7)
-      Médico       : (212, 328.4, 13.3)
-      Vacaciones   : (212, 341.8, 13.3)
+    Motivo — checkboxes (x, top, height):
+      Estudio      : (212.0, 302.4, 12.7)
+      Calamidad    : (212.0, 315.7, 12.7)
+      Médico       : (212.0, 328.4, 13.3)
+      Vacaciones   : (212.0, 341.8, 13.3)
       Compensatorio: (516.6, 302.4, 12.7)
       Fuerza Mayor : (516.6, 316.3, 12.1)
       Otra Causa   : (516.6, 329.0, 12.7)
-      ¿Cuál?       : x=411, bot=354.6
-      Explicación  : x=109, bot=381.2
-
-    Firmas solicitante
-      Nombre       : x=95,  bot=476.8
-      Cédula       : x=95,  bot=494.9
+      ¿Cuál?       : x=418, y_top=355.2
+      Explicación  : x=109, y_top=381.8
 
     Tipo Permiso — checkboxes:
       Remunerado   : (131.3, 594.5, 12.7)
       No Remunerado: (354.4, 593.2, 12.7)
 
-    Observaciones  : x=53, bot=655  (primera línea de texto)
+    Observaciones  : x=53, y_tops=[664.1, 690.8, 717.4]
     """
-
-    buf = io.BytesIO()
-    c = canvas.Canvas(buf, pagesize=(PAGE_W, PAGE_H))
+    pdf = _new_overlay()
 
     # ── Información Personal ─────────────────────────────────────────────────
-    # Coordenadas calibradas con pdfplumber sobre la plantilla real.
-    # x  = inicio del subrayado del campo (extraído con page.lines).
-    # y  = top del subrayado (coordenada pdfplumber, convierte _y + lift).
-    # Subrayados obtenidos: Nombre  x0=92.9  top=158.5
-    #                       Cédula  x0=415.1 top=158.5
-    #                       Cargo   x0=92.9  top=180.2
-    #                       Área    x0=415.1 top=180.2
-    _txt(c, 95,  158.5, datos.get('nombre', ''),  max_width=280)
-    _txt(c, 418, 158.5, datos.get('cedula', ''),  max_width=138)
-    _txt(c, 95,  180.2, datos.get('cargo',  ''),  max_width=280)
-    _txt(c, 418, 180.2, datos.get('area',   ''),  max_width=138)
+    _txt(pdf, 95,  158.5, datos.get('nombre', ''),  max_width=280)
+    _txt(pdf, 418, 158.5, datos.get('cedula', ''),  max_width=138)
+    _txt(pdf, 95,  180.2, datos.get('cargo',  ''),  max_width=280)
+    _txt(pdf, 418, 180.2, datos.get('area',   ''),  max_width=138)
 
-    # Fecha de emisión — cada valor sobre su propio subrayado:
-    #   Día  subrayado x0=212.0 top=136.8
-    #   Mes  subrayado x0=373.1 top=136.8
-    #   Año  subrayado x0=517.2 top=136.8
-    _txt(c, 215, 136.8, datos.get('fecha_dia',  ''), max_width=32)
-    _txt(c, 376, 136.8, datos.get('fecha_mes',  ''), max_width=32)
-    _txt(c, 520, 136.8, datos.get('fecha_anio', ''), max_width=38)
+    # Fecha de emisión
+    _txt(pdf, 215, 136.8, datos.get('fecha_dia',  ''), max_width=32)
+    _txt(pdf, 376, 136.8, datos.get('fecha_mes',  ''), max_width=32)
+    _txt(pdf, 520, 136.8, datos.get('fecha_anio', ''), max_width=38)
 
     # ── Datos de Permiso ──────────────────────────────────────────────────────
-    # Fecha Permiso  De  subrayado x0=254.0 top=223.5
-    #               Hasta subrayado x0=415.1 top=223.5
-    _txt(c, 257, 223.5, datos.get('fecha_desde', ''), max_width=112)
-    _txt(c, 418, 223.5, datos.get('fecha_hasta', ''), max_width=95)
-    # Horas          De  subrayado x0=254.0 top=245.2
-    #               Hasta subrayado x0=415.1 top=245.2
-    _txt(c, 257, 245.2, datos.get('hora_inicio', ''), max_width=112)
-    _txt(c, 418, 245.2, datos.get('hora_fin',    ''), max_width=95)
-    # Total de Dias — va justo después de la etiqueta (x1≈114), subrayado top=267.0
-    _txt(c, 118, 267.0, str(datos.get('total_dias', '')), max_width=185)
+    _txt(pdf, 257, 223.5, datos.get('fecha_desde', ''), max_width=112)
+    _txt(pdf, 418, 223.5, datos.get('fecha_hasta', ''), max_width=95)
+    _txt(pdf, 257, 245.2, datos.get('hora_inicio', ''), max_width=112)
+    _txt(pdf, 418, 245.2, datos.get('hora_fin',    ''), max_width=95)
+    _txt(pdf, 118, 267.0, str(datos.get('total_dias', '')), max_width=185)
 
     # ── Motivo del Permiso ────────────────────────────────────────────────────
     motivo = datos.get('motivo', '')
@@ -197,47 +202,36 @@ def _capa_permiso(datos: dict) -> io.BytesIO:
         'Fuerza Mayor':        (516.6, 316.3, 12.1),
         'Otra Causa':          (516.6, 329.0, 12.7),
     }
-    # Normalizar para comparación flexible
     motivo_norm = motivo.lower().strip()
     for label, (cx, ct, ch) in _CHECKS.items():
         if label.lower() in motivo_norm or motivo_norm in label.lower():
-            _check(c, cx, ct, ch)
+            _check(pdf, cx, ct, ch)
             break
 
-    # ¿Cuál?  subrayado x0=415.1 top=355.2
-    _txt(c, 418, 355.2, datos.get('cual',       ''), max_width=95)
-    # Explicación  subrayado x0=92.9 top=381.8
-    _txt(c, 109, 381.8, datos.get('explicacion', ''), max_width=450)
-
-    # ── Firmas — Solicitante ──────────────────────────────────────────────────
-    # Nombre y cédula del solicitante se omiten intencionalmente:
-    # el solicitante los llenará a mano al firmar el documento físico.
-    # (Antes se rellenaban automáticamente pero producían superposición con la
-    #  etiqueta "Nombre" de la columna "Jefe Inmediato" del mismo recuadro.)
+    _txt(pdf, 418, 355.2, datos.get('cual',        ''), max_width=95)
+    _txt(pdf, 109, 381.8, datos.get('explicacion',  ''), max_width=450)
 
     # ── Tipo Permiso ──────────────────────────────────────────────────────────
     tipo = datos.get('tipo_permiso', '').lower()
     if 'no' not in tipo and 'remunerado' in tipo:
-        _check(c, 131.3, 594.5, 12.7)   # Remunerado
+        _check(pdf, 131.3, 594.5, 12.7)   # Remunerado
     elif 'no' in tipo:
-        _check(c, 354.4, 593.2, 12.7)   # No Remunerado
+        _check(pdf, 354.4, 593.2, 12.7)   # No Remunerado
 
     # ── Observaciones ─────────────────────────────────────────────────────────
-    # Tres líneas de escritura en la sección OBSERVACIONES (tops extraídos de
-    # la plantilla con pdfplumber): 664.1 / 690.8 / 717.4
     obs = datos.get('observaciones', '')
     if obs:
         _OBS_TOPS = [664.1, 690.8, 717.4]
         lineas = textwrap.wrap(obs, width=95)
         for i, linea in enumerate(lineas[:len(_OBS_TOPS)]):
-            _txt(c, 53, _OBS_TOPS[i], linea, max_width=500)
+            _txt(pdf, 53, _OBS_TOPS[i], linea, max_width=500)
 
     # ── Bloque de datos estructurado (invisible) ──────────────────────────────
-    # El texto blanco no es visible en el PDF impreso pero pdfplumber lo extrae,
-    # lo que permite que procesar_pdf.py use el extractor determinístico de Forms
-    # sin depender del análisis visual del formulario (checkboxes, layout, etc.).
-    c.setFont('Helvetica', 4)
-    c.setFillColorRGB(1, 1, 1)
+    # Texto blanco 4pt en la zona inferior — extractible por procesar_pdf.py
+    # pero invisible para el lector.
+    # reportlab lo ponía en y = 8 + i*5 desde ABAJO → fpdf2: PAGE_H - 8 - i*5 desde ARRIBA
+    pdf.set_font('Helvetica', size=4)
+    pdf.set_text_color(255, 255, 255)
     lineas_datos = [
         FORMS_MARKER,
         f'NOMBRE: {datos.get("nombre", "")}',
@@ -257,61 +251,45 @@ def _capa_permiso(datos: dict) -> io.BytesIO:
         f'COD_CONC: {datos.get("cod_conc", "")}',
     ]
     for i, linea in enumerate(lineas_datos):
-        c.drawString(5, 8 + i * 5, linea)
+        pdf.text(5, PAGE_H - 8 - i * 5, txt=linea)
 
-    c.save()
-    buf.seek(0)
-    return buf
+    return _overlay_to_page(pdf)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #   CAPA DE TEXTO — VACACIONES  (CM-TH-SV-001)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def _capa_vacaciones(datos: dict) -> io.BytesIO:
+def _capa_vacaciones(datos: dict):
     """
-    Genera la capa transparente con los datos de vacaciones, calibrada con las
-    coordenadas exactas extraídas del FORMATO SOLICITUD DE VACACIONES.pdf
-    (612 × 792 pt, US Letter) mediante pdfplumber.
+    Genera la capa con los datos de vacaciones calibrada con las coordenadas
+    exactas del FORMATO SOLICITUD DE VACACIONES.pdf (612 × 792 pt, US Letter).
+    Devuelve una página pypdf lista para merge_page().
 
     Estructura del formulario (coordenadas pdfplumber):
 
     Información del empleado
-      Columna etiquetas : x=71.4  → x=248.0  (divisor físico en x=248.0)
-      Columna valores   : x=248.4 → x=552.5  → escribir en x=253
-      Nombre row top    : 121.5   | label top=130.1
-      Cédula row top    : 145.9   | label top=153.0
-      Cargo  row top    : 167.2   | label top=174.0
+      Nombre : x=251, y_top=145
+      Cédula : x=251, y_top=168
+      Cargo  : x=251, y_top=188
 
-    Período Solicitado — fila de datos (top=231.1 → bottom=242.5, h=11.4):
-      DD-DESDE  x=248.4–289.4  → x=258   MM-DESDE  x=289.9–342.0  → x=305
-      AA-DESDE  x=342.4–394.8  → x=358   DD-HASTA  x=395.2–447.1  → x=408
-      MM-HASTA  x=447.6–499.8  → x=460   AA-HASTA  x=500.3–552.5  → x=514
+    Período Solicitado (top=243 en fila de datos):
+      DD-DESDE  x=265   MM-DESDE  x=312   AA-DESDE  x=365
+      DD-HASTA  x=415   MM-HASTA  x=467   AA-HASTA  x=520
 
-    Días de Vacaciones disfrutados
-      Recuadro de verificación: x0=329.9 x1=416.9 top=264.1 bottom=286.6
-      Escribir en x=355, y_top=279 (centrado vertical en el rect)
+    Días de Vacaciones: x=370, y_top=285 (size=11)
 
     Tabla Actividades / Reemplazo / Observaciones
-      Actividades   x=71.4–269.2  (w=197.8) → x=78,  max_width=185, wrap=30
-      Reemplazo     x=269.7–399.3 (w=129.6) → x=277, max_width=115, wrap=18
-      Observaciones x=399.8–552.5 (w=152.7) → x=407, max_width=138, wrap=21
-      Fila 1 datos: top=359.9–398.4 (h=38.5) | Fila 2: top=398.4–441.2 (h=42.8)
-      Inicio y_top=368, paso=11, máx 6 líneas
+      inicio y_top=375, paso=11, máx 6 líneas
     """
-
-    buf = io.BytesIO()
-    c = canvas.Canvas(buf, pagesize=(PAGE_W, PAGE_H))
+    pdf = _new_overlay()
 
     # ── Información del empleado ──────────────────────────────────────────────
-    # Los valores van en la columna derecha (x=248.4–552.5); escribir en x=253.
-    # y_top coincide con el top de la etiqueta correspondiente (misma fila).
-    _txt(c, 251, 145, datos.get('nombre', ''), max_width=290)
-    _txt(c, 251, 168, datos.get('cedula', ''), max_width=290)
-    _txt(c, 251, 188, datos.get('cargo',  ''), max_width=290)
+    _txt(pdf, 251, 145, datos.get('nombre', ''), max_width=290)
+    _txt(pdf, 251, 168, datos.get('cedula', ''), max_width=290)
+    _txt(pdf, 251, 188, datos.get('cargo',  ''), max_width=290)
 
     # ── Período Solicitado ────────────────────────────────────────────────────
-    # Parsear fechas en formato YYYY-MM-DD o DD/MM/YYYY → devuelve (DD, MM, AA)
     def _parse(fecha_str):
         if not fecha_str:
             return '', '', ''
@@ -319,7 +297,7 @@ def _capa_vacaciones(datos: dict) -> io.BytesIO:
         try:
             if '-' in fecha_str and len(fecha_str) == 10:
                 y, m, d = fecha_str.split('-')
-                return d, m, y[2:]    # AA = últimos 2 dígitos del año
+                return d, m, y[2:]
             elif '/' in fecha_str:
                 partes = fecha_str.split('/')
                 d, m, y = partes[0], partes[1], partes[2]
@@ -331,40 +309,33 @@ def _capa_vacaciones(datos: dict) -> io.BytesIO:
     dd1, mm1, aa1 = _parse(datos.get('fecha_inicio', ''))
     dd2, mm2, aa2 = _parse(datos.get('fecha_fin',    ''))
 
-    # Fila de datos (top=231.1, bottom=242.5, h=11.4 pt) — tamaño 8pt para que quepa.
-    # X de cada celda medido con pdfplumber; se escribe 8–10 pt dentro del borde izq.
-    _txt(c, 265, 243, dd1, size=8, max_width=28)
-    _txt(c, 312, 243, mm1, size=8, max_width=30)
-    _txt(c, 365, 243, aa1, size=8, max_width=30)
-    _txt(c, 415, 243, dd2, size=8, max_width=28)
-    _txt(c, 467, 243, mm2, size=8, max_width=30)
-    _txt(c, 520, 243, aa2, size=8, max_width=30)
+    _txt(pdf, 265, 243, dd1, size=8, max_width=28)
+    _txt(pdf, 312, 243, mm1, size=8, max_width=30)
+    _txt(pdf, 365, 243, aa1, size=8, max_width=30)
+    _txt(pdf, 415, 243, dd2, size=8, max_width=28)
+    _txt(pdf, 467, 243, mm2, size=8, max_width=30)
+    _txt(pdf, 520, 243, aa2, size=8, max_width=30)
 
     # ── Días de Vacaciones disfrutados ────────────────────────────────────────
-    # El recuadro está en x=329.9–416.9, top=264.1–286.6 (h=22.5 pt).
-    # Con y_top=279 y lift=4, la línea base cae en pdfplumber y≈275 = centro del rect.
-    _txt(c, 370, 285, str(datos.get('dias_vacaciones', '')), size=11, max_width=55)
+    _txt(pdf, 370, 285, str(datos.get('dias_vacaciones', '')), size=11, max_width=55)
 
     # ── Tabla Actividades / Reemplazo / Observaciones ─────────────────────────
-    # Columnas calibradas con ancho exacto; inicio en primera fila de datos (y=368).
-    # Paso de 11 pt (fuente 8 pt + interlineado 3 pt), 6 líneas → cubre ambas filas.
     actividades = datos.get('actividades', '')
     reemplazo   = datos.get('reemplazo',   '')
     obs         = datos.get('observaciones', '')
 
     for i, linea in enumerate(textwrap.wrap(actividades, width=30)[:6]):
-        _txt(c, 78,  375 + i * 11, linea, size=8, max_width=185)
+        _txt(pdf, 78,  375 + i * 11, linea, size=8, max_width=185)
     for i, linea in enumerate(textwrap.wrap(reemplazo, width=18)[:6]):
-        _txt(c, 277, 375 + i * 11, linea, size=8, max_width=115)
+        _txt(pdf, 277, 375 + i * 11, linea, size=8, max_width=115)
     for i, linea in enumerate(textwrap.wrap(obs, width=21)[:6]):
-        _txt(c, 407, 375 + i * 11, linea, size=8, max_width=138)
+        _txt(pdf, 407, 375 + i * 11, linea, size=8, max_width=138)
 
     # ── Bloque de datos estructurado (invisible) ──────────────────────────────
-    c.setFont('Helvetica', 4)
-    c.setFillColorRGB(1, 1, 1)
+    pdf.set_font('Helvetica', size=4)
+    pdf.set_text_color(255, 255, 255)
 
     def _fecha_fmt(s):
-        """Normaliza YYYY-MM-DD → DD/MM/YYYY para el bloque de datos."""
         if not s:
             return ''
         s = str(s).strip()
@@ -386,11 +357,9 @@ def _capa_vacaciones(datos: dict) -> io.BytesIO:
         f'OBSERVACIONES: {datos.get("observaciones", "")}',
     ]
     for i, linea in enumerate(lineas_datos):
-        c.drawString(5, 8 + i * 5, linea)
+        pdf.text(5, PAGE_H - 8 - i * 5, txt=linea)
 
-    c.save()
-    buf.seek(0)
-    return buf
+    return _overlay_to_page(pdf)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -411,19 +380,18 @@ def rellenar(tipo: str, datos: dict, pdf_plantilla: str, pdf_salida: str) -> str
         Ruta del PDF generado (pdf_salida).
     """
     if tipo == 'permiso':
-        capa_buf = _capa_permiso(datos)
+        overlay_page = _capa_permiso(datos)
     elif tipo == 'vacaciones':
-        capa_buf = _capa_vacaciones(datos)
+        overlay_page = _capa_vacaciones(datos)
     else:
         raise ValueError(f'Tipo desconocido: {tipo!r}. Usa "permiso" o "vacaciones".')
 
-    # Abrir la plantilla original como base
-    reader  = PdfReader(pdf_plantilla)
-    overlay = PdfReader(capa_buf)
-    writer  = PdfWriter()
+    # Abrir la plantilla original como base y fusionar la capa de texto
+    reader = PdfReader(pdf_plantilla)
+    writer = PdfWriter()
 
     base_page = reader.pages[0]
-    base_page.merge_page(overlay.pages[0])
+    base_page.merge_page(overlay_page)
     writer.add_page(base_page)
 
     os.makedirs(os.path.dirname(os.path.abspath(pdf_salida)), exist_ok=True)
@@ -445,10 +413,10 @@ def main():
         }, ensure_ascii=False))
         sys.exit(1)
 
-    tipo          = sys.argv[1].lower()
-    datos_path    = sys.argv[2]
-    plantilla     = sys.argv[3]
-    salida        = sys.argv[4]
+    tipo       = sys.argv[1].lower()
+    datos_path = sys.argv[2]
+    plantilla  = sys.argv[3]
+    salida     = sys.argv[4]
 
     if not os.path.isfile(datos_path):
         print(json.dumps({'success': False, 'error': f'Archivo de datos no encontrado: {datos_path}'}))
