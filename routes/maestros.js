@@ -128,11 +128,17 @@ router.get('/empleado-cedula', maestrosController.obtenerEmpleadoPorCedula);
 // Conceptos de nómina
 router.get('/conceptos-ocasionales', maestrosController.obtenerConceptosOcasionales);
 
-// Catálogos para el formulario de Maestro Original
+// Catálogos para el formulario de Maestro Original (crear)
 router.get('/catalogos', maestrosController.obtenerCatalogos);
+
+// Catálogos correctos para edición (COD_EPS, COD_AFP, COD_CCF, COD_CEST)
+router.get('/catalogos-edicion', maestrosController.obtenerCatalogosEdicion);
 
 // Crear nuevo empleado (GN_TERCE + GN_FUNCI)
 router.post('/empleado', maestrosController.crearEmpleado);
+
+// Actualizar empleado existente (GN_TERCE + GN_FUNCI)
+router.put('/empleado/:codFunci', maestrosController.actualizarEmpleado);
 
 // Listar empleados activos de la BD
 router.get('/empleados', maestrosController.listarEmpleados);

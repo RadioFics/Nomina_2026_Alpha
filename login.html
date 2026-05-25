@@ -365,6 +365,54 @@
       color: var(--cm-blue-light);
     }
 
+    /* RESEND VERIFICATION PANEL */
+    .resend-panel {
+      display: none;
+      margin-top: 16px;
+      padding: 14px 16px;
+      background: rgba(32, 167, 201, 0.06);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .resend-panel.show {
+      display: block;
+      animation: slideIn 0.3s ease-out;
+    }
+
+    .resend-panel p {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 10px;
+      line-height: 1.5;
+    }
+
+    .btn-resend {
+      display: inline-block;
+      padding: 8px 20px;
+      background: transparent;
+      border: 1px solid var(--cm-blue);
+      border-radius: 6px;
+      color: var(--cm-blue);
+      font-family: 'Barlow', sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      transition: all 0.2s ease;
+    }
+
+    .btn-resend:hover:not(:disabled) {
+      background: rgba(32, 167, 201, 0.12);
+    }
+
+    .btn-resend:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
     /* TAB CONTENT */
     .tab-content {
       display: none;
@@ -563,6 +611,14 @@
             <div class="helper-text">
               ¿No tienes cuenta? <a onclick="switchTab('registro')">Crear una aquí</a>
             </div>
+
+            <!-- Panel de reenvío de verificación (visible solo cuando aplica) -->
+            <div id="resendPanel" class="resend-panel">
+              <p>¿No recibiste el correo o el enlace venció? Podemos enviarte uno nuevo.</p>
+              <button type="button" class="btn-resend" id="resendBtn" onclick="reenviarVerificacion()">
+                Reenviar enlace de verificación
+              </button>
+            </div>
           </form>
         </div>
 
@@ -627,6 +683,8 @@
 
             <div class="helper-text">
               ¿Ya tienes cuenta? <a onclick="switchTab('login')">Inicia sesión aquí</a>
+              &nbsp;·&nbsp;
+              <a onclick="mostrarReenvioDesdeRegistro()">¿No llegó el correo de verificación?</a>
             </div>
           </form>
         </div>
@@ -669,6 +727,9 @@
 
   <script src="js/auth.js"></script>
   <script>
+    // Email objetivo para reenvío de verificación
+    let resendEmailTarget = '';
+
     // Elementos del DOM
     const loginForm = document.getElementById('loginForm');
     const registroForm = document.getElementById('registroForm');
@@ -686,6 +747,10 @@
       document.getElementById(tabName).classList.add('active');
 
       statusMessage.classList.remove('show', 'error', 'success', 'info');
+
+      // Ocultar panel de reenvío al cambiar de tab
+      const rp = document.getElementById('resendPanel');
+      if (rp) rp.classList.remove('show');
     }
 
     tabBtns.forEach(btn => {
@@ -735,8 +800,12 @@
             data.message || 'Tu cuenta no ha sido verificada. Revisa tu correo y haz clic en el enlace de verificación.',
             'info'
           );
+          // Guardar email para reenvío y mostrar panel
+          resendEmailTarget = email;
+          document.getElementById('resendPanel').classList.add('show');
         } else {
           mostrarMensaje(data.message || 'Error al iniciar sesión', 'error');
+          document.getElementById('resendPanel').classList.remove('show');
         }
       } catch (error) {
         mostrarMensaje('Error de conexión. Intenta de nuevo.', 'error');
@@ -834,6 +903,72 @@
     function mostrarMensaje(mensaje, tipo = 'info') {
       statusMessage.textContent = mensaje;
       statusMessage.className = `status-message show ${tipo}`;
+    }
+
+    // Mostrar panel de reenvío desde el tab de Registro (enlace en helper-text)
+    function mostrarReenvioDesdeRegistro() {
+      const emailRegistro = document.getElementById('registroEmail').value.trim();
+      if (emailRegistro) resendEmailTarget = emailRegistro;
+      switchTab('login');
+      if (resendEmailTarget) {
+        document.getElementById('loginEmail').value = resendEmailTarget;
+        document.getElementById('resendPanel').classList.add('show');
+        mostrarMensaje('Usa el botón de abajo para reenviar el enlace de verificación a tu correo.', 'info');
+      } else {
+        switchTab('login');
+        mostrarMensaje('Ingresa tu email en el campo de arriba e intenta iniciar sesión para ver la opción de reenvío.', 'info');
+      }
+    }
+
+    // Reenviar enlace de verificación
+    async function reenviarVerificacion() {
+      const email = resendEmailTarget || document.getElementById('loginEmail').value.trim();
+
+      if (!email) {
+        mostrarMensaje('Ingresa tu email primero en el campo de arriba.', 'error');
+        return;
+      }
+
+      const btn = document.getElementById('resendBtn');
+      btn.disabled = true;
+      btn.textContent = 'Enviando...';
+
+      try {
+        const response = await fetch('/api/auth/reenviar-verificacion', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+
+        const data = await response.json();
+
+        if (data.yaActiva) {
+          mostrarMensaje('¡Tu cuenta ya está activa! Puedes iniciar sesión normalmente.', 'success');
+          document.getElementById('resendPanel').classList.remove('show');
+        } else {
+          mostrarMensaje(
+            `Enlace enviado. Revisa tu correo ${email} (incluida la carpeta de spam). El enlace expira en 24 horas.`,
+            'success'
+          );
+          // Deshabilitar botón 60s para evitar spam
+          let segundos = 60;
+          btn.textContent = `Reenviar en ${segundos}s`;
+          const intervalo = setInterval(() => {
+            segundos--;
+            btn.textContent = `Reenviar en ${segundos}s`;
+            if (segundos <= 0) {
+              clearInterval(intervalo);
+              btn.disabled = false;
+              btn.textContent = 'Reenviar enlace de verificación';
+            }
+          }, 1000);
+        }
+      } catch (error) {
+        mostrarMensaje('Error de conexión. Intenta de nuevo.', 'error');
+        btn.disabled = false;
+        btn.textContent = 'Reenviar enlace de verificación';
+        console.error('Resend error:', error);
+      }
     }
 
     // Pre-fill credentials if remembered

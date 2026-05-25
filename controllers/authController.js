@@ -1628,3 +1628,103 @@ exports.verificarEmail = async (req, res) => {
     return res.status(500).json({ status: 'error', message: 'Error al verificar email', error: err.message });
   }
 };
+
+/**
+ * REENVIAR VERIFICACIÓN DE EMAIL (Public)
+ * POST /api/auth/reenviar-verificacion
+ * Body: { email }
+ *
+ * Casos que maneja:
+ *  A) Cuenta activa con VER_EMAIL='S' → ya verificada, informar.
+ *  B) Cuenta inactiva con VER_EMAIL='N' (token vigente) → reenviar mismo token o regenerar.
+ *  C) Cuenta inactiva con VER_EMAIL='N' y token expirado → regenerar token y reenviar.
+ *  D) Email no encontrado → respuesta genérica (seguridad: no revelar si existe).
+ */
+exports.reenviarVerificacion = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ status: 'error', message: 'El email es requerido.' });
+    }
+
+    // Buscar la cuenta (independientemente del estado de activación)
+    const r = await executeQuery(`
+      SELECT TOP 1 COD_USUA, NOM_USUA, DIR_ELEC, ACT_INAC, VER_EMAIL, TOK_VERI, FEC_VERI
+      FROM GN_USUAR
+      WHERE RTRIM(LTRIM(DIR_ELEC)) = RTRIM(LTRIM(@email))
+        AND ACT_ESTA = 'A'
+    `, { email });
+
+    // Respuesta genérica si no existe (seguridad)
+    const respuestaGenerica = {
+      status: 'success',
+      message: 'Si tu email está registrado y pendiente de verificación, recibirás un nuevo enlace en breve.'
+    };
+
+    if (!r.recordset || !r.recordset.length) {
+      console.log(`[REENVIAR VER] Email no encontrado: ${email}`);
+      return res.status(200).json(respuestaGenerica);
+    }
+
+    const usuario = r.recordset[0];
+
+    // Caso A: ya verificada y activa
+    if (usuario.VER_EMAIL === 'S' && usuario.ACT_INAC === 'A') {
+      console.log(`[REENVIAR VER] Cuenta ya verificada y activa: ${email}`);
+      return res.status(200).json({
+        status: 'success',
+        message: 'Tu cuenta ya está verificada y activa. Puedes iniciar sesión normalmente.',
+        yaActiva: true
+      });
+    }
+
+    // Casos B y C: cuenta pendiente de verificación (VER_EMAIL='N')
+    // También cubre el caso donde VER_EMAIL='S' pero ACT_INAC!='A' (bug previo)
+    // → Regenerar siempre el token para garantizar un enlace fresco de 24h.
+    const { v4: uuidv4 } = require('uuid');
+    const nuevoToken = uuidv4();
+    const expiracion = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h desde ahora
+
+    await executeQuery(`
+      UPDATE GN_USUAR
+      SET TOK_VERI  = @token,
+          VER_EMAIL = 'N',
+          FEC_VERI  = @expiracion,
+          FEC_ULCA  = GETDATE()
+      WHERE COD_USUA = @codUsuario
+    `, {
+      token: nuevoToken,
+      expiracion,
+      codUsuario: usuario.COD_USUA
+    });
+
+    // Construir enlace de verificación
+    const baseUrl    = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+    const verifyLink = `${baseUrl}/verificar-email.html?token=${nuevoToken}`;
+
+    // Enviar email (fire-and-forget)
+    const nomUsuario = (usuario.NOM_USUA || '').trim() || email.split('@')[0];
+    enviarEmail(emailVerificacion(nomUsuario, email, verifyLink))
+      .then(r => {
+        if (r.success) console.log(`[REENVIAR VER] ✓ Email enviado a: ${email}`);
+        else           console.error(`[REENVIAR VER] ✗ Error email: ${r.error}`);
+      });
+
+    // Log del evento
+    try {
+      await executeQuery(`
+        INSERT INTO GN_LOG_ACCE (COD_USUA, TIP_EVEN, EST_EVEN, DES_EVEN, IP_ORIG, FEC_EVEN)
+        VALUES (@codUsuario, 'REENVIAR_VER', 'EXITOSO', 'Reenvío de verificación solicitado', @ip, GETDATE())
+      `, { codUsuario: usuario.COD_USUA, ip: req.ip || 'DESCONOCIDA' });
+    } catch (_) {}
+
+    console.log(`[REENVIAR VER] ✓ Token regenerado y email enviado: ${email}`);
+
+    return res.status(200).json(respuestaGenerica);
+
+  } catch (err) {
+    console.error('[REENVIAR VER ERROR]', err);
+    return res.status(500).json({ status: 'error', message: 'Error al procesar la solicitud.', error: err.message });
+  }
+};

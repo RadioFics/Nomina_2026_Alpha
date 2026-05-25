@@ -2285,7 +2285,7 @@ function cerrarModal(id) {
 }
 // Cerrar modal al hacer click fuera del contenido
 document.addEventListener('click', function(e) {
-  ['modalEditarFija','modalEditarAus','modalEditarCambio'].forEach(id => {
+  ['modalEditarFija','modalEditarAus','modalEditarCambio','modalEditarEmpleado'].forEach(id => {
     const m = document.getElementById(id);
     if (m && e.target === m) cerrarModal(id);
   });
@@ -3093,6 +3093,13 @@ function _buildDetalleHTML(d) {
       <span style="font-size:11px;color:var(--cm-blue-light);font-weight:600">CC ${d.NUM_IDEN || '—'}</span>
       ${estado}
       <span style="font-size:10px;color:var(--muted)">COD_TERC: ${d.COD_TERC || '—'} · COD_FUNCI: ${d.COD_FUNCI || '—'}</span>
+      <button onclick="abrirEditarEmpleado(${JSON.stringify(d).replace(/</g,'\\u003c')})"
+        style="background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.4);color:var(--gold-light);
+               font-size:12px;font-weight:600;padding:5px 13px;border-radius:7px;cursor:pointer;
+               letter-spacing:0.04em;transition:background .15s;"
+        onmouseover="this.style.background='rgba(201,168,76,0.28)'"
+        onmouseout="this.style.background='rgba(201,168,76,0.15)'"
+        title="Editar ficha del empleado">✎ Editar</button>
     </div>
   </div>
 
@@ -3177,6 +3184,231 @@ function _buildDetalleHTML(d) {
     </div>
 
   </div>`;
+}
+
+// ─── EDITAR EMPLEADO (Maestro Original) ──────────────────────────────────────
+let _catEdit = null;   // catálogos de edición (cacheados tras primera carga)
+let _editCedula = null; // cédula del empleado siendo editado (para invalidar caché)
+
+async function _cargarCatalogosEdit() {
+  if (_catEdit) return _catEdit;
+  const r = await fetch('/api/maestros/catalogos-edicion');
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  _catEdit = await r.json();
+  return _catEdit;
+}
+
+// DD/MM/YYYY  →  YYYY-MM-DD  (para input[type=date])
+function _slashToISO(s) {
+  if (!s) return '';
+  const t = String(s).trim();
+  // ya en ISO
+  if (/^\d{4}-\d{2}-\d{2}/.test(t)) return t.slice(0,10);
+  // DD/MM/YYYY
+  const m = t.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  // ISO con T (datetime del server)
+  if (t.includes('T')) { const d=new Date(t); if(!isNaN(d)) return d.toISOString().slice(0,10); }
+  return '';
+}
+
+function _fillSelect(id, items, current) {
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— Sin asignar —</option>' +
+    (items||[]).map(i => `<option value="${i.cod}"${String(i.cod)===String(current)?' selected':''}>${i.nom}</option>`).join('');
+}
+
+async function abrirEditarEmpleado(d) {
+  // Guardar cédula para invalidar caché al guardar
+  _editCedula = String(d.NUM_IDEN || '');
+
+  // Mostrar modal y spinear mientras carga catálogos
+  abrirModal('modalEditarEmpleado');
+  document.getElementById('eem_loadingOverlay').style.display = 'flex';
+  document.getElementById('eem_form').style.display = 'none';
+
+  try {
+    const cat = await _cargarCatalogosEdit();
+
+    // ── Identificación ─────────────────────────────────────────────────────
+    _fillSelect('eem_tpdoc',  cat.tpdoc,  d.COD_TPDOC);
+    document.getElementById('eem_nom1').value    = d.NOM_TERC  || '';
+    document.getElementById('eem_nom2').value    = d.SEG_NOMB  || '';
+    document.getElementById('eem_ape1').value    = d.APE_TERC  || '';
+    document.getElementById('eem_ape2').value    = d.SEG_APEL  || '';
+    document.getElementById('eem_codalt').value  = d.COD_ALT   || '';
+    document.getElementById('eem_cedula_ro').value = d.NUM_IDEN || '';
+
+    // ── Contacto ───────────────────────────────────────────────────────────
+    document.getElementById('eem_dir').value     = d.DIR_TERC  || '';
+    document.getElementById('eem_tel1').value    = d.TEL_TERC  || '';
+    document.getElementById('eem_tel2').value    = d.TEL_TERC2 || '';
+    document.getElementById('eem_mail').value    = d.DIR_MAIL  || '';
+
+    // ── Datos personales ───────────────────────────────────────────────────
+    document.getElementById('eem_sexo').value   = d.SEX_FUNC  || 'M';
+    _fillSelect('eem_grsan',  cat.grsan,  d.COD_GRSAN);
+    _fillSelect('eem_estciv', cat.estciv, d.COD_ESTCIV);
+    document.getElementById('eem_hijos').value  = d.CNT_HIJO != null ? d.CNT_HIJO : '0';
+    document.getElementById('eem_fnac').value   = _slashToISO(d.FEC_NAC);
+
+    // ── Cargo y salario ────────────────────────────────────────────────────
+    _fillSelect('eem_cargo',    cat.cargo,  d.COD_CARGO);
+    document.getElementById('eem_valorh').value    = d.VAL_HORA  || '';
+    document.getElementById('eem_tipsalar').value  = d.TIP_SALAR || 'Normal';
+    document.getElementById('eem_sabado').value    = d.JOR_SABAD || 'No';
+    document.getElementById('eem_dvac').value      = d.DIA_VACAC || '15';
+    document.getElementById('eem_riesgo').value    = d.GRA_RIESGO|| '0';
+    document.getElementById('eem_tipcontra').value = d.TIP_CONTRA|| '01';
+    document.getElementById('eem_numcontra').value = d.NUM_CONTRA|| '';
+
+    // ── Seguridad social ───────────────────────────────────────────────────
+    _fillSelect('eem_eps',   cat.eps,   d.COD_EPS);
+    _fillSelect('eem_afp',   cat.afp,   d.COD_AFP);
+    _fillSelect('eem_caja',  cat.caja,  d.COD_CAJA);
+    _fillSelect('eem_cesan', cat.cesan, d.COD_CESAN);
+    document.getElementById('eem_pension').value   = d.CUE_PENSIO || '';
+    document.getElementById('eem_reten').value     = d.POR_RETEN  || '0';
+    document.getElementById('eem_dedviv').value    = d.DED_VIVIEN || '0';
+    document.getElementById('eem_dedsalud').value  = d.DED_SALUD  || '0';
+    document.getElementById('eem_deddep').value    = d.DED_DEPEN  || '0';
+    document.getElementById('eem_promsalud').value = d.PRO_SALUD  || '0';
+
+    // ── Cuenta bancaria ────────────────────────────────────────────────────
+    _fillSelect('eem_banco',  cat.banco, d.COD_BANCO);
+    _fillSelect('eem_tipcta', cat.tpcta, d.COD_TPCTA);
+    document.getElementById('eem_numcta').value  = d.NUM_CTA   || '';
+    document.getElementById('eem_sucursal').value= d.NOM_SUCUR || '';
+
+    // ── Fechas laborales ───────────────────────────────────────────────────
+    _fillSelect('eem_ccost', cat.ccost, d.COD_CCOST);
+    document.getElementById('eem_fingreso').value  = _slashToISO(d.FEC_INGRES);
+    document.getElementById('eem_fretiro').value   = _slashToISO(d.FEC_RETIRO);
+    document.getElementById('eem_causaret').value  = (d.CAU_RETIRO || '').trim() === 'NO APLICA' ? '' : (d.CAU_RETIRO || '');
+
+    // Guardar codFunci en campo oculto
+    document.getElementById('eem_codFunci').value = d.COD_FUNCI || '';
+
+    document.getElementById('eem_loadingOverlay').style.display = 'none';
+    document.getElementById('eem_form').style.display = '';
+  } catch (err) {
+    cerrarModal('modalEditarEmpleado');
+    alert('No se pudieron cargar los catálogos de edición: ' + err.message);
+  }
+}
+
+async function guardarEditarEmpleado() {
+  const codFunci = document.getElementById('eem_codFunci').value;
+  if (!codFunci) { alert('Error: COD_FUNCI no encontrado.'); return; }
+
+  const nom1 = document.getElementById('eem_nom1').value.trim();
+  const ape1 = document.getElementById('eem_ape1').value.trim();
+  if (!nom1) { alert('El primer nombre es obligatorio.'); return; }
+  if (!ape1) { alert('El primer apellido es obligatorio.'); return; }
+  if (!document.getElementById('eem_cargo').value) { alert('El cargo es obligatorio.'); return; }
+  if (!document.getElementById('eem_fingreso').value) { alert('La fecha de ingreso es obligatoria.'); return; }
+
+  const body = {
+    NOM_TERC:   nom1,
+    SEG_NOMB:   document.getElementById('eem_nom2').value.trim()     || null,
+    APE_TERC:   ape1,
+    SEG_APEL:   document.getElementById('eem_ape2').value.trim()     || null,
+    COD_ALT:    document.getElementById('eem_codalt').value.trim()   || null,
+    COD_TPDOC:  document.getElementById('eem_tpdoc').value           || null,
+    DIR_TERC:   document.getElementById('eem_dir').value             || '',
+    TEL_TERC:   document.getElementById('eem_tel1').value            || '0',
+    TEL_TERC2:  document.getElementById('eem_tel2').value            || '',
+    DIR_MAIL:   document.getElementById('eem_mail').value            || '',
+    SEX_FUNC:   document.getElementById('eem_sexo').value            || 'M',
+    COD_GRSAN:  document.getElementById('eem_grsan').value           || null,
+    COD_ESTCIV: document.getElementById('eem_estciv').value          || null,
+    CNT_HIJO:   document.getElementById('eem_hijos').value           || 0,
+    FEC_NAC:    document.getElementById('eem_fnac').value            || null,
+    COD_CARGO:  document.getElementById('eem_cargo').value           || null,
+    VAL_HORA:   document.getElementById('eem_valorh').value          || 0,
+    TIP_SALAR:  document.getElementById('eem_tipsalar').value        || 'Normal',
+    JOR_SABAD:  document.getElementById('eem_sabado').value          || 'No',
+    DIA_VACAC:  document.getElementById('eem_dvac').value            || '15',
+    GRA_RIESGO: document.getElementById('eem_riesgo').value          || '0',
+    TIP_CONTRA: document.getElementById('eem_tipcontra').value       || '01',
+    NUM_CONTRA: document.getElementById('eem_numcontra').value       || null,
+    COD_EPS:    document.getElementById('eem_eps').value             || null,
+    COD_AFP:    document.getElementById('eem_afp').value             || null,
+    COD_CAJA:   document.getElementById('eem_caja').value            || null,
+    COD_CESAN:  document.getElementById('eem_cesan').value           || null,
+    CUE_PENSIO: document.getElementById('eem_pension').value         || null,
+    POR_RETEN:  document.getElementById('eem_reten').value           || '0',
+    DED_VIVIEN: document.getElementById('eem_dedviv').value          || '0',
+    DED_SALUD:  document.getElementById('eem_dedsalud').value        || '0',
+    DED_DEPEN:  document.getElementById('eem_deddep').value          || '0',
+    PRO_SALUD:  document.getElementById('eem_promsalud').value       || '0',
+    COD_BANCO:  document.getElementById('eem_banco').value           || null,
+    COD_TPCTA:  document.getElementById('eem_tipcta').value          || null,
+    NUM_CTA:    document.getElementById('eem_numcta').value          || null,
+    NOM_SUCUR:  document.getElementById('eem_sucursal').value        || 'NO APLICA',
+    COD_CCOST:  document.getElementById('eem_ccost').value           || null,
+    FEC_INGRES: document.getElementById('eem_fingreso').value        || null,
+    FEC_RETIRO: document.getElementById('eem_fretiro').value         || null,
+    CAU_RETIRO: document.getElementById('eem_causaret').value        || 'NO APLICA',
+  };
+
+  const btn = document.getElementById('eem_btnGuardar');
+  btn.disabled = true;
+  btn.textContent = '⏳ Guardando...';
+
+  try {
+    const resp = await fetch(`/api/maestros/empleado/${codFunci}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+
+    if (!resp.ok) {
+      alert('Error al guardar: ' + (data.error || resp.status) + (data.details ? '\n' + data.details : ''));
+      return;
+    }
+
+    // Invalidar caché del detalle para que al re-abrir muestre los nuevos datos
+    if (_editCedula) delete _detalleCache[_editCedula];
+
+    cerrarModal('modalEditarEmpleado');
+
+    // Si la fila detalle está abierta, refrescarla
+    const detRow = document.getElementById('detexp-' + _editCedula);
+    if (detRow) {
+      const btn2 = document.getElementById('btnExp-' + _editCedula);
+      // Cerrar y reabrir para recargar datos
+      detRow.remove();
+      if (btn2) {
+        btn2.classList.remove('open');
+        toggleDetalleEmpleado(_editCedula, btn2);
+      }
+    }
+
+    // Recargar lista principal para reflejar cambios de nombre/cargo
+    cargarEmpleadosBD();
+    addActivity('Maestro', data.nombre || _editCedula, 'Edición');
+
+    // Feedback visual breve
+    const snack = document.createElement('div');
+    snack.textContent = '✓ Empleado actualizado correctamente';
+    Object.assign(snack.style, {
+      position:'fixed', bottom:'28px', left:'50%', transform:'translateX(-50%)',
+      background:'rgba(76,175,130,0.95)', color:'#fff', padding:'10px 22px',
+      borderRadius:'8px', fontWeight:'600', fontSize:'13px', zIndex:'99999',
+      boxShadow:'0 4px 16px rgba(0,0,0,0.3)', transition:'opacity .4s'
+    });
+    document.body.appendChild(snack);
+    setTimeout(() => { snack.style.opacity = '0'; setTimeout(() => snack.remove(), 450); }, 2500);
+
+  } catch (err) {
+    alert('Error de red: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '💾 Guardar Cambios';
+  }
 }
 
 // ─── OCASIONALES (persistencia vs NO_NOVED + NO_OCASI) ──────────────────────
@@ -5497,6 +5729,300 @@ document.addEventListener('keydown', e => {
     </div>
   </div>
 </div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     MODAL: EDITAR EMPLEADO (Maestro Original)
+═══════════════════════════════════════════════════════════════════════════ -->
+<div id="modalEditarEmpleado" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.78);z-index:9999;align-items:flex-start;justify-content:center;overflow-y:auto;padding:24px 12px;">
+  <div id="eem_container" style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:860px;max-width:98vw;position:relative;box-shadow:0 24px 64px rgba(0,0,0,0.5);">
+
+    <!-- Encabezado fijo -->
+    <div style="padding:22px 28px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;position:sticky;top:0;background:var(--surface);border-radius:14px 14px 0 0;z-index:2;">
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--gold-light);flex:1">✎ Editar Empleado</div>
+      <div id="eem_nombreHeader" style="font-size:13px;color:var(--muted)"></div>
+      <button onclick="cerrarModal('modalEditarEmpleado')"
+        style="background:transparent;border:1px solid rgba(255,255,255,0.1);color:var(--muted);width:30px;height:30px;border-radius:6px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;"
+        title="Cerrar">✕</button>
+    </div>
+
+    <!-- Overlay de carga -->
+    <div id="eem_loadingOverlay" style="display:flex;align-items:center;justify-content:center;padding:60px;gap:12px;color:var(--muted);">
+      <div style="width:22px;height:22px;border:2px solid rgba(201,168,76,0.2);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite"></div>
+      Cargando catálogos…
+    </div>
+
+    <!-- Formulario principal -->
+    <div id="eem_form" style="display:none;padding:24px 28px 28px;">
+      <input type="hidden" id="eem_codFunci">
+
+      <!-- ── 1. IDENTIFICACIÓN ─────────────────────────────────────────── -->
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.09em;color:var(--cm-blue-light);font-weight:700;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid rgba(32,167,201,0.2)">
+        1 · Identificación &amp; Nombres <span style="color:var(--muted);font-weight:400;text-transform:none">· GN_TERCE</span>
+      </div>
+      <div class="form-grid cols-3" style="margin-bottom:18px">
+        <div class="form-group">
+          <label>Cédula <span style="font-size:10px;color:var(--muted)">(no editable)</span></label>
+          <input type="text" id="eem_cedula_ro" readonly style="background:rgba(255,255,255,0.03);color:var(--muted)">
+        </div>
+        <div class="form-group">
+          <label>Tipo Documento</label>
+          <select id="eem_tpdoc"></select>
+        </div>
+        <div class="form-group">
+          <label>Código Alterno</label>
+          <input type="text" id="eem_codalt" maxlength="20">
+        </div>
+      </div>
+      <div class="form-grid cols-4" style="margin-bottom:22px">
+        <div class="form-group">
+          <label>Primer Apellido <span class="req">*</span></label>
+          <input type="text" id="eem_ape1" required>
+        </div>
+        <div class="form-group">
+          <label>Segundo Apellido</label>
+          <input type="text" id="eem_ape2">
+        </div>
+        <div class="form-group">
+          <label>Primer Nombre <span class="req">*</span></label>
+          <input type="text" id="eem_nom1" required>
+        </div>
+        <div class="form-group">
+          <label>Segundo Nombre</label>
+          <input type="text" id="eem_nom2">
+        </div>
+      </div>
+
+      <!-- ── 2. CONTACTO ───────────────────────────────────────────────── -->
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.09em;color:#4DC4E0;font-weight:700;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid rgba(77,196,224,0.2)">
+        2 · Contacto <span style="color:var(--muted);font-weight:400;text-transform:none">· GN_TERCE</span>
+      </div>
+      <div class="form-grid cols-2" style="margin-bottom:12px">
+        <div class="form-group">
+          <label>Dirección</label>
+          <input type="text" id="eem_dir">
+        </div>
+        <div class="form-group">
+          <label>Correo Electrónico</label>
+          <input type="email" id="eem_mail">
+        </div>
+      </div>
+      <div class="form-grid cols-2" style="margin-bottom:22px">
+        <div class="form-group">
+          <label>Teléfono 1</label>
+          <input type="text" id="eem_tel1">
+        </div>
+        <div class="form-group">
+          <label>Teléfono 2</label>
+          <input type="text" id="eem_tel2">
+        </div>
+      </div>
+
+      <!-- ── 3. DATOS PERSONALES ──────────────────────────────────────── -->
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.09em;color:#9B5BD5;font-weight:700;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid rgba(155,91,213,0.2)">
+        3 · Datos Personales <span style="color:var(--muted);font-weight:400;text-transform:none">· GN_FUNCI</span>
+      </div>
+      <div class="form-grid cols-3" style="margin-bottom:12px">
+        <div class="form-group">
+          <label>Sexo</label>
+          <select id="eem_sexo">
+            <option value="M">Masculino</option>
+            <option value="F">Femenino</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Grupo Sanguíneo</label>
+          <select id="eem_grsan"></select>
+        </div>
+        <div class="form-group">
+          <label>Estado Civil</label>
+          <select id="eem_estciv"></select>
+        </div>
+      </div>
+      <div class="form-grid cols-2" style="margin-bottom:22px">
+        <div class="form-group">
+          <label>N.º de Hijos</label>
+          <input type="number" id="eem_hijos" min="0" step="1">
+        </div>
+        <div class="form-group">
+          <label>Fecha de Nacimiento</label>
+          <input type="date" id="eem_fnac">
+        </div>
+      </div>
+
+      <!-- ── 4. CARGO Y SALARIO ────────────────────────────────────────── -->
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.09em;color:#4CAF82;font-weight:700;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid rgba(76,175,130,0.2)">
+        4 · Cargo y Salario <span style="color:var(--muted);font-weight:400;text-transform:none">· GN_FUNCI</span>
+      </div>
+      <div class="form-grid cols-2" style="margin-bottom:12px">
+        <div class="form-group">
+          <label>Cargo <span class="req">*</span></label>
+          <select id="eem_cargo"></select>
+        </div>
+        <div class="form-group">
+          <label>Valor Hora</label>
+          <input type="number" id="eem_valorh" step="0.01" min="0">
+        </div>
+      </div>
+      <div class="form-grid cols-3" style="margin-bottom:12px">
+        <div class="form-group">
+          <label>Tipo Salario</label>
+          <select id="eem_tipsalar">
+            <option value="Normal">Normal</option>
+            <option value="Integral">Integral</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Trabaja Sábado</label>
+          <select id="eem_sabado">
+            <option value="No">No</option>
+            <option value="Si">Si</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Días Vacaciones</label>
+          <input type="number" id="eem_dvac" min="0" step="1">
+        </div>
+      </div>
+      <div class="form-grid cols-3" style="margin-bottom:22px">
+        <div class="form-group">
+          <label>Grado de Riesgo</label>
+          <input type="number" id="eem_riesgo" min="0" max="5" step="1">
+        </div>
+        <div class="form-group">
+          <label>Tipo de Contrato</label>
+          <select id="eem_tipcontra">
+            <option value="01">01 · Término Fijo</option>
+            <option value="02">02 · Término Indefinido</option>
+            <option value="03">03 · Obra o Labor</option>
+            <option value="04">04 · Aprendizaje</option>
+            <option value="05">05 · Prestación de Servicios</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>N.º de Contrato</label>
+          <input type="number" id="eem_numcontra" min="0">
+        </div>
+      </div>
+
+      <!-- ── 5. SEGURIDAD SOCIAL ───────────────────────────────────────── -->
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.09em;color:#E8A84C;font-weight:700;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid rgba(232,168,76,0.2)">
+        5 · Seguridad Social <span style="color:var(--muted);font-weight:400;text-transform:none">· GN_FUNCI</span>
+      </div>
+      <div class="form-grid cols-2" style="margin-bottom:12px">
+        <div class="form-group">
+          <label>EPS</label>
+          <select id="eem_eps"></select>
+        </div>
+        <div class="form-group">
+          <label>AFP (Pensiones)</label>
+          <select id="eem_afp"></select>
+        </div>
+      </div>
+      <div class="form-grid cols-2" style="margin-bottom:12px">
+        <div class="form-group">
+          <label>Caja de Compensación</label>
+          <select id="eem_caja"></select>
+        </div>
+        <div class="form-group">
+          <label>Fondo de Cesantías</label>
+          <select id="eem_cesan"></select>
+        </div>
+      </div>
+      <div class="form-grid cols-3" style="margin-bottom:12px">
+        <div class="form-group">
+          <label>Cuenta Pensión</label>
+          <input type="text" id="eem_pension">
+        </div>
+        <div class="form-group">
+          <label>% Retención</label>
+          <input type="number" id="eem_reten" step="0.01" min="0">
+        </div>
+        <div class="form-group">
+          <label>Promedio Salud</label>
+          <input type="number" id="eem_promsalud" step="0.01" min="0">
+        </div>
+      </div>
+      <div class="form-grid cols-3" style="margin-bottom:22px">
+        <div class="form-group">
+          <label>Ded. Vivienda</label>
+          <input type="number" id="eem_dedviv" step="0.01" min="0">
+        </div>
+        <div class="form-group">
+          <label>Ded. Salud</label>
+          <input type="number" id="eem_dedsalud" step="0.01" min="0">
+        </div>
+        <div class="form-group">
+          <label>Ded. Dependientes</label>
+          <input type="number" id="eem_deddep" step="0.01" min="0">
+        </div>
+      </div>
+
+      <!-- ── 6. CUENTA BANCARIA ────────────────────────────────────────── -->
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.09em;color:#5B9BD5;font-weight:700;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid rgba(91,155,213,0.2)">
+        6 · Cuenta Bancaria <span style="color:var(--muted);font-weight:400;text-transform:none">· GN_FUNCI</span>
+      </div>
+      <div class="form-grid cols-2" style="margin-bottom:12px">
+        <div class="form-group">
+          <label>Banco</label>
+          <select id="eem_banco"></select>
+        </div>
+        <div class="form-group">
+          <label>Tipo de Cuenta</label>
+          <select id="eem_tipcta"></select>
+        </div>
+      </div>
+      <div class="form-grid cols-2" style="margin-bottom:22px">
+        <div class="form-group">
+          <label>Número de Cuenta</label>
+          <input type="text" id="eem_numcta" maxlength="30">
+        </div>
+        <div class="form-group">
+          <label>Sucursal</label>
+          <input type="text" id="eem_sucursal" maxlength="10">
+        </div>
+      </div>
+
+      <!-- ── 7. FECHAS LABORALES ───────────────────────────────────────── -->
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.09em;color:#E05555;font-weight:700;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid rgba(224,85,85,0.2)">
+        7 · Fechas Laborales <span style="color:var(--muted);font-weight:400;text-transform:none">· GN_FUNCI</span>
+      </div>
+      <div class="form-grid cols-2" style="margin-bottom:12px">
+        <div class="form-group">
+          <label>Centro de Costo <span class="req">*</span></label>
+          <select id="eem_ccost"></select>
+        </div>
+        <div class="form-group">
+          <label>Fecha de Ingreso <span class="req">*</span></label>
+          <input type="date" id="eem_fingreso" required>
+        </div>
+      </div>
+      <div class="form-grid cols-3" style="margin-bottom:28px">
+        <div class="form-group">
+          <label>Fecha de Retiro</label>
+          <input type="date" id="eem_fretiro">
+        </div>
+        <div class="form-group" style="grid-column:span 2">
+          <label>Causa de Retiro</label>
+          <input type="text" id="eem_causaret" maxlength="50" placeholder="Dejar en blanco si está activo">
+        </div>
+      </div>
+
+      <!-- Botones de acción -->
+      <div style="display:flex;gap:12px;justify-content:flex-end;padding-top:16px;border-top:1px solid var(--border)">
+        <button onclick="cerrarModal('modalEditarEmpleado')"
+          style="background:transparent;border:1px solid rgba(255,255,255,0.12);color:var(--muted);padding:10px 22px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;letter-spacing:0.03em;">
+          Cancelar
+        </button>
+        <button id="eem_btnGuardar" onclick="guardarEditarEmpleado()"
+          style="background:var(--gold);color:var(--dark);padding:10px 28px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:700;letter-spacing:0.04em;transition:background .15s;"
+          onmouseover="this.style.background='var(--gold-light)'"
+          onmouseout="this.style.background='var(--gold)'">
+          💾 Guardar Cambios
+        </button>
+      </div>
+    </div><!-- /eem_form -->
+  </div><!-- /eem_container -->
+</div><!-- /modalEditarEmpleado -->
 
 </body>
 </html>

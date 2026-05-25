@@ -44,6 +44,14 @@ router.get('/validar-token/:token', authController.validarToken);
 router.get('/verificar-email/:token', authController.verificarEmail);
 
 /**
+ * Ruta pública - REENVIAR ENLACE DE VERIFICACIÓN
+ * POST /api/auth/reenviar-verificacion
+ * Body: { email }
+ * Regenera el token y reenvía el email si la cuenta está pendiente de verificación.
+ */
+router.post('/reenviar-verificacion', authController.reenviarVerificacion);
+
+/**
  * Ruta protegida - LOGOUT
  * POST /api/auth/logout
  */

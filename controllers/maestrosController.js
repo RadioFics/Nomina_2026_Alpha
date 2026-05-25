@@ -321,6 +321,8 @@ async function obtenerDetalleEmpleado(req, res) {
         t.COD_TERC, t.NUM_IDEN, t.NOM_COMP,
         t.NOM_TERC, t.SEG_NOMB, t.APE_TERC, t.SEG_APEL,
         t.COD_ALT, t.DIR_MAIL,
+        t.COD_TPDOC,
+        t.COD_MPIO,
         RTRIM(t.TEL_TERC)  AS TEL_TERC,
         RTRIM(t.TEL_TERC2) AS TEL_TERC2,
         RTRIM(t.DIR_TERC)  AS DIR_TERC,
@@ -329,6 +331,16 @@ async function obtenerDetalleEmpleado(req, res) {
         mn.NOM_MUNI,
         f.COD_FUNCI,
         f.SEX_FUNC, ISNULL(f.CNT_HIJO, 0) AS CNT_HIJO, f.FEC_NAC,
+        f.COD_CARGO,
+        f.COD_GRSAN,
+        f.COD_ESTCIV,
+        f.COD_BANCO,
+        f.COD_TPCTA,
+        f.COD_CCOST,
+        f.COD_EPS,
+        f.COD_AFP,
+        f.COD_CAJA,
+        f.COD_CESAN,
         f.POR_CARGO, f.VAL_HORA,
         f.NUM_CTA,
         RTRIM(f.NOM_SUCUR)  AS NOM_SUCUR,
@@ -395,6 +407,172 @@ async function obtenerDetalleEmpleado(req, res) {
   }
 }
 
+// ─── CATÁLOGOS CORRECTOS PARA EDICIÓN (usando COD_EPS, COD_AFP, etc.) ────────
+async function obtenerCatalogosEdicion(req, res) {
+  try {
+    const run = q => executeQuery(q, {}).then(r => r.recordset || []);
+    const [tpdoc, grsan, estciv, banco, tpcta, ccost, cargo, eps, afp, caja, cesan] = await Promise.all([
+      run("SELECT COD_TPDOC AS cod, NOM_TPDOC AS nom, COD_ABREV AS abr FROM MAE_TPDOC WHERE ACT_ESTA='A' AND COD_TPDOC>0 ORDER BY COD_TPDOC"),
+      run("SELECT COD_GRSAN AS cod, NOM_GRSAN AS nom FROM MAE_GRSAN WHERE ACT_ESTA='A' AND COD_GRSAN>0 ORDER BY COD_GRSAN"),
+      run("SELECT COD_ESTCIV AS cod, NOM_ESTCIV AS nom FROM MAE_ESTCIV WHERE ACT_ESTA='A' AND COD_ESTCIV>0 ORDER BY COD_ESTCIV"),
+      run("SELECT COD_BANCO AS cod, NOM_BANCO AS nom FROM MAE_BANCO WHERE ACT_ESTA='A' AND COD_BANCO>0 ORDER BY NOM_BANCO"),
+      run("SELECT COD_TPCTA AS cod, NOM_TPCTA AS nom FROM MAE_TPCTA WHERE ACT_ESTA='A' AND COD_TPCTA>0 ORDER BY COD_TPCTA"),
+      run("SELECT COD_CCOST AS cod, NOM_CCOST AS nom FROM MAE_CCOST WHERE COD_EMPR=1 AND ACT_ESTA='A' AND COD_CCOST>0 ORDER BY NOM_CCOST"),
+      run("SELECT COD_CARGO AS cod, NOM_CARGO AS nom FROM MAE_CARGO WHERE COD_EMPR=1 AND ACT_ESTA='A' AND COD_CARGO>0 ORDER BY NOM_CARGO"),
+      // EPS: usar COD_EPS de MAE_EPS como clave, mostrar nombre de GN_TERCE
+      run("SELECT me.COD_EPS AS cod, RTRIM(t.NOM_COMP) AS nom FROM MAE_EPS me INNER JOIN GN_TERCE t ON t.COD_TERC = me.COD_TERC WHERE me.COD_EMPR=1 AND me.ACT_ESTA='A' ORDER BY t.NOM_COMP"),
+      // AFP: usar COD_AFP de MAE_AFP como clave
+      run("SELECT ma.COD_AFP AS cod, RTRIM(t.NOM_COMP) AS nom FROM MAE_AFP ma INNER JOIN GN_TERCE t ON t.COD_TERC = ma.COD_TERC WHERE ma.COD_EMPR=1 AND ma.ACT_ESTA='A' ORDER BY t.NOM_COMP"),
+      // Caja de Compensación: usar COD_CCF de MAE_CCF como clave
+      run("SELECT mc.COD_CCF AS cod, RTRIM(t.NOM_COMP) AS nom FROM MAE_CCF mc INNER JOIN GN_TERCE t ON t.COD_TERC = mc.COD_TERC WHERE mc.COD_EMPR=1 AND mc.ACT_ESTA='A' ORDER BY t.NOM_COMP"),
+      // Cesantías: usar COD_CEST de MAE_CEST como clave
+      run("SELECT COD_CEST AS cod, RTRIM(NOM_CEST) AS nom FROM MAE_CEST WHERE COD_EMPR=1 AND ACT_ESTA='A' ORDER BY NOM_CEST"),
+    ]);
+    res.json({ tpdoc, grsan, estciv, banco, tpcta, ccost, cargo, eps, afp, caja, cesan });
+  } catch (err) {
+    console.error('❌ obtenerCatalogosEdicion:', err.message);
+    res.status(500).json({ error: 'Error al obtener catálogos de edición', details: err.message });
+  }
+}
+
+// ─── ACTUALIZAR EMPLEADO (GN_TERCE + GN_FUNCI) ──────────────────────────────
+async function actualizarEmpleado(req, res) {
+  try {
+    const { codFunci } = req.params;
+    if (!codFunci) return res.status(400).json({ error: 'codFunci es requerido' });
+
+    const b = req.body;
+
+    // Helper: convertir YYYY-MM-DD → DD/MM/YYYY (formato almacenado en la BD como nchar)
+    const toSlash = iso => {
+      if (!iso || String(iso).trim() === '') return null;
+      const parts = String(iso).trim().split('-');
+      if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+      return iso; // ya viene en otro formato, devolver tal cual
+    };
+
+    // 1. Obtener COD_TERC para poder actualizar GN_TERCE
+    const funci = await executeQuery(
+      'SELECT COD_TERC FROM GN_FUNCI WHERE COD_FUNCI = @codFunci AND COD_EMPR = 1',
+      { codFunci: parseInt(codFunci) }
+    );
+    if (!funci.recordset || funci.recordset.length === 0) {
+      return res.status(404).json({ error: 'Funcionario no encontrado', codFunci });
+    }
+    const codTerc = funci.recordset[0].COD_TERC;
+
+    // 2. Construir NOM_COMP
+    const nomComp = [b.APE_TERC, b.SEG_APEL, b.NOM_TERC, b.SEG_NOMB]
+      .map(s => (s || '').trim().toUpperCase()).filter(Boolean).join(' ');
+
+    // 3. Actualizar GN_TERCE (datos personales)
+    await executeQuery(`
+      UPDATE GN_TERCE SET
+        NOM_TERC  = @nomTerc,
+        SEG_NOMB  = @segNomb,
+        APE_TERC  = @apeTerc,
+        SEG_APEL  = @segApel,
+        NOM_COMP  = @nomComp,
+        COD_TPDOC = @codTpdoc,
+        TEL_TERC  = @telTerc,
+        TEL_TERC2 = @telTerc2,
+        DIR_TERC  = @dirTerc,
+        DIR_MAIL  = @dirMail,
+        COD_MPIO  = @codMpio,
+        ACT_USUA  = 'MineDax',
+        ACT_HORA  = GETDATE()
+      WHERE COD_TERC = @codTerc AND COD_EMPR = 1
+    `, {
+      codTerc,
+      nomTerc:  (b.NOM_TERC  || '').trim().toUpperCase(),
+      segNomb:  (b.SEG_NOMB  || '').trim().toUpperCase() || null,
+      apeTerc:  (b.APE_TERC  || '').trim().toUpperCase(),
+      segApel:  (b.SEG_APEL  || '').trim().toUpperCase() || null,
+      nomComp,
+      codTpdoc: b.COD_TPDOC  ? parseInt(b.COD_TPDOC)  : null,
+      telTerc:  b.TEL_TERC   || '0',
+      telTerc2: b.TEL_TERC2  || '',
+      dirTerc:  b.DIR_TERC   || '',
+      dirMail:  b.DIR_MAIL   || '',
+      codMpio:  b.COD_MPIO   ? parseInt(b.COD_MPIO)   : null,
+    });
+
+    // 4. Actualizar GN_FUNCI (datos laborales/SS)
+    await executeQuery(`
+      UPDATE GN_FUNCI SET
+        SEX_FUNC  = @sexFunc,
+        COD_GRSAN = @codGrsan,
+        COD_ESTCIV= @codEstciv,
+        CNT_HIJO  = @cntHijo,
+        FEC_NAC   = @fecNac,
+        COD_CARGO = @codCargo,
+        VAL_HORA  = @valHora,
+        COD_TPCTA = @codTpcta,
+        COD_BANCO = @codBanco,
+        NUM_CTA   = @numCta,
+        NOM_SUCUR = @nomSucur,
+        COD_CCOST = @codCcost,
+        TIP_SALAR = @tipSalar,
+        JOR_SABAD = @jorSabad,
+        TIP_CONTRA= @tipContra,
+        FEC_INGRES= @fecIngres,
+        FEC_RETIRO= @fecRetiro,
+        CAU_RETIRO= @cauRetiro,
+        COD_EPS   = @codEps,
+        COD_AFP   = @codAfp,
+        COD_CAJA  = @codCaja,
+        COD_CESAN = @codCesan,
+        GRA_RIESGO= @graRiesgo,
+        DIA_VACAC = @diaVacac,
+        POR_RETEN = @porReten,
+        DED_VIVIEN= @dedVivien,
+        DED_SALUD = @dedSalud,
+        DED_DEPEN = @dedDepen,
+        PRO_SALUD = @proSalud,
+        ACT_USUA  = 'MineDax',
+        ACT_HORA  = GETDATE()
+      WHERE COD_FUNCI = @codFunci AND COD_EMPR = 1
+    `, {
+      codFunci:  parseInt(codFunci),
+      sexFunc:   b.SEX_FUNC   || 'M',
+      codGrsan:  b.COD_GRSAN  ? parseInt(b.COD_GRSAN)   : null,
+      codEstciv: b.COD_ESTCIV ? parseInt(b.COD_ESTCIV)  : null,
+      cntHijo:   parseInt(b.CNT_HIJO) || 0,
+      fecNac:    b.FEC_NAC    ? new Date(b.FEC_NAC)     : null,
+      codCargo:  b.COD_CARGO  ? parseInt(b.COD_CARGO)   : null,
+      valHora:   parseFloat(b.VAL_HORA) || 0,
+      codTpcta:  b.COD_TPCTA  ? parseInt(b.COD_TPCTA)  : null,
+      codBanco:  b.COD_BANCO  ? parseInt(b.COD_BANCO)  : null,
+      numCta:    b.NUM_CTA    ? Number(String(b.NUM_CTA).replace(/\D/g, '')) : null,
+      nomSucur:  (b.NOM_SUCUR || 'NO APLICA').substring(0, 10),
+      codCcost:  b.COD_CCOST  ? parseInt(b.COD_CCOST)  : null,
+      tipSalar:  b.TIP_SALAR  || 'Normal',
+      jorSabad:  b.JOR_SABAD  || 'No',
+      tipContra: b.TIP_CONTRA || '01',
+      fecIngres: toSlash(b.FEC_INGRES),
+      fecRetiro: toSlash(b.FEC_RETIRO),
+      cauRetiro: b.CAU_RETIRO || 'NO APLICA',
+      codEps:    b.COD_EPS    ? parseInt(b.COD_EPS)    : null,
+      codAfp:    b.COD_AFP    ? parseInt(b.COD_AFP)    : null,
+      codCaja:   b.COD_CAJA   ? parseInt(b.COD_CAJA)  : null,
+      codCesan:  b.COD_CESAN  ? parseInt(b.COD_CESAN) : null,
+      graRiesgo: b.GRA_RIESGO != null ? String(b.GRA_RIESGO) : '0',
+      diaVacac:  b.DIA_VACAC  != null ? String(b.DIA_VACAC)  : '15',
+      porReten:  b.POR_RETEN  != null ? String(b.POR_RETEN)  : '0',
+      dedVivien: b.DED_VIVIEN != null ? String(b.DED_VIVIEN) : '0',
+      dedSalud:  b.DED_SALUD  != null ? String(b.DED_SALUD)  : '0',
+      dedDepen:  b.DED_DEPEN  != null ? String(b.DED_DEPEN)  : '0',
+      proSalud:  b.PRO_SALUD  != null ? String(b.PRO_SALUD)  : '0',
+    });
+
+    console.log(`✓ Empleado actualizado: COD_FUNCI=${codFunci}, COD_TERC=${codTerc}, NOM_COMP=${nomComp}`);
+    res.json({ success: true, message: `Empleado "${nomComp}" actualizado exitosamente`, codFunci: parseInt(codFunci), codTerc, nombre: nomComp });
+  } catch (err) {
+    console.error('❌ actualizarEmpleado:', err.message);
+    res.status(500).json({ error: 'Error al actualizar empleado', details: err.message });
+  }
+}
+
 // ─── LISTAR EMPLEADOS DE LA BD ───────────────────────────────────────────────
 async function listarEmpleados(req, res) {
   try {
@@ -433,7 +611,9 @@ module.exports = {
   obtenerEmpleadoPorCedula,
   obtenerConceptosOcasionales,
   obtenerCatalogos,
+  obtenerCatalogosEdicion,
   crearEmpleado,
+  actualizarEmpleado,
   listarEmpleados,
   obtenerDetalleEmpleado,
 };
