@@ -3092,8 +3092,7 @@ function _buildDetalleHTML(d) {
     <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <span style="font-size:11px;color:var(--cm-blue-light);font-weight:600">CC ${d.NUM_IDEN || '—'}</span>
       ${estado}
-      <span style="font-size:10px;color:var(--muted)">COD_TERC: ${d.COD_TERC || '—'} · COD_FUNCI: ${d.COD_FUNCI || '—'}</span>
-      <button onclick="abrirEditarEmpleado(${JSON.stringify(d).replace(/</g,'\\u003c')})"
+      <button onclick="abrirEditarEmpleado('${d.NUM_IDEN}')"
         style="background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.4);color:var(--gold-light);
                font-size:12px;font-weight:600;padding:5px 13px;border-radius:7px;cursor:pointer;
                letter-spacing:0.04em;transition:background .15s;"
@@ -3106,7 +3105,7 @@ function _buildDetalleHTML(d) {
   <div class="detalle-grid">
 
     <div class="detalle-section" style="--accent:var(--cm-blue)">
-      <div class="detalle-section-title">Identificación · GN_TERCE</div>
+      <div class="detalle-section-title">Identificación</div>
       ${_df('Tipo Documento', d.NOM_TPDOC)}
       ${_df('Número de Identificación', d.NUM_IDEN, true)}
       ${_df('Código Alterno', d.COD_ALT)}
@@ -3117,7 +3116,7 @@ function _buildDetalleHTML(d) {
     </div>
 
     <div class="detalle-section" style="--accent:#4DC4E0">
-      <div class="detalle-section-title">Contacto · GN_TERCE</div>
+      <div class="detalle-section-title">Contacto</div>
       ${_df('Municipio de Residencia', d.NOM_MUNI)}
       ${_df('Dirección', d.DIR_TERC)}
       ${_df('Teléfono 1', d.TEL_TERC)}
@@ -3127,7 +3126,7 @@ function _buildDetalleHTML(d) {
     </div>
 
     <div class="detalle-section" style="--accent:#9B5BD5">
-      <div class="detalle-section-title">Datos Personales · GN_FUNCI</div>
+      <div class="detalle-section-title">Datos Personales</div>
       ${_df('Sexo', sexo)}
       ${_df('Grupo Sanguíneo', d.NOM_GRSAN)}
       ${_df('Estado Civil', d.NOM_ESTCIV)}
@@ -3136,7 +3135,7 @@ function _buildDetalleHTML(d) {
     </div>
 
     <div class="detalle-section" style="--accent:#4CAF82">
-      <div class="detalle-section-title">Cargo y Salario · GN_FUNCI</div>
+      <div class="detalle-section-title">Cargo y Salario</div>
       ${_df('Cargo', d.NOM_CARGO, true)}
       ${_df('% del Cargo', d.POR_CARGO ? d.POR_CARGO + '%' : '')}
       ${_df('Valor Hora', d.VAL_HORA ? Number(d.VAL_HORA).toLocaleString('es-CO') : '')}
@@ -3148,7 +3147,7 @@ function _buildDetalleHTML(d) {
     </div>
 
     <div class="detalle-section" style="--accent:#E8A84C">
-      <div class="detalle-section-title">Seguridad Social · GN_FUNCI</div>
+      <div class="detalle-section-title">Seguridad Social</div>
       ${_df('EPS', d.nom_eps, true)}
       ${_df('AFP (Pensiones)', d.nom_afp, true)}
       ${_df('Caja Compensación', d.nom_caja)}
@@ -3162,7 +3161,7 @@ function _buildDetalleHTML(d) {
     </div>
 
     <div class="detalle-section" style="--accent:#5B9BD5">
-      <div class="detalle-section-title">Cuenta Bancaria · GN_FUNCI</div>
+      <div class="detalle-section-title">Cuenta Bancaria</div>
       ${_df('Banco', d.NOM_BANCO, true)}
       ${_df('Tipo de Cuenta', d.NOM_TPCTA)}
       ${_df('Número de Cuenta', d.NUM_CTA)}
@@ -3170,7 +3169,7 @@ function _buildDetalleHTML(d) {
     </div>
 
     <div class="detalle-section" style="--accent:#E05555">
-      <div class="detalle-section-title">Fechas Laborales · GN_FUNCI</div>
+      <div class="detalle-section-title">Fechas Laborales</div>
       ${_df('Centro de Costo', d.NOM_CCOST, true)}
       ${_df('Cuenta de Gasto', d.CUE_GASTO)}
       ${_df('Fecha de Ingreso', fmtDate(d.FEC_INGRES), true)}
@@ -3219,14 +3218,21 @@ function _fillSelect(id, items, current) {
     (items||[]).map(i => `<option value="${i.cod}"${String(i.cod)===String(current)?' selected':''}>${i.nom}</option>`).join('');
 }
 
-async function abrirEditarEmpleado(d) {
+async function abrirEditarEmpleado(cedula) {
+  // Obtener los datos del empleado desde la caché (siempre disponibles si la ficha ya se expandió)
+  const d = _detalleCache[String(cedula)];
+  if (!d) { alert('No se encontraron los datos del empleado. Intenta expandir la ficha de nuevo.'); return; }
+
   // Guardar cédula para invalidar caché al guardar
-  _editCedula = String(d.NUM_IDEN || '');
+  _editCedula = String(cedula);
 
   // Mostrar modal y spinear mientras carga catálogos
   abrirModal('modalEditarEmpleado');
   document.getElementById('eem_loadingOverlay').style.display = 'flex';
   document.getElementById('eem_form').style.display = 'none';
+  // Mostrar nombre en encabezado del modal mientras cargan catálogos
+  const hdr = document.getElementById('eem_nombreHeader');
+  if (hdr) hdr.textContent = d.NOM_COMP || '';
 
   try {
     const cat = await _cargarCatalogosEdit();
