@@ -98,20 +98,22 @@ async function cerrarPeriodo(req, res) {
 // ---------------------------------------------------------------------------
 async function buscarHistorial(req, res) {
   try {
-    const codEmpr  = Number(req.query.codEmpr)   || DEFAULT_COD_EMPR;
-    const q        = (req.query.q        || '').trim();
-    const tipo     = (req.query.tipo     || 'todos').toUpperCase();
+    const codEmpr   = Number(req.query.codEmpr)   || DEFAULT_COD_EMPR;
+    const q         = (req.query.q        || '').trim();
+    const tipo      = (req.query.tipo     || 'todos').toUpperCase();
     const codPeriod = req.query.codPeriod ? Number(req.query.codPeriod) : null;
-    const estado   = (req.query.estado   || 'todos').toUpperCase();
-    const desde    = req.query.desde || null;
-    const hasta    = req.query.hasta || null;
-    const limite   = Math.min(Number(req.query.limite) || 200, 500);
+    const estado    = (req.query.estado   || 'todos').toUpperCase();
+    const desde     = req.query.desde || null;
+    const hasta     = req.query.hasta || null;
+    const limite    = Math.min(Number(req.query.limite) || 200, 500);
+    const codCcost  = req.query.codCcost ? Number(req.query.codCcost) : null;
 
     // Construye el fragmento WHERE dinámico compartido por todos los UNION
-    // (aplicado sobre alias n=NO_NOVED, t=GN_TERCE, p=NO_PERIOD)
+    // (aplicado sobre alias n=NO_NOVED, t=GN_TERCE, p=NO_PERIOD, f=GN_FUNCI)
     const conditions = [`n.COD_EMPR = @codEmpr`];
 
     if (codPeriod) conditions.push(`n.COD_PERIOD = @codPeriod`);
+    if (codCcost)  conditions.push(`f.COD_CCOST = @codCcost`);
     if (estado === 'A') conditions.push(`n.ACT_ESTA = 'A'`);
     else if (estado === 'I') conditions.push(`n.ACT_ESTA = 'I'`);
 
@@ -242,6 +244,7 @@ async function buscarHistorial(req, res) {
 
     const params = { codEmpr };
     if (codPeriod) params.codPeriod = codPeriod;
+    if (codCcost)  params.codCcost  = codCcost;
     if (desde) params.desde = desde;
     if (hasta) params.hasta = hasta;
     if (q)    params.q = `%${q}%`;
@@ -401,13 +404,16 @@ async function trazabilidadCCost(req, res) {
     const codEmpr    = Number(req.query.codEmpr)   || DEFAULT_COD_EMPR;
     const codPeriod  = req.query.codPeriod ? Number(req.query.codPeriod) : null;
     const estado     = (req.query.estado || 'A').toUpperCase();
+    const codCcost   = req.query.codCcost  ? Number(req.query.codCcost)  : null;
 
     const params = { codEmpr };
-    const estCond = estado === 'A' ? `AND n.ACT_ESTA = 'A'`
-                  : estado === 'I' ? `AND n.ACT_ESTA = 'I'`
-                  : '';
-    const perCond = codPeriod ? `AND n.COD_PERIOD = @codPeriod` : '';
+    const estCond   = estado === 'A' ? `AND n.ACT_ESTA = 'A'`
+                    : estado === 'I' ? `AND n.ACT_ESTA = 'I'`
+                    : '';
+    const perCond   = codPeriod ? `AND n.COD_PERIOD = @codPeriod` : '';
+    const ccostCond = codCcost  ? `AND f.COD_CCOST  = @codCcost`  : '';
     if (codPeriod) params.codPeriod = codPeriod;
+    if (codCcost)  params.codCcost  = codCcost;
 
     // ── 1. Resumen por Centro de Costo ──────────────────────────────────────
     const qSummary = `
@@ -435,7 +441,7 @@ async function trazabilidadCCost(req, res) {
       LEFT  JOIN dbo.NO_FIJAS   fi  ON fi.COD_EMPR = n.COD_EMPR  AND fi.COD_NOVED = n.COD_NOVED
       LEFT  JOIN dbo.NO_AUSEN   a   ON a.COD_EMPR  = n.COD_EMPR  AND a.COD_NOVED  = n.COD_NOVED
       LEFT  JOIN dbo.NO_CAMBI   ch  ON ch.COD_EMPR = n.COD_EMPR  AND ch.COD_NOVED = n.COD_NOVED
-      WHERE n.COD_EMPR = @codEmpr ${estCond} ${perCond}
+      WHERE n.COD_EMPR = @codEmpr ${estCond} ${perCond} ${ccostCond}
       GROUP BY cc.COD_CCOST, cc.NOM_CCOST
       ORDER BY total_novedades DESC
     `;
@@ -467,7 +473,7 @@ async function trazabilidadCCost(req, res) {
       LEFT  JOIN dbo.NO_FIJAS   fi  ON fi.COD_EMPR = n.COD_EMPR  AND fi.COD_NOVED = n.COD_NOVED
       LEFT  JOIN dbo.NO_AUSEN   a   ON a.COD_EMPR  = n.COD_EMPR  AND a.COD_NOVED  = n.COD_NOVED
       LEFT  JOIN dbo.NO_CAMBI   ch  ON ch.COD_EMPR = n.COD_EMPR  AND ch.COD_NOVED = n.COD_NOVED
-      WHERE n.COD_EMPR = @codEmpr ${estCond} ${perCond}
+      WHERE n.COD_EMPR = @codEmpr ${estCond} ${perCond} ${ccostCond}
       GROUP BY cc.COD_CCOST, t.NUM_IDEN, t.NOM_COMP
       ORDER BY cc.COD_CCOST, devengos DESC
     `;

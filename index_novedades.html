@@ -739,28 +739,40 @@
       <!-- ── TRAZABILIDAD POR CENTRO DE COSTO ── -->
       <div class="hist-card ccost-section">
         <div class="hist-card-title">📊 Trazabilidad por Centro de Costo</div>
+        <p style="font-size:12px;color:var(--muted);margin:-4px 0 14px;line-height:1.6">
+          Agrupa a los empleados por su área de gestión (Centro de Costo) y resume toda la actividad de novedades:
+          devengos acumulados, deducciones, ausentismos y cambios. Filtra por período o por un centro específico
+          para un análisis detallado.
+        </p>
 
-        <!-- Filtros -->
+        <!-- Filtros — fila 1 -->
         <div class="ccost-filters">
           <div class="form-group">
-            <label>Período</label>
-            <select id="cc_period">
+            <label>Período de nómina</label>
+            <select id="cc_period" title="Filtra los registros a un período de nómina específico. Sin selección muestra todos.">
               <option value="">Todos los períodos</option>
             </select>
           </div>
           <div class="form-group">
+            <label>Centro de Costo</label>
+            <select id="cc_ccost" title="Muestra únicamente el centro de costo seleccionado.">
+              <option value="">Todos los centros</option>
+            </select>
+          </div>
+          <div class="form-group">
             <label>Estado de registros</label>
-            <select id="cc_estado">
+            <select id="cc_estado" title="Activos = novedades vigentes. Inactivos = anuladas. Ambos = historial completo.">
               <option value="A">Solo activos</option>
               <option value="todos">Activos e inactivos</option>
               <option value="I">Solo inactivos</option>
             </select>
           </div>
           <div class="form-group">
-            <label>Ordenar por</label>
+            <label>Ordenar tarjetas por</label>
             <select id="cc_orden">
               <option value="novedades">Más registros</option>
               <option value="devengos">Mayor devengo</option>
+              <option value="neto">Mayor neto (dev − ded)</option>
               <option value="empleados">Más empleados</option>
               <option value="nombre">Nombre A→Z</option>
             </select>
@@ -768,7 +780,7 @@
           <div class="form-group" style="align-self:flex-end">
             <label>&nbsp;</label>
             <button class="hist-btn hist-btn-search" onclick="cargarTrazabilidadCC()" id="cc_btnBuscar">
-              ↺ Actualizar
+              ↺ Consultar
             </button>
           </div>
         </div>
@@ -776,30 +788,36 @@
         <!-- KPIs globales -->
         <div class="ccost-summary-strip" id="cc_kpis" style="display:none">
           <div class="ccost-kpi" style="border-top: 3px solid var(--cm-blue)">
-            <div class="ccost-kpi-label">Centros de Costo activos</div>
+            <div class="ccost-kpi-label">Centros activos</div>
             <div class="ccost-kpi-val" id="cc_kpi_centros" style="color:var(--cm-blue-light)">—</div>
-            <div class="ccost-kpi-sub">con novedades en el período</div>
+            <div class="ccost-kpi-sub">áreas con novedades</div>
           </div>
           <div class="ccost-kpi" style="border-top: 3px solid var(--gold)">
             <div class="ccost-kpi-label">Total novedades</div>
             <div class="ccost-kpi-val" id="cc_kpi_novedades" style="color:var(--gold-light)">—</div>
-            <div class="ccost-kpi-sub">registros totales</div>
+            <div class="ccost-kpi-sub">registros en todos los CC</div>
           </div>
           <div class="ccost-kpi" style="border-top: 3px solid var(--success)">
-            <div class="ccost-kpi-label">Total devengos</div>
+            <div class="ccost-kpi-label">Devengos totales</div>
             <div class="ccost-kpi-val" id="cc_kpi_devengos" style="color:var(--success)">—</div>
-            <div class="ccost-kpi-sub">suma de valores a favor</div>
+            <div class="ccost-kpi-sub">valores a favor del empleado</div>
           </div>
           <div class="ccost-kpi" style="border-top: 3px solid var(--danger)">
-            <div class="ccost-kpi-label">Total deducciones</div>
+            <div class="ccost-kpi-label">Deducciones totales</div>
             <div class="ccost-kpi-val" id="cc_kpi_deducciones" style="color:var(--danger)">—</div>
-            <div class="ccost-kpi-sub">suma de valores descontados</div>
+            <div class="ccost-kpi-sub">valores descontados</div>
+          </div>
+          <div class="ccost-kpi" style="border-top: 3px solid #C48BFF">
+            <div class="ccost-kpi-label">Neto total</div>
+            <div class="ccost-kpi-val" id="cc_kpi_neto" style="color:#C48BFF">—</div>
+            <div class="ccost-kpi-sub">devengos − deducciones</div>
           </div>
         </div>
 
         <!-- Estado vacío / cargando -->
         <div id="cc_estado_ui" style="text-align:center;padding:36px;color:var(--muted);font-size:13px">
-          Selecciona un período y presiona <strong>Actualizar</strong> para cargar la trazabilidad.
+          <span style="font-size:22px;display:block;margin-bottom:6px;opacity:.3">⟳</span>
+          Cargando trazabilidad…
         </div>
 
         <!-- Grid de tarjetas CC -->
@@ -860,6 +878,12 @@
           <div class="form-group">
             <label>Hasta (fecha registro)</label>
             <input type="date" id="hist_hasta">
+          </div>
+          <div class="form-group">
+            <label>Centro de Costo</label>
+            <select id="hist_ccost" title="Filtra novedades de un área específica">
+              <option value="">Todos los centros</option>
+            </select>
           </div>
           <div class="form-group">
             <label>Límite de resultados</label>
@@ -2244,6 +2268,7 @@ function navigate(page) {
     }
   });
 
+  if (page === 'dashboard')    { _initDashboardCC(); }
   if (page === 'ocasionales')  { cargarOcasionalesDelPeriodo(); }
   if (page === 'fijas')        { cargarFijasDelPeriodo(); }
   if (page === 'ausentismos')  { cargarAusentismosDelPeriodo(); }
@@ -2664,7 +2689,7 @@ async function histCargarPeriodos() {
       const label = `${p.PER_ANO}-${String(p.PER_MES).padStart(2,'0')}-Q${p.PER_QNA} · ${fmtFecha(p.PER_FINI)} → ${fmtFecha(p.PER_FFIN)}${p.PER_EST==='I' ? ' [Cerrado]' : ''}`;
       sel.insertAdjacentHTML('beforeend', `<option value="${p.COD_PERIOD}">${label}</option>`);
     });
-    // Sincronizar el selector del panel de trazabilidad CC
+    // Sincronizar el selector del panel de trazabilidad CC (resetea a "Todos")
     _sincronizarPeriodosCC();
   } catch (_) {}
 }
@@ -2685,10 +2710,48 @@ function histClearAuto() { /* permite búsqueda al escribir si se desea */ }
 // ============================================================================
 // ─── TRAZABILIDAD POR CENTRO DE COSTO ────────────────────────────────────────
 // ============================================================================
-let _ccData = [];   // último resultado cargado (para re-ordenar sin re-consultar)
+let _ccData        = [];    // último resultado cargado (para re-ordenar sin re-consultar)
+let _ccIniciado    = false; // evita doble carga inicial
 
+// ── Inicialización única del panel CC (carga catálogos + datos) ───────────────
+async function _initDashboardCC() {
+  if (_ccIniciado) return;
+  _ccIniciado = true;
+  await _cargarCentrosCosto();
+  cargarTrazabilidadCC();
+}
+
+// ── Poblar los selectores de Centros de Costo (panel CC + buscador histórico) ─
+async function _cargarCentrosCosto() {
+  try {
+    const r = await fetch('/api/maestros/catalogos-edicion');
+    if (!r.ok) return;
+    const cat = await r.json();
+    if (!cat.ccost || !cat.ccost.length) return;
+
+    const opts = '<option value="">Todos los centros de costo</option>' +
+      cat.ccost.map(c => `<option value="${c.cod}">${c.nom}${c.cod ? ' · ' + c.cod : ''}</option>`).join('');
+
+    const selCC   = document.getElementById('cc_ccost');
+    const selHist = document.getElementById('hist_ccost');
+    if (selCC)   selCC.innerHTML   = opts;
+    if (selHist) selHist.innerHTML = opts;
+  } catch (_) { /* falla silenciosa — los selects quedan con "Todos" */ }
+}
+
+// ── Poblar el select de períodos del panel CC (reutiliza los datos de hist_period) ──
+function _sincronizarPeriodosCC() {
+  const origen  = document.getElementById('hist_period');
+  const destino = document.getElementById('cc_period');
+  if (!origen || !destino) return;
+  destino.innerHTML = origen.innerHTML;
+  destino.value = ''; // siempre arranca en "Todos los períodos"
+}
+
+// ── Consulta principal ────────────────────────────────────────────────────────
 async function cargarTrazabilidadCC() {
   const period = document.getElementById('cc_period').value;
+  const ccost  = document.getElementById('cc_ccost').value;
   const estado = document.getElementById('cc_estado').value;
   const btn    = document.getElementById('cc_btnBuscar');
   const grid   = document.getElementById('cc_grid');
@@ -2696,22 +2759,28 @@ async function cargarTrazabilidadCC() {
   const kpis   = document.getElementById('cc_kpis');
 
   btn.disabled = true; btn.textContent = '⏳ Cargando...';
-  ui.innerHTML = '<span style="font-size:20px;display:block;margin-bottom:8px;opacity:.4">⟳</span>Consultando base de datos…';
+  ui.innerHTML = '<span style="font-size:22px;display:block;margin-bottom:8px;opacity:.35">⟳</span>Consultando base de datos…';
   ui.style.display = 'block';
   grid.innerHTML = '';
   kpis.style.display = 'none';
 
   try {
-    let url = `/api/novedades/trazabilidad-ccost?estado=${estado}`;
-    if (period) url += `&codPeriod=${period}`;
+    const params = new URLSearchParams({ estado });
+    if (period) params.set('codPeriod', period);
+    if (ccost)  params.set('codCcost',  ccost);
 
-    const r = await fetch(url);
+    const r = await fetch(`/api/novedades/trazabilidad-ccost?${params}`);
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const { centros } = await r.json();
     _ccData = centros || [];
 
     if (!_ccData.length) {
-      ui.innerHTML = 'No hay novedades registradas para los filtros seleccionados.';
+      const hint = ccost  ? 'el centro de costo seleccionado'
+                 : period ? 'el período seleccionado'
+                 : 'los filtros seleccionados';
+      ui.innerHTML = `<span style="font-size:28px;display:block;margin-bottom:10px;opacity:.25">🏢</span>
+        No hay novedades registradas para <strong>${hint}</strong>.<br>
+        <span style="font-size:11px;margin-top:6px;display:block">Prueba cambiando el estado a "Activos e inactivos" o ampliando el rango de períodos.</span>`;
       return;
     }
     ui.style.display = 'none';
@@ -2719,64 +2788,75 @@ async function cargarTrazabilidadCC() {
   } catch (err) {
     ui.innerHTML = `<span style="color:var(--danger)">✕ Error al cargar: ${err.message}</span>`;
   } finally {
-    btn.disabled = false; btn.textContent = '↺ Actualizar';
+    btn.disabled = false; btn.textContent = '↺ Consultar';
   }
 }
 
+// ── Render de tarjetas ────────────────────────────────────────────────────────
 function _renderCC() {
   const grid  = document.getElementById('cc_grid');
   const orden = document.getElementById('cc_orden').value;
 
-  // Ordenar localmente
   const sorted = [..._ccData].sort((a, b) => {
     if (orden === 'devengos')  return (b.total_devengos  || 0) - (a.total_devengos  || 0);
     if (orden === 'empleados') return (b.total_empleados || 0) - (a.total_empleados || 0);
     if (orden === 'nombre')    return (a.nom_ccost || '').localeCompare(b.nom_ccost || '');
+    if (orden === 'neto') {
+      const nA = (Number(a.total_devengos) || 0) - (Number(a.total_deducciones) || 0);
+      const nB = (Number(b.total_devengos) || 0) - (Number(b.total_deducciones) || 0);
+      return nB - nA;
+    }
     return (b.total_novedades || 0) - (a.total_novedades || 0); // default: novedades
   });
 
   // KPIs globales
   const totNov  = sorted.reduce((s,c) => s + (c.total_novedades || 0), 0);
-  const totDev  = sorted.reduce((s,c) => s + (Number(c.total_devengos)   || 0), 0);
-  const totDed  = sorted.reduce((s,c) => s + (Number(c.total_deducciones)|| 0), 0);
-  document.getElementById('cc_kpi_centros').textContent    = sorted.length;
-  document.getElementById('cc_kpi_novedades').textContent  = totNov.toLocaleString('es-CO');
-  document.getElementById('cc_kpi_devengos').textContent   = _fmtCOP(totDev);
-  document.getElementById('cc_kpi_deducciones').textContent= _fmtCOP(totDed);
+  const totDev  = sorted.reduce((s,c) => s + (Number(c.total_devengos)    || 0), 0);
+  const totDed  = sorted.reduce((s,c) => s + (Number(c.total_deducciones) || 0), 0);
+  const totNeto = totDev - totDed;
+  document.getElementById('cc_kpi_centros').textContent     = sorted.length;
+  document.getElementById('cc_kpi_novedades').textContent   = totNov.toLocaleString('es-CO');
+  document.getElementById('cc_kpi_devengos').textContent    = _fmtCOP(totDev);
+  document.getElementById('cc_kpi_deducciones').textContent = _fmtCOP(totDed);
+  document.getElementById('cc_kpi_neto').textContent        = _fmtCOP(totNeto);
   document.getElementById('cc_kpis').style.display = 'grid';
 
-  // Bar scale: maxDev para las barras de valor
-  const maxDev = Math.max(...sorted.map(c => Number(c.total_devengos) || 0), 1);
-  const maxDed = Math.max(...sorted.map(c => Number(c.total_deducciones) || 0), 1);
-  const maxCant = Math.max(...sorted.map(c => Number(c.total_cantidad) || 0), 1);
+  // Escalas para barras comparativas entre tarjetas
+  const maxDev  = Math.max(...sorted.map(c => Number(c.total_devengos)    || 0), 1);
+  const maxDed  = Math.max(...sorted.map(c => Number(c.total_deducciones) || 0), 1);
+  const maxCant = Math.max(...sorted.map(c => Number(c.total_cantidad)    || 0), 1);
 
   grid.innerHTML = sorted.map((cc, idx) => {
-    const pDev  = Math.round(((Number(cc.total_devengos)   || 0) / maxDev)  * 100);
-    const pDed  = Math.round(((Number(cc.total_deducciones)|| 0) / maxDed)  * 100);
-    const pCant = Math.round(((Number(cc.total_cantidad)   || 0) / maxCant) * 100);
+    const pDev  = Math.round(((Number(cc.total_devengos)    || 0) / maxDev)  * 100);
+    const pDed  = Math.round(((Number(cc.total_deducciones) || 0) / maxDed)  * 100);
+    const pCant = Math.round(((Number(cc.total_cantidad)    || 0) / maxCant) * 100);
+    const neto  = (Number(cc.total_devengos) || 0) - (Number(cc.total_deducciones) || 0);
+    const netoColor = neto >= 0 ? 'var(--success)' : 'var(--danger)';
 
     const typePills = [
-      cc.cnt_ocasionales ? `<span class="ccost-type-pill pill-ocas">⊕ ${cc.cnt_ocasionales} Ocasionales</span>` : '',
-      cc.cnt_fijas       ? `<span class="ccost-type-pill pill-fija">⊞ ${cc.cnt_fijas} Fijas</span>` : '',
-      cc.cnt_ausentismos ? `<span class="ccost-type-pill pill-aus">⊖ ${cc.cnt_ausentismos} Ausentismos</span>` : '',
-      cc.cnt_cambios     ? `<span class="ccost-type-pill pill-camb">✎ ${cc.cnt_cambios} Cambios</span>` : '',
+      cc.cnt_ocasionales ? `<span class="ccost-type-pill pill-ocas" title="Novedades ocasionales (pagos únicos, horas extra, etc.)">⊕ ${cc.cnt_ocasionales} Ocasionales</span>` : '',
+      cc.cnt_fijas       ? `<span class="ccost-type-pill pill-fija" title="Novedades fijas (descuentos o devengos recurrentes)">⊞ ${cc.cnt_fijas} Fijas</span>` : '',
+      cc.cnt_ausentismos ? `<span class="ccost-type-pill pill-aus"  title="Incapacidades, permisos y ausencias">⊖ ${cc.cnt_ausentismos} Ausentismos</span>` : '',
+      cc.cnt_cambios     ? `<span class="ccost-type-pill pill-camb" title="Cambios en datos maestros o de ingreso">✎ ${cc.cnt_cambios} Cambios</span>` : '',
     ].filter(Boolean).join('');
 
-    // Tabla de empleados
+    // Tabla de empleados del CC
     const empRows = (cc.empleados || []).map(e => {
+      const empNeto = (Number(e.devengos) || 0) - (Number(e.deducciones) || 0);
       const minis = [
-        e.ocasionales ? `<span class="ccost-emp-mini pill-ocas">${e.ocasionales}</span>` : '',
-        e.fijas       ? `<span class="ccost-emp-mini pill-fija">${e.fijas}</span>` : '',
-        e.ausentismos ? `<span class="ccost-emp-mini pill-aus">${e.ausentismos}</span>` : '',
-        e.cambios     ? `<span class="ccost-emp-mini pill-camb">${e.cambios}</span>` : '',
+        e.ocasionales ? `<span class="ccost-emp-mini pill-ocas" title="Ocasionales">${e.ocasionales}</span>` : '',
+        e.fijas       ? `<span class="ccost-emp-mini pill-fija" title="Fijas">${e.fijas}</span>` : '',
+        e.ausentismos ? `<span class="ccost-emp-mini pill-aus"  title="Ausentismos">${e.ausentismos}</span>` : '',
+        e.cambios     ? `<span class="ccost-emp-mini pill-camb" title="Cambios">${e.cambios}</span>` : '',
       ].filter(Boolean).join(' ');
       return `<tr>
-        <td style="color:var(--cm-blue-light);font-weight:600">${e.cedula || '—'}</td>
+        <td style="color:var(--cm-blue-light);font-weight:600;white-space:nowrap">${e.cedula || '—'}</td>
         <td style="font-weight:500">${e.nombre || '—'}</td>
         <td style="text-align:center"><span class="badge" style="background:rgba(201,168,76,0.12);color:var(--gold-light);font-size:10px">${e.novedades}</span></td>
-        <td style="color:var(--success);font-weight:600">${_fmtCOP(e.devengos)}</td>
-        <td style="color:var(--danger);font-weight:600">${_fmtCOP(e.deducciones)}</td>
-        <td style="text-align:right;color:var(--muted)">${e.cantidad > 0 ? Number(e.cantidad).toLocaleString('es-CO', {maximumFractionDigits:2}) : '—'}</td>
+        <td style="color:var(--success);font-weight:600;white-space:nowrap">${_fmtCOP(e.devengos)}</td>
+        <td style="color:var(--danger);font-weight:600;white-space:nowrap">${_fmtCOP(e.deducciones)}</td>
+        <td style="color:${(Number(e.devengos)||0)-(Number(e.deducciones)||0)>=0?'var(--success)':'var(--danger)'};font-weight:700;white-space:nowrap">${_fmtCOP(empNeto)}</td>
+        <td style="text-align:right;color:var(--muted)">${e.cantidad > 0 ? Number(e.cantidad).toLocaleString('es-CO',{maximumFractionDigits:2}) : '—'}</td>
         <td style="text-align:center;color:#C48BFF">${e.dias_aus > 0 ? e.dias_aus + 'd' : '—'}</td>
         <td style="white-space:nowrap">${minis}</td>
       </tr>`;
@@ -2790,54 +2870,69 @@ function _renderCC() {
           <div class="ccost-card-title">${cc.nom_ccost || '—'}</div>
           <span class="ccost-card-code">${cc.COD_CCOST || ''}</span>
           <div class="ccost-badges">
-            <span class="ccost-badge ccost-badge-emp">👥 ${cc.total_empleados} empleado${cc.total_empleados !== 1 ? 's' : ''}</span>
-            <span class="ccost-badge ccost-badge-rec">📋 ${cc.total_novedades} registros</span>
-            ${(cc.total_dias_aus > 0) ? `<span class="ccost-badge ccost-badge-aus">🏥 ${cc.total_dias_aus}d aus.</span>` : ''}
+            <span class="ccost-badge ccost-badge-emp" title="Empleados distintos con novedades">👥 ${cc.total_empleados} empleado${cc.total_empleados !== 1 ? 's' : ''}</span>
+            <span class="ccost-badge ccost-badge-rec" title="Total de registros de novedades">📋 ${cc.total_novedades} registros</span>
+            ${(cc.total_dias_aus > 0) ? `<span class="ccost-badge ccost-badge-aus" title="Días de ausentismo acumulados">🏥 ${cc.total_dias_aus}d aus.</span>` : ''}
           </div>
         </div>
         <div style="text-align:right;flex-shrink:0">
           <div style="font-size:10px;color:var(--muted);margin-bottom:2px">Última actividad</div>
           <div style="font-size:11px;color:var(--muted)">${cc.ultima_actividad ? new Date(cc.ultima_actividad).toLocaleDateString('es-CO') : '—'}</div>
+          <div style="margin-top:6px;font-size:10px;color:var(--muted)">Neto</div>
+          <div style="font-size:13px;font-weight:700;color:${netoColor}">${_fmtCOP(neto)}</div>
         </div>
       </div>
 
       <div class="ccost-metrics">
         <div class="ccost-metric-row">
-          <div class="ccost-metric-label">Devengos</div>
+          <div class="ccost-metric-label" title="Suma de todos los conceptos de tipo DEVENGO (pagos a favor del empleado)">Devengos</div>
           <div class="ccost-metric-bar-wrap">
             <div class="ccost-metric-bar" style="width:${pDev}%;background:var(--success)"></div>
           </div>
           <div class="ccost-metric-val" style="color:var(--success)">${_fmtCOP(cc.total_devengos)}</div>
         </div>
         <div class="ccost-metric-row">
-          <div class="ccost-metric-label">Deducciones</div>
+          <div class="ccost-metric-label" title="Suma de todos los conceptos de tipo DEDUCCION (descuentos al empleado)">Deducciones</div>
           <div class="ccost-metric-bar-wrap">
             <div class="ccost-metric-bar" style="width:${pDed}%;background:var(--danger)"></div>
           </div>
           <div class="ccost-metric-val" style="color:var(--danger)">${_fmtCOP(cc.total_deducciones)}</div>
         </div>
         <div class="ccost-metric-row">
-          <div class="ccost-metric-label">Horas / Cant.</div>
+          <div class="ccost-metric-label" title="Suma de cantidades (horas, unidades) en novedades ocasionales y fijas">Cant. / Horas</div>
           <div class="ccost-metric-bar-wrap">
             <div class="ccost-metric-bar" style="width:${pCant}%;background:var(--cm-blue)"></div>
           </div>
-          <div class="ccost-metric-val" style="color:var(--cm-blue-light)">${Number(cc.total_cantidad||0).toLocaleString('es-CO', {maximumFractionDigits:2})}</div>
+          <div class="ccost-metric-val" style="color:var(--cm-blue-light)">${Number(cc.total_cantidad||0).toLocaleString('es-CO',{maximumFractionDigits:2})}</div>
         </div>
       </div>
 
-      <div class="ccost-type-strip">${typePills}</div>
+      <div class="ccost-type-strip">${typePills || '<span style="font-size:11px;color:var(--muted)">Sin tipos registrados</span>'}</div>
 
-      <button class="ccost-toggle" onclick="_toggleCCEmp(this)" data-idx="${idx}">
-        <span class="arrw">▾</span> Ver ${cc.empleados?.length || 0} empleado${(cc.empleados?.length||0) !== 1 ? 's' : ''}
-      </button>
+      <div style="display:flex;gap:8px;padding:0 14px 10px;flex-wrap:wrap">
+        <button class="ccost-toggle" style="flex:1" onclick="_toggleCCEmp(this)" data-idx="${idx}">
+          <span class="arrw">▾</span> Ver ${cc.empleados?.length || 0} empleado${(cc.empleados?.length||0) !== 1 ? 's' : ''} del área
+        </button>
+        <button onclick="_ccVerEnHistorial('${cc.COD_CCOST}')"
+          style="padding:7px 12px;background:rgba(32,167,201,0.1);border:1px solid rgba(32,167,201,0.3);
+                 color:var(--cm-blue-light);border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;white-space:nowrap"
+          title="Ir al buscador de trazabilidad y filtrar por este centro de costo">
+          🔍 Ver en historial
+        </button>
+      </div>
       <div class="ccost-emp-wrap">
         <table class="ccost-emp-table">
           <thead><tr>
-            <th>Cédula</th><th>Empleado</th><th style="text-align:center">Registros</th>
-            <th>Devengos</th><th>Deducciones</th><th style="text-align:right">Horas</th>
-            <th style="text-align:center">Aus.</th><th>Tipos</th>
+            <th>Cédula</th><th>Empleado</th>
+            <th style="text-align:center" title="Total de registros de novedades">Registros</th>
+            <th title="Suma de devengos del empleado">Devengos</th>
+            <th title="Suma de deducciones del empleado">Deducciones</th>
+            <th title="Devengos menos deducciones (neto)">Neto</th>
+            <th style="text-align:right" title="Suma de cantidades/horas">Cant.</th>
+            <th style="text-align:center" title="Días de ausentismo">Aus.</th>
+            <th title="Tipos de novedades del empleado">Tipos</th>
           </tr></thead>
-          <tbody>${empRows || '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:14px">Sin detalle</td></tr>'}</tbody>
+          <tbody>${empRows || '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:14px">Sin detalle de empleados</td></tr>'}</tbody>
         </table>
       </div>
     </div>`;
@@ -2846,7 +2941,7 @@ function _renderCC() {
 
 function _toggleCCEmp(btn) {
   btn.classList.toggle('open');
-  const wrap = btn.nextElementSibling;
+  const wrap = btn.closest('.ccost-card').querySelector('.ccost-emp-wrap');
   if (wrap) wrap.classList.toggle('open');
 }
 
@@ -2856,13 +2951,36 @@ function _fmtCOP(val) {
   return n.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
 }
 
-// Poblar el select de períodos del panel CC (reutiliza los mismos datos que hist_period)
-function _sincronizarPeriodosCC() {
-  const origen  = document.getElementById('hist_period');
-  const destino = document.getElementById('cc_period');
-  if (!origen || !destino) return;
-  destino.innerHTML = origen.innerHTML;
+// ── "Ver en historial" — pre-llena el buscador histórico con el CC seleccionado ─
+function _ccVerEnHistorial(codCcost) {
+  // Seleccionar el CC en el filtro del buscador histórico
+  const selHist = document.getElementById('hist_ccost');
+  if (selHist) {
+    selHist.value = codCcost;
+    // Si la opción no existe (raro), no hacer nada raro
+  }
+
+  // Limpiar otros filtros para que el CC sea el único criterio activo
+  document.getElementById('hist_q').value = '';
+  document.getElementById('hist_period').selectedIndex = 0;
+  document.getElementById('hist_estado').value = 'todos';
+
+  // Lanzar búsqueda
+  histBuscar();
+
+  // Scroll al buscador histórico
+  setTimeout(() => {
+    const histCard = document.querySelector('#page-dashboard .hist-card:not(.ccost-section)');
+    if (histCard) histCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 200);
 }
+
+// ── Auto-carga cuando el usuario navega al Dashboard ─────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  // El dashboard es la página activa por defecto — inicializar con pequeño delay
+  // para que histCargarPeriodos() tenga tiempo de poblar hist_period primero
+  setTimeout(_initDashboardCC, 800);
+});
 
 // ============================================================================
 async function histBuscar() {
@@ -2873,12 +2991,14 @@ async function histBuscar() {
   const desde   = document.getElementById('hist_desde').value;
   const hasta   = document.getElementById('hist_hasta').value;
   const limite  = document.getElementById('hist_limite').value;
+  const ccost   = document.getElementById('hist_ccost')?.value || '';
 
   const params = new URLSearchParams({ tipo, estado, limite });
   if (q)      params.set('q', q);
   if (period) params.set('codPeriod', period);
   if (desde)  params.set('desde', desde);
   if (hasta)  params.set('hasta', hasta);
+  if (ccost)  params.set('codCcost', ccost);
 
   const btn = document.querySelector('.hist-btn-search');
   btn.textContent = 'Buscando...'; btn.disabled = true;
@@ -2898,7 +3018,10 @@ async function histBuscar() {
 
 function histLimpiar() {
   ['hist_q','hist_desde','hist_hasta'].forEach(id => document.getElementById(id).value = '');
-  ['hist_tipo','hist_period','hist_estado','hist_limite'].forEach(id => document.getElementById(id).selectedIndex = 0);
+  ['hist_tipo','hist_period','hist_estado','hist_limite','hist_ccost'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.selectedIndex = 0;
+  });
   document.getElementById('histResultsWrap').style.display = 'none';
 }
 
