@@ -499,6 +499,119 @@
 
   @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
   .page.active { animation: fadeIn .25s ease; }
+
+  /* ── TRAZABILIDAD POR CENTRO DE COSTO ───────────────────────────── */
+  .ccost-section { margin-bottom: 20px; }
+  .ccost-filters {
+    display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 12px;
+    align-items: flex-end; margin-bottom: 18px;
+  }
+  .ccost-summary-strip {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+    margin-bottom: 18px;
+  }
+  .ccost-kpi {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 18px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .ccost-kpi-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+  .ccost-kpi-val   { font-size: 22px; font-weight: 800; font-family: 'Barlow Condensed', sans-serif; }
+  .ccost-kpi-sub   { font-size: 11px; color: var(--muted); }
+
+  .ccost-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 14px;
+  }
+  .ccost-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden; transition: border-color .2s;
+  }
+  .ccost-card:hover { border-color: rgba(32,167,201,0.35); }
+  .ccost-card-head {
+    padding: 16px 18px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: flex-start; gap: 10px;
+  }
+  .ccost-card-icon {
+    width: 38px; height: 38px; border-radius: 8px; flex-shrink: 0;
+    background: rgba(32,167,201,0.12); border: 1px solid rgba(32,167,201,0.25);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px;
+  }
+  .ccost-card-title { font-size: 14px; font-weight: 700; color: var(--text); line-height: 1.3; }
+  .ccost-card-code  {
+    font-size: 10px; font-family: 'Barlow Condensed', sans-serif;
+    color: var(--cm-blue-light); letter-spacing: 0.09em; text-transform: uppercase;
+    background: rgba(32,167,201,0.1); border: 1px solid rgba(32,167,201,0.2);
+    padding: 2px 7px; border-radius: 4px; margin-top: 4px; display: inline-block;
+  }
+  .ccost-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .ccost-badge {
+    font-size: 10px; padding: 2px 8px; border-radius: 4px; font-weight: 600;
+    letter-spacing: 0.03em;
+  }
+  .ccost-badge-emp  { background: rgba(32,167,201,0.12); color: var(--cm-blue-light); }
+  .ccost-badge-rec  { background: rgba(201,168,76,0.12); color: var(--gold-light); }
+  .ccost-badge-aus  { background: rgba(155,91,213,0.12); color: #C48BFF; }
+
+  .ccost-metrics { padding: 12px 18px; display: flex; flex-direction: column; gap: 9px; }
+  .ccost-metric-row { display: flex; align-items: center; gap: 8px; }
+  .ccost-metric-label {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em;
+    color: var(--muted); width: 110px; flex-shrink: 0;
+  }
+  .ccost-metric-bar-wrap {
+    flex: 1; height: 6px; background: rgba(255,255,255,0.06);
+    border-radius: 3px; overflow: hidden;
+  }
+  .ccost-metric-bar { height: 100%; border-radius: 3px; transition: width .4s ease; }
+  .ccost-metric-val {
+    font-size: 11px; font-weight: 700; color: var(--text); min-width: 72px;
+    text-align: right; font-family: 'Barlow Condensed', sans-serif; letter-spacing: 0.02em;
+  }
+
+  .ccost-type-strip {
+    display: flex; gap: 6px; padding: 0 18px 12px; flex-wrap: wrap;
+  }
+  .ccost-type-pill {
+    font-size: 10px; padding: 3px 9px; border-radius: 4px; font-weight: 600;
+  }
+  .pill-ocas  { background: rgba(76,175,130,0.12); color: var(--success); }
+  .pill-fija  { background: rgba(224,85,85,0.12);  color: var(--danger); }
+  .pill-aus   { background: rgba(155,91,213,0.12); color: #C48BFF; }
+  .pill-camb  { background: rgba(232,168,76,0.12); color: var(--gold-light); }
+
+  .ccost-toggle {
+    width: 100%; background: rgba(255,255,255,0.03); border: none;
+    border-top: 1px solid var(--border); color: var(--muted);
+    padding: 9px; font-size: 11px; font-weight: 600; cursor: pointer;
+    letter-spacing: 0.05em; text-transform: uppercase; transition: all .15s;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .ccost-toggle:hover { background: rgba(32,167,201,0.07); color: var(--cm-blue-light); }
+  .ccost-toggle .arrw { transition: transform .25s; display: inline-block; }
+  .ccost-toggle.open  .arrw { transform: rotate(180deg); }
+
+  .ccost-emp-wrap {
+    display: none; overflow-x: auto;
+    border-top: 1px solid var(--border);
+  }
+  .ccost-emp-wrap.open { display: block; }
+  .ccost-emp-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .ccost-emp-table th {
+    text-align: left; padding: 7px 12px;
+    font-size: 9px; text-transform: uppercase; letter-spacing: 0.07em;
+    color: var(--muted); background: rgba(255,255,255,0.02);
+    border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  .ccost-emp-table td {
+    padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.04);
+    vertical-align: middle;
+  }
+  .ccost-emp-table tr:last-child td { border-bottom: none; }
+  .ccost-emp-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .ccost-emp-mini { font-size: 9px; padding: 2px 6px; border-radius: 3px; font-weight: 600; }
+  /* ── FIN TRAZABILIDAD ─────────────────────────────────────────────── */
 </style>
 </head>
 <body>
@@ -621,6 +734,76 @@
             <input type="text" id="cfgUsuario" placeholder="Nombre usuario" readonly style="background:rgba(255,255,255,0.03);">
           </div>
         </div>
+      </div>
+
+      <!-- ── TRAZABILIDAD POR CENTRO DE COSTO ── -->
+      <div class="hist-card ccost-section">
+        <div class="hist-card-title">📊 Trazabilidad por Centro de Costo</div>
+
+        <!-- Filtros -->
+        <div class="ccost-filters">
+          <div class="form-group">
+            <label>Período</label>
+            <select id="cc_period">
+              <option value="">Todos los períodos</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Estado de registros</label>
+            <select id="cc_estado">
+              <option value="A">Solo activos</option>
+              <option value="todos">Activos e inactivos</option>
+              <option value="I">Solo inactivos</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Ordenar por</label>
+            <select id="cc_orden">
+              <option value="novedades">Más registros</option>
+              <option value="devengos">Mayor devengo</option>
+              <option value="empleados">Más empleados</option>
+              <option value="nombre">Nombre A→Z</option>
+            </select>
+          </div>
+          <div class="form-group" style="align-self:flex-end">
+            <label>&nbsp;</label>
+            <button class="hist-btn hist-btn-search" onclick="cargarTrazabilidadCC()" id="cc_btnBuscar">
+              ↺ Actualizar
+            </button>
+          </div>
+        </div>
+
+        <!-- KPIs globales -->
+        <div class="ccost-summary-strip" id="cc_kpis" style="display:none">
+          <div class="ccost-kpi" style="border-top: 3px solid var(--cm-blue)">
+            <div class="ccost-kpi-label">Centros de Costo activos</div>
+            <div class="ccost-kpi-val" id="cc_kpi_centros" style="color:var(--cm-blue-light)">—</div>
+            <div class="ccost-kpi-sub">con novedades en el período</div>
+          </div>
+          <div class="ccost-kpi" style="border-top: 3px solid var(--gold)">
+            <div class="ccost-kpi-label">Total novedades</div>
+            <div class="ccost-kpi-val" id="cc_kpi_novedades" style="color:var(--gold-light)">—</div>
+            <div class="ccost-kpi-sub">registros totales</div>
+          </div>
+          <div class="ccost-kpi" style="border-top: 3px solid var(--success)">
+            <div class="ccost-kpi-label">Total devengos</div>
+            <div class="ccost-kpi-val" id="cc_kpi_devengos" style="color:var(--success)">—</div>
+            <div class="ccost-kpi-sub">suma de valores a favor</div>
+          </div>
+          <div class="ccost-kpi" style="border-top: 3px solid var(--danger)">
+            <div class="ccost-kpi-label">Total deducciones</div>
+            <div class="ccost-kpi-val" id="cc_kpi_deducciones" style="color:var(--danger)">—</div>
+            <div class="ccost-kpi-sub">suma de valores descontados</div>
+          </div>
+        </div>
+
+        <!-- Estado vacío / cargando -->
+        <div id="cc_estado_ui" style="text-align:center;padding:36px;color:var(--muted);font-size:13px">
+          Selecciona un período y presiona <strong>Actualizar</strong> para cargar la trazabilidad.
+        </div>
+
+        <!-- Grid de tarjetas CC -->
+        <div class="ccost-grid" id="cc_grid"></div>
       </div>
 
       <!-- ── BUSCADOR HISTÓRICO DE NOVEDADES ── -->
@@ -2481,6 +2664,8 @@ async function histCargarPeriodos() {
       const label = `${p.PER_ANO}-${String(p.PER_MES).padStart(2,'0')}-Q${p.PER_QNA} · ${fmtFecha(p.PER_FINI)} → ${fmtFecha(p.PER_FFIN)}${p.PER_EST==='I' ? ' [Cerrado]' : ''}`;
       sel.insertAdjacentHTML('beforeend', `<option value="${p.COD_PERIOD}">${label}</option>`);
     });
+    // Sincronizar el selector del panel de trazabilidad CC
+    _sincronizarPeriodosCC();
   } catch (_) {}
 }
 
@@ -2497,6 +2682,189 @@ function fmtMoneda(v) {
 
 function histClearAuto() { /* permite búsqueda al escribir si se desea */ }
 
+// ============================================================================
+// ─── TRAZABILIDAD POR CENTRO DE COSTO ────────────────────────────────────────
+// ============================================================================
+let _ccData = [];   // último resultado cargado (para re-ordenar sin re-consultar)
+
+async function cargarTrazabilidadCC() {
+  const period = document.getElementById('cc_period').value;
+  const estado = document.getElementById('cc_estado').value;
+  const btn    = document.getElementById('cc_btnBuscar');
+  const grid   = document.getElementById('cc_grid');
+  const ui     = document.getElementById('cc_estado_ui');
+  const kpis   = document.getElementById('cc_kpis');
+
+  btn.disabled = true; btn.textContent = '⏳ Cargando...';
+  ui.innerHTML = '<span style="font-size:20px;display:block;margin-bottom:8px;opacity:.4">⟳</span>Consultando base de datos…';
+  ui.style.display = 'block';
+  grid.innerHTML = '';
+  kpis.style.display = 'none';
+
+  try {
+    let url = `/api/novedades/trazabilidad-ccost?estado=${estado}`;
+    if (period) url += `&codPeriod=${period}`;
+
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const { centros } = await r.json();
+    _ccData = centros || [];
+
+    if (!_ccData.length) {
+      ui.innerHTML = 'No hay novedades registradas para los filtros seleccionados.';
+      return;
+    }
+    ui.style.display = 'none';
+    _renderCC();
+  } catch (err) {
+    ui.innerHTML = `<span style="color:var(--danger)">✕ Error al cargar: ${err.message}</span>`;
+  } finally {
+    btn.disabled = false; btn.textContent = '↺ Actualizar';
+  }
+}
+
+function _renderCC() {
+  const grid  = document.getElementById('cc_grid');
+  const orden = document.getElementById('cc_orden').value;
+
+  // Ordenar localmente
+  const sorted = [..._ccData].sort((a, b) => {
+    if (orden === 'devengos')  return (b.total_devengos  || 0) - (a.total_devengos  || 0);
+    if (orden === 'empleados') return (b.total_empleados || 0) - (a.total_empleados || 0);
+    if (orden === 'nombre')    return (a.nom_ccost || '').localeCompare(b.nom_ccost || '');
+    return (b.total_novedades || 0) - (a.total_novedades || 0); // default: novedades
+  });
+
+  // KPIs globales
+  const totNov  = sorted.reduce((s,c) => s + (c.total_novedades || 0), 0);
+  const totDev  = sorted.reduce((s,c) => s + (Number(c.total_devengos)   || 0), 0);
+  const totDed  = sorted.reduce((s,c) => s + (Number(c.total_deducciones)|| 0), 0);
+  document.getElementById('cc_kpi_centros').textContent    = sorted.length;
+  document.getElementById('cc_kpi_novedades').textContent  = totNov.toLocaleString('es-CO');
+  document.getElementById('cc_kpi_devengos').textContent   = _fmtCOP(totDev);
+  document.getElementById('cc_kpi_deducciones').textContent= _fmtCOP(totDed);
+  document.getElementById('cc_kpis').style.display = 'grid';
+
+  // Bar scale: maxDev para las barras de valor
+  const maxDev = Math.max(...sorted.map(c => Number(c.total_devengos) || 0), 1);
+  const maxDed = Math.max(...sorted.map(c => Number(c.total_deducciones) || 0), 1);
+  const maxCant = Math.max(...sorted.map(c => Number(c.total_cantidad) || 0), 1);
+
+  grid.innerHTML = sorted.map((cc, idx) => {
+    const pDev  = Math.round(((Number(cc.total_devengos)   || 0) / maxDev)  * 100);
+    const pDed  = Math.round(((Number(cc.total_deducciones)|| 0) / maxDed)  * 100);
+    const pCant = Math.round(((Number(cc.total_cantidad)   || 0) / maxCant) * 100);
+
+    const typePills = [
+      cc.cnt_ocasionales ? `<span class="ccost-type-pill pill-ocas">⊕ ${cc.cnt_ocasionales} Ocasionales</span>` : '',
+      cc.cnt_fijas       ? `<span class="ccost-type-pill pill-fija">⊞ ${cc.cnt_fijas} Fijas</span>` : '',
+      cc.cnt_ausentismos ? `<span class="ccost-type-pill pill-aus">⊖ ${cc.cnt_ausentismos} Ausentismos</span>` : '',
+      cc.cnt_cambios     ? `<span class="ccost-type-pill pill-camb">✎ ${cc.cnt_cambios} Cambios</span>` : '',
+    ].filter(Boolean).join('');
+
+    // Tabla de empleados
+    const empRows = (cc.empleados || []).map(e => {
+      const minis = [
+        e.ocasionales ? `<span class="ccost-emp-mini pill-ocas">${e.ocasionales}</span>` : '',
+        e.fijas       ? `<span class="ccost-emp-mini pill-fija">${e.fijas}</span>` : '',
+        e.ausentismos ? `<span class="ccost-emp-mini pill-aus">${e.ausentismos}</span>` : '',
+        e.cambios     ? `<span class="ccost-emp-mini pill-camb">${e.cambios}</span>` : '',
+      ].filter(Boolean).join(' ');
+      return `<tr>
+        <td style="color:var(--cm-blue-light);font-weight:600">${e.cedula || '—'}</td>
+        <td style="font-weight:500">${e.nombre || '—'}</td>
+        <td style="text-align:center"><span class="badge" style="background:rgba(201,168,76,0.12);color:var(--gold-light);font-size:10px">${e.novedades}</span></td>
+        <td style="color:var(--success);font-weight:600">${_fmtCOP(e.devengos)}</td>
+        <td style="color:var(--danger);font-weight:600">${_fmtCOP(e.deducciones)}</td>
+        <td style="text-align:right;color:var(--muted)">${e.cantidad > 0 ? Number(e.cantidad).toLocaleString('es-CO', {maximumFractionDigits:2}) : '—'}</td>
+        <td style="text-align:center;color:#C48BFF">${e.dias_aus > 0 ? e.dias_aus + 'd' : '—'}</td>
+        <td style="white-space:nowrap">${minis}</td>
+      </tr>`;
+    }).join('');
+
+    return `
+    <div class="ccost-card">
+      <div class="ccost-card-head">
+        <div class="ccost-card-icon">🏢</div>
+        <div style="flex:1;min-width:0">
+          <div class="ccost-card-title">${cc.nom_ccost || '—'}</div>
+          <span class="ccost-card-code">${cc.COD_CCOST || ''}</span>
+          <div class="ccost-badges">
+            <span class="ccost-badge ccost-badge-emp">👥 ${cc.total_empleados} empleado${cc.total_empleados !== 1 ? 's' : ''}</span>
+            <span class="ccost-badge ccost-badge-rec">📋 ${cc.total_novedades} registros</span>
+            ${(cc.total_dias_aus > 0) ? `<span class="ccost-badge ccost-badge-aus">🏥 ${cc.total_dias_aus}d aus.</span>` : ''}
+          </div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:10px;color:var(--muted);margin-bottom:2px">Última actividad</div>
+          <div style="font-size:11px;color:var(--muted)">${cc.ultima_actividad ? new Date(cc.ultima_actividad).toLocaleDateString('es-CO') : '—'}</div>
+        </div>
+      </div>
+
+      <div class="ccost-metrics">
+        <div class="ccost-metric-row">
+          <div class="ccost-metric-label">Devengos</div>
+          <div class="ccost-metric-bar-wrap">
+            <div class="ccost-metric-bar" style="width:${pDev}%;background:var(--success)"></div>
+          </div>
+          <div class="ccost-metric-val" style="color:var(--success)">${_fmtCOP(cc.total_devengos)}</div>
+        </div>
+        <div class="ccost-metric-row">
+          <div class="ccost-metric-label">Deducciones</div>
+          <div class="ccost-metric-bar-wrap">
+            <div class="ccost-metric-bar" style="width:${pDed}%;background:var(--danger)"></div>
+          </div>
+          <div class="ccost-metric-val" style="color:var(--danger)">${_fmtCOP(cc.total_deducciones)}</div>
+        </div>
+        <div class="ccost-metric-row">
+          <div class="ccost-metric-label">Horas / Cant.</div>
+          <div class="ccost-metric-bar-wrap">
+            <div class="ccost-metric-bar" style="width:${pCant}%;background:var(--cm-blue)"></div>
+          </div>
+          <div class="ccost-metric-val" style="color:var(--cm-blue-light)">${Number(cc.total_cantidad||0).toLocaleString('es-CO', {maximumFractionDigits:2})}</div>
+        </div>
+      </div>
+
+      <div class="ccost-type-strip">${typePills}</div>
+
+      <button class="ccost-toggle" onclick="_toggleCCEmp(this)" data-idx="${idx}">
+        <span class="arrw">▾</span> Ver ${cc.empleados?.length || 0} empleado${(cc.empleados?.length||0) !== 1 ? 's' : ''}
+      </button>
+      <div class="ccost-emp-wrap">
+        <table class="ccost-emp-table">
+          <thead><tr>
+            <th>Cédula</th><th>Empleado</th><th style="text-align:center">Registros</th>
+            <th>Devengos</th><th>Deducciones</th><th style="text-align:right">Horas</th>
+            <th style="text-align:center">Aus.</th><th>Tipos</th>
+          </tr></thead>
+          <tbody>${empRows || '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:14px">Sin detalle</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function _toggleCCEmp(btn) {
+  btn.classList.toggle('open');
+  const wrap = btn.nextElementSibling;
+  if (wrap) wrap.classList.toggle('open');
+}
+
+function _fmtCOP(val) {
+  const n = Number(val) || 0;
+  if (n === 0) return '—';
+  return n.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
+}
+
+// Poblar el select de períodos del panel CC (reutiliza los mismos datos que hist_period)
+function _sincronizarPeriodosCC() {
+  const origen  = document.getElementById('hist_period');
+  const destino = document.getElementById('cc_period');
+  if (!origen || !destino) return;
+  destino.innerHTML = origen.innerHTML;
+}
+
+// ============================================================================
 async function histBuscar() {
   const q       = document.getElementById('hist_q').value.trim();
   const tipo    = document.getElementById('hist_tipo').value;

@@ -19,4 +19,7 @@ router.get('/periodos', ctl.listarPeriodos);
 // Cerrar período manualmente
 router.post('/periodo/:codPeriod/cerrar', ctl.cerrarPeriodo);
 
+// Trazabilidad agregada por Centro de Costo
+router.get('/trazabilidad-ccost', ctl.trazabilidadCCost);
+
 module.exports = router;

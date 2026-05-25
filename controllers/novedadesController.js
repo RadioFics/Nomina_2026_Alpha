@@ -386,10 +386,122 @@ async function listarRecientes(req, res) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// GET /api/novedades/trazabilidad-ccost
+// Resumen de novedades agrupadas por Centro de Costo.
+// Devuelve por cada CC: métricas globales + lista de empleados con sus métricas.
+//
+// Query params:
+//   codPeriod   Filtrar por período  (opcional; si omite, todos los períodos)
+//   estado      A | I | todos        (default: A — solo activos)
+//   codEmpr     Empresa              (default: 1)
+// ---------------------------------------------------------------------------
+async function trazabilidadCCost(req, res) {
+  try {
+    const codEmpr    = Number(req.query.codEmpr)   || DEFAULT_COD_EMPR;
+    const codPeriod  = req.query.codPeriod ? Number(req.query.codPeriod) : null;
+    const estado     = (req.query.estado || 'A').toUpperCase();
+
+    const params = { codEmpr };
+    const estCond = estado === 'A' ? `AND n.ACT_ESTA = 'A'`
+                  : estado === 'I' ? `AND n.ACT_ESTA = 'I'`
+                  : '';
+    const perCond = codPeriod ? `AND n.COD_PERIOD = @codPeriod` : '';
+    if (codPeriod) params.codPeriod = codPeriod;
+
+    // ── 1. Resumen por Centro de Costo ──────────────────────────────────────
+    const qSummary = `
+      SELECT
+        cc.COD_CCOST,
+        RTRIM(cc.NOM_CCOST)                                                AS nom_ccost,
+        COUNT(DISTINCT f.COD_FUNCI)                                        AS total_empleados,
+        COUNT(n.COD_NOVED)                                                 AS total_novedades,
+        SUM(CASE WHEN c.TIP_CONC = 'DEVENGO'
+              THEN COALESCE(o.VALOR, fi.VALOR, 0) ELSE 0 END)             AS total_devengos,
+        SUM(CASE WHEN c.TIP_CONC = 'DEDUCCION'
+              THEN COALESCE(o.VALOR, fi.VALOR, 0) ELSE 0 END)             AS total_deducciones,
+        SUM(COALESCE(o.CANTIDAD,  fi.CANTIDAD, 0))                        AS total_cantidad,
+        SUM(COALESCE(a.DIAS_TOTAL, 0))                                    AS total_dias_aus,
+        SUM(CASE WHEN o.COD_NOVED  IS NOT NULL THEN 1 ELSE 0 END)        AS cnt_ocasionales,
+        SUM(CASE WHEN fi.COD_NOVED IS NOT NULL THEN 1 ELSE 0 END)        AS cnt_fijas,
+        SUM(CASE WHEN a.COD_NOVED  IS NOT NULL THEN 1 ELSE 0 END)        AS cnt_ausentismos,
+        SUM(CASE WHEN ch.COD_NOVED IS NOT NULL THEN 1 ELSE 0 END)        AS cnt_cambios,
+        MAX(n.ACT_HORA)                                                   AS ultima_actividad
+      FROM dbo.NO_NOVED n
+      INNER JOIN dbo.GN_FUNCI   f   ON f.COD_EMPR  = n.COD_EMPR  AND f.COD_FUNCI  = n.COD_FUNCI
+      INNER JOIN dbo.MAE_CCOST  cc  ON cc.COD_EMPR = n.COD_EMPR  AND cc.COD_CCOST = f.COD_CCOST
+      LEFT  JOIN dbo.NO_CONCE   c   ON c.COD_EMPR  = n.COD_EMPR  AND c.COD_CONC   = n.COD_CONC
+      LEFT  JOIN dbo.NO_OCASI   o   ON o.COD_EMPR  = n.COD_EMPR  AND o.COD_NOVED  = n.COD_NOVED
+      LEFT  JOIN dbo.NO_FIJAS   fi  ON fi.COD_EMPR = n.COD_EMPR  AND fi.COD_NOVED = n.COD_NOVED
+      LEFT  JOIN dbo.NO_AUSEN   a   ON a.COD_EMPR  = n.COD_EMPR  AND a.COD_NOVED  = n.COD_NOVED
+      LEFT  JOIN dbo.NO_CAMBI   ch  ON ch.COD_EMPR = n.COD_EMPR  AND ch.COD_NOVED = n.COD_NOVED
+      WHERE n.COD_EMPR = @codEmpr ${estCond} ${perCond}
+      GROUP BY cc.COD_CCOST, cc.NOM_CCOST
+      ORDER BY total_novedades DESC
+    `;
+
+    // ── 2. Detalle de empleados por CC ──────────────────────────────────────
+    const qEmpleados = `
+      SELECT
+        cc.COD_CCOST,
+        t.NUM_IDEN                                                          AS cedula,
+        RTRIM(t.NOM_COMP)                                                  AS nombre,
+        COUNT(n.COD_NOVED)                                                 AS novedades,
+        SUM(CASE WHEN c.TIP_CONC = 'DEVENGO'
+              THEN COALESCE(o.VALOR, fi.VALOR, 0) ELSE 0 END)             AS devengos,
+        SUM(CASE WHEN c.TIP_CONC = 'DEDUCCION'
+              THEN COALESCE(o.VALOR, fi.VALOR, 0) ELSE 0 END)             AS deducciones,
+        SUM(COALESCE(o.CANTIDAD,  fi.CANTIDAD, 0))                        AS cantidad,
+        SUM(COALESCE(a.DIAS_TOTAL, 0))                                    AS dias_aus,
+        SUM(CASE WHEN o.COD_NOVED  IS NOT NULL THEN 1 ELSE 0 END)        AS ocasionales,
+        SUM(CASE WHEN fi.COD_NOVED IS NOT NULL THEN 1 ELSE 0 END)        AS fijas,
+        SUM(CASE WHEN a.COD_NOVED  IS NOT NULL THEN 1 ELSE 0 END)        AS ausentismos,
+        SUM(CASE WHEN ch.COD_NOVED IS NOT NULL THEN 1 ELSE 0 END)        AS cambios,
+        MAX(n.ACT_HORA)                                                   AS ultima_actividad
+      FROM dbo.NO_NOVED n
+      INNER JOIN dbo.GN_FUNCI   f   ON f.COD_EMPR  = n.COD_EMPR  AND f.COD_FUNCI  = n.COD_FUNCI
+      INNER JOIN dbo.GN_TERCE   t   ON t.COD_TERC  = f.COD_TERC
+      INNER JOIN dbo.MAE_CCOST  cc  ON cc.COD_EMPR = n.COD_EMPR  AND cc.COD_CCOST = f.COD_CCOST
+      LEFT  JOIN dbo.NO_CONCE   c   ON c.COD_EMPR  = n.COD_EMPR  AND c.COD_CONC   = n.COD_CONC
+      LEFT  JOIN dbo.NO_OCASI   o   ON o.COD_EMPR  = n.COD_EMPR  AND o.COD_NOVED  = n.COD_NOVED
+      LEFT  JOIN dbo.NO_FIJAS   fi  ON fi.COD_EMPR = n.COD_EMPR  AND fi.COD_NOVED = n.COD_NOVED
+      LEFT  JOIN dbo.NO_AUSEN   a   ON a.COD_EMPR  = n.COD_EMPR  AND a.COD_NOVED  = n.COD_NOVED
+      LEFT  JOIN dbo.NO_CAMBI   ch  ON ch.COD_EMPR = n.COD_EMPR  AND ch.COD_NOVED = n.COD_NOVED
+      WHERE n.COD_EMPR = @codEmpr ${estCond} ${perCond}
+      GROUP BY cc.COD_CCOST, t.NUM_IDEN, t.NOM_COMP
+      ORDER BY cc.COD_CCOST, devengos DESC
+    `;
+
+    const [rSummary, rEmps] = await Promise.all([
+      executeQuery(qSummary,   params),
+      executeQuery(qEmpleados, params),
+    ]);
+
+    // Inyectar lista de empleados dentro de cada CC
+    const empsByCc = {};
+    for (const e of (rEmps.recordset || [])) {
+      const k = e.COD_CCOST;
+      if (!empsByCc[k]) empsByCc[k] = [];
+      empsByCc[k].push(e);
+    }
+
+    const centros = (rSummary.recordset || []).map(cc => ({
+      ...cc,
+      empleados: empsByCc[cc.COD_CCOST] || []
+    }));
+
+    res.json({ centros });
+  } catch (err) {
+    console.error('[novedades] trazabilidadCCost error:', err);
+    res.status(500).json({ error: 'Error obteniendo trazabilidad por CC', details: err.message });
+  }
+}
+
 module.exports = {
   buscarHistorial,
   cerrarPeriodo,
   listarPeriodos,
   listarRecientes,
+  trazabilidadCCost,
   verificarYCerrarPeriodosVencidos
 };
