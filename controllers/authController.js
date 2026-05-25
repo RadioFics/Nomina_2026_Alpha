@@ -91,7 +91,8 @@ exports.login = async (req, res) => {
         u.IND_BLOQ,
         u.INT_FALL,
         u.COD_FUNCI,
-        u.COD_GUSU
+        u.COD_GUSU,
+        u.VER_EMAIL
       FROM GN_USUAR u
       WHERE RTRIM(LTRIM(u.DIR_ELEC)) = RTRIM(LTRIM(@email))
     `;
@@ -130,6 +131,7 @@ exports.login = async (req, res) => {
         u.COD_GUSU,
         u.CAM_PASS,
         u.ABR_USUA,
+        u.VER_EMAIL,
         f.COD_CARGO,
         f.FEC_INGRES,
         f.FEC_RETIRO,
@@ -175,10 +177,19 @@ exports.login = async (req, res) => {
 
     // Verificar si está activo (ACT_INAC = 'A' para activo en BD real)
     if (usuario.ACT_INAC !== 'A') {
-      console.warn(`[LOGIN] Usuario ${cedula_o_email} inactivo (ACT_INAC=${usuario.ACT_INAC})`);
+      console.warn(`[LOGIN] Usuario ${cedula_o_email} inactivo (ACT_INAC=${usuario.ACT_INAC}, VER_EMAIL=${usuario.VER_EMAIL})`);
 
       await registrarIntento(usuario.COD_USUA, cedula_o_email, 'LOGIN', 'FALLIDO',
                             'Usuario inactivo', ip);
+
+      // Distinguir cuenta pendiente de verificación de email vs. realmente inactiva
+      if (usuario.VER_EMAIL === 'N') {
+        return res.status(403).json({
+          status: 'error',
+          message: 'Tu cuenta aún no ha sido verificada. Revisa tu correo electrónico y haz clic en el enlace de verificación para activarla.',
+          pendingVerification: true
+        });
+      }
 
       return res.status(403).json({
         status: 'error',
@@ -1255,25 +1266,17 @@ exports.registro = async (req, res) => {
 
     console.log(`[REGISTRO] ✓ Usuario creado: ${email} (ID: ${nuevoCodigoUsuario})`);
 
-    // Generar token JWT
-    const token = generateToken({
-      cod_usua: nuevoCodigoUsuario,
-      cod_empr: 1,
-      email,
-      nombre: tercero.NOM_COMP,
-      cedula: null,
-      cod_funci: codFunci,
-      cod_gusu: 2, // Grupo estándar para nuevos usuarios
-      grupo: 'Usuario'
-    });
+    // ✅ NOTA: La cuenta queda con ACT_INAC = 'S' hasta que el usuario verifique su email.
+    // No generamos token JWT aquí — el usuario debe verificar el email primero para activar su cuenta.
+    // Esto previene acceso sin verificación.
 
     return res.status(201).json({
       status: 'success',
-      message: 'Cuenta creada exitosamente. Bienvenido!',
-      token,
+      message: `Cuenta creada exitosamente. Hemos enviado un enlace de verificación a ${email}. Por favor revisa tu correo y haz clic en el enlace para activar tu cuenta.`,
+      pendingVerification: true,
       usuario: {
         id: nuevoCodigoUsuario,
-        nombre: tercero.NOM_COMP,
+        nombre: nombreUsuario,
         email
       }
     });
@@ -1597,9 +1600,11 @@ exports.verificarEmail = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'El enlace de verificación ha expirado. Solicita uno nuevo.' });
     }
 
+    // ✅ Al verificar el email, activar la cuenta (ACT_INAC = 'A') para que pueda iniciar sesión
     await executeQuery(`
       UPDATE GN_USUAR
-      SET VER_EMAIL = 'S', TOK_VERI = NULL, FEC_VERI = NULL, FEC_ULCA = GETDATE()
+      SET VER_EMAIL = 'S', TOK_VERI = NULL, FEC_VERI = NULL,
+          ACT_INAC = 'A', FEC_ULCA = GETDATE()
       WHERE COD_USUA = @codUsuario
     `, { codUsuario: usuario.COD_USUA });
 

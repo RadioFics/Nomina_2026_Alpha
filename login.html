@@ -33,7 +33,7 @@
       background: var(--coal);
       color: var(--text);
       min-height: 100vh;
-      overflow: hidden;
+      overflow-y: auto;
     }
 
     /* Right panel background with dark brand style */
@@ -133,33 +133,11 @@
       line-height: 1.8;
       color: var(--text);
       opacity: 0.8;
-      margin-bottom: 30px;
-      max-width: 280px;
-    }
-
-    .features-list {
-      text-align: left;
-      background: rgba(255,255,255,0.08);
-      border-left: 3px solid rgba(255,255,255,0.6);
-      padding: 16px;
-      border-radius: 6px;
-      font-size: 12px;
-      color: rgba(255,255,255,0.75);
-      line-height: 1.8;
-    }
-
-    .features-list span {
-      display: block;
-      margin-bottom: 8px;
-    }
-
-    .features-list span:last-child {
       margin-bottom: 0;
-    }
-
-    .feature-check {
-      color: #ffffff;
-      margin-right: 8px;
+      max-width: 280px;
+      text-align: center;
+      margin-left: auto;
+      margin-right: auto;
     }
 
     /* PANEL DERECHO - Login */
@@ -527,12 +505,6 @@
         <p class="brand-description">
           Plataforma integral para la gestión de nómina, administración de empleados y reportes financieros.
         </p>
-
-        <div class="features-list">
-          <span><span class="feature-check">✓</span>Acceso seguro con autenticación JWT</span>
-          <span><span class="feature-check">✓</span>Recuperación de contraseña por email</span>
-          <span><span class="feature-check">✓</span>Interfaz moderna y responsiva</span>
-        </div>
       </div>
     </div>
 
@@ -758,6 +730,11 @@
           setTimeout(() => {
             window.location.href = '/index_novedades.html';
           }, 1000);
+        } else if (data.pendingVerification) {
+          mostrarMensaje(
+            data.message || 'Tu cuenta no ha sido verificada. Revisa tu correo y haz clic en el enlace de verificación.',
+            'info'
+          );
         } else {
           mostrarMensaje(data.message || 'Error al iniciar sesión', 'error');
         }
@@ -803,13 +780,14 @@
         const data = await response.json();
 
         if (data.status === 'success') {
-          localStorage.setItem('authToken', data.token);
-          localStorage.setItem('usuario', JSON.stringify(data.usuario));
-
-          mostrarMensaje('¡Cuenta creada! Redirigiendo...', 'success');
-          setTimeout(() => {
-            window.location.href = '/index_novedades.html';
-          }, 1500);
+          const emailRegistrado = document.getElementById('registroEmail').value;
+          mostrarMensaje(
+            `¡Cuenta creada! Te hemos enviado un enlace de verificación a ${emailRegistrado}. Revisa tu correo (incluida la carpeta de spam) y haz clic en el enlace para activar tu cuenta.`,
+            'success'
+          );
+          registroForm.reset();
+          // Redirigir a login después de 6 segundos para que el usuario lea el mensaje
+          setTimeout(() => switchTab('login'), 6000);
         } else {
           mostrarMensaje(data.message || 'Error al crear cuenta', 'error');
         }
