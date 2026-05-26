@@ -596,10 +596,25 @@
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span>Enviando solicitud...';
 
+    // Contador de segundos visible si la BD tarda en reanudar (puede ocurrir tras
+    // un período de inactividad en Azure SQL Serverless — hasta ~90 segundos)
+    let _seg = 0;
+    const _tickerInterval = setInterval(() => {
+      _seg++;
+      if (_seg >= 5) {
+        btn.innerHTML = `<span class="spinner"></span>Conectando con la base de datos… (${_seg}s)`;
+      }
+    }, 1000);
+
+    // Timeout de 120 segundos para tolerar el resume de Azure SQL Serverless
+    const _ctrl    = new AbortController();
+    const _timeout = setTimeout(() => _ctrl.abort(), 120000);
+
     try {
       const resp = await fetch('/api/solicitudes/vacaciones', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: _ctrl.signal,
         body: JSON.stringify({
           cedula, email_solicitante: email,
           fecha_inicio, fecha_fin, dias_vacaciones,
@@ -607,6 +622,7 @@
         }),
       });
 
+      clearTimeout(_timeout); clearInterval(_tickerInterval);
       const data = await resp.json();
 
       if (resp.ok && data.success) {
@@ -619,7 +635,11 @@
         btn.textContent = 'Enviar Solicitud de Vacaciones';
       }
     } catch (err) {
-      showAlert('alert-submit', 'error', 'Error de conexión. Intente nuevamente.');
+      clearTimeout(_timeout); clearInterval(_tickerInterval);
+      const msg = err.name === 'AbortError'
+        ? 'La solicitud tardó demasiado. El servidor puede estar iniciando — intente nuevamente en unos segundos.'
+        : 'Error de conexión. Intente nuevamente.';
+      showAlert('alert-submit', 'error', msg);
       btn.disabled = false;
       btn.textContent = 'Enviar Solicitud de Vacaciones';
     }

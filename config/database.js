@@ -47,11 +47,19 @@ function buildConfig(source) {
         encrypt: true,
         trustServerCertificate: false,
         enableKeepAlive: true,
-        connectionTimeout: 60000,   // 60s para tolerar cold-start de BD serverless
-        requestTimeout: 60000,
+        connectionTimeout: 90000,   // 90s para tolerar resume de Azure SQL Serverless
+        requestTimeout: 90000,
         connectionRetryInterval: 200,
         maxRetriesOnTransientErrors: 5,
         useUTC: true
+      },
+      // Pool con min:0 para permitir que Azure SQL Serverless entre en auto-pause
+      // cuando no hay conexiones activas (ahorra costos fuera de horario laboral)
+      pool: {
+        max: 10,
+        min: 0,                     // sin conexiones mínimas → BD puede auto-pausar
+        idleTimeoutMillis: 60000,   // cierra conexiones inactivas tras 60s
+        acquireTimeoutMillis: 90000 // espera hasta 90s al adquirir (BD puede estar reanudando)
       }
     };
   }

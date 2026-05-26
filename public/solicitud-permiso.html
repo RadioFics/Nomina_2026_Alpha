@@ -675,11 +675,27 @@
     if (new Date(fecha_desde)>new Date(fecha_hasta)) { showAlert('alert-submit','error','La fecha de inicio no puede ser posterior a la final.'); return; }
 
     const btn = document.getElementById('btn-submit');
-    btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Enviando solicitud...';
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Enviando solicitud...';
+
+    // Contador de segundos visible si la BD tarda en reanudar (puede ocurrir tras
+    // un período de inactividad en Azure SQL Serverless — hasta ~90 segundos)
+    let _seg = 0;
+    const _tickerInterval = setInterval(() => {
+      _seg++;
+      if (_seg >= 5) {
+        btn.innerHTML = `<span class="spinner"></span>Conectando con la base de datos… (${_seg}s)`;
+      }
+    }, 1000);
+
+    // Timeout de 120 segundos para tolerar el resume de Azure SQL Serverless
+    const _ctrl    = new AbortController();
+    const _timeout = setTimeout(() => _ctrl.abort(), 120000);
 
     try {
       const resp = await fetch('/api/solicitudes/permiso', {
         method: 'POST', headers: {'Content-Type':'application/json'},
+        signal: _ctrl.signal,
         body: JSON.stringify({
           cedula: _empData.cedula, email_solicitante: email,
           fecha_desde, fecha_hasta, hora_inicio, hora_fin, total_dias,
@@ -689,18 +705,23 @@
           cod_conc: _codConcSel,
         }),
       });
+      clearTimeout(_timeout); clearInterval(_tickerInterval);
       const data = await resp.json();
       if (resp.ok && data.success) {
         showAlert('alert-submit','success', data.mensaje);
-        btn.textContent='✓ Solicitud Enviada';
+        btn.textContent = '✓ Solicitud Enviada';
         document.getElementById('section-form').querySelectorAll('input,select,textarea,button').forEach(el=>el.disabled=true);
       } else {
         showAlert('alert-submit','error', data.error||'Error al procesar la solicitud.');
-        btn.disabled=false; btn.textContent='Enviar Solicitud de Permiso';
+        btn.disabled = false; btn.textContent = 'Enviar Solicitud de Permiso';
       }
-    } catch(_) {
-      showAlert('alert-submit','error','Error de conexión. Intente nuevamente.');
-      btn.disabled=false; btn.textContent='Enviar Solicitud de Permiso';
+    } catch(err) {
+      clearTimeout(_timeout); clearInterval(_tickerInterval);
+      const msg = err.name === 'AbortError'
+        ? 'La solicitud tardó demasiado. El servidor puede estar iniciando — intente nuevamente en unos segundos.'
+        : 'Error de conexión. Intente nuevamente.';
+      showAlert('alert-submit','error', msg);
+      btn.disabled = false; btn.textContent = 'Enviar Solicitud de Permiso';
     }
   }
 

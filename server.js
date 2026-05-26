@@ -284,8 +284,17 @@ startListen(async () => {
     await verificarYCerrarPeriodosVencidos();
   } catch (_) {}
 
-  // Verificar cada hora si hay períodos que vencieron durante el día
-  setInterval(verificarYCerrarPeriodosVencidos, 60 * 60 * 1000);
+  // Verificar cada hora si hay períodos que vencieron durante el día.
+  // Solo se ejecuta en horario laboral (5 AM – 10 PM UTC-5 / Colombia) para
+  // permitir que Azure SQL Serverless entre en auto-pause fuera de ese rango
+  // y así reducir el costo de la base de datos.
+  setInterval(async () => {
+    const utcHour  = new Date().getUTCHours();
+    const colHour  = ((utcHour - 5) % 24 + 24) % 24; // UTC-5 (Colombia)
+    if (colHour >= 5 && colHour < 22) {
+      await verificarYCerrarPeriodosVencidos().catch(() => {});
+    }
+  }, 60 * 60 * 1000);
 });
 
 // Función para matar procesos Node en Windows
