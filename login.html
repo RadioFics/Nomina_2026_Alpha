@@ -765,17 +765,36 @@
       const password = document.getElementById('loginPassword').value;
       const remember = document.getElementById('rememberMe').checked;
 
+      const loginBtn = document.getElementById('loginBtn');
+      loginBtn.disabled = true;
+
+      // Contador de segundos visible si el servidor tarda en responder
+      // (ocurre cuando Azure SQL Serverless está reanudando desde auto-pause)
       mostrarMensaje('Iniciando sesión...', 'info');
+      let _seg = 0;
+      const _ticker = setInterval(() => {
+        _seg++;
+        if (_seg >= 5) {
+          mostrarMensaje(`Conectando con el servidor… (${_seg}s) — por favor espera`, 'info');
+        }
+      }, 1000);
+
+      // Timeout de 120s para cubrir el resume completo de la BD (hasta ~90s)
+      const _ctrl    = new AbortController();
+      const _timeout = setTimeout(() => _ctrl.abort(), 120000);
 
       try {
         const response = await fetch('/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal: _ctrl.signal,
           body: JSON.stringify({
             cedula_o_email: email,
             contrasena: password
           })
         });
+
+        clearTimeout(_timeout); clearInterval(_ticker);
 
         const data = await response.json();
 
@@ -796,19 +815,25 @@
             window.location.href = '/index_novedades.html';
           }, 1000);
         } else if (data.pendingVerification) {
+          loginBtn.disabled = false;
           mostrarMensaje(
             data.message || 'Tu cuenta no ha sido verificada. Revisa tu correo y haz clic en el enlace de verificación.',
             'info'
           );
-          // Guardar email para reenvío y mostrar panel
           resendEmailTarget = email;
           document.getElementById('resendPanel').classList.add('show');
         } else {
+          loginBtn.disabled = false;
           mostrarMensaje(data.message || 'Error al iniciar sesión', 'error');
           document.getElementById('resendPanel').classList.remove('show');
         }
       } catch (error) {
-        mostrarMensaje('Error de conexión. Intenta de nuevo.', 'error');
+        clearTimeout(_timeout); clearInterval(_ticker);
+        loginBtn.disabled = false;
+        const msg = error.name === 'AbortError'
+          ? 'El servidor tardó demasiado. Intenta de nuevo en unos segundos.'
+          : 'Error de conexión. Intenta de nuevo.';
+        mostrarMensaje(msg, 'error');
         console.error('Login error:', error);
       }
     });

@@ -113,49 +113,69 @@ try {
 let pool = null;
 let isConnecting = false;
 
-async function getConnection() {
-  // Si ya se está conectando, esperar a que termine
-  if (isConnecting) {
-    let attempts = 0;
-    while ((pool === null || !pool.connected) && attempts < 100) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-      attempts++;
-    }
-    if (pool && pool.connected) {
-      return pool;
-    }
-  }
+/**
+ * Detecta si un error es transitorio/recuperable.
+ * Azure SQL Serverless genera errores de conexión/timeout mientras reanuda
+ * desde auto-pause (proceso que puede tardar 30–90 segundos).
+ */
+function esErrorTransiente(err) {
+  const msg = (err.message || '').toLowerCase();
+  const cod  = err.code || '';
+  return (
+    msg.includes('closed')                          ||
+    msg.includes('timeout')                         ||
+    msg.includes('etimedout')                       ||
+    msg.includes('econnrefused')                    ||
+    msg.includes('econnreset')                      ||
+    msg.includes('enotfound')                       ||
+    msg.includes('failed to connect')               ||
+    msg.includes('connection')                      ||
+    msg.includes('server is not currently available') ||
+    msg.includes('database is currently paused')    ||
+    msg.includes('not currently available')         ||
+    msg.includes('login failed')                    ||
+    ['ETIMEOUT','ESOCKET','ECONNREFUSED','ECONNRESET','ENOTFOUND'].includes(cod)
+  );
+}
 
-  // Si hay un pool conectado, devolverlo
+async function getConnection() {
+  // Pool ya conectado → devolver directamente
   if (pool && pool.connected) {
     return pool;
   }
 
-  if (!pool || !pool.connected) {
-    pool = await sql.connect(config);
-    return pool;
+  // Otra llamada ya está conectando → esperar hasta 95s (cubre DB resume)
+  if (isConnecting) {
+    const deadline = Date.now() + 95000;
+    while (Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      if (pool && pool.connected) return pool;
+      if (!isConnecting) break; // la otra llamada falló, salir del loop
+    }
+    if (pool && pool.connected) return pool;
+    throw new Error('[DB] Timeout esperando que otra llamada establezca la conexión');
   }
 
-  // Reconectar si es necesario
+  // Iniciar nueva conexión
   isConnecting = true;
+
+  // Cerrar pool anterior si existe pero no está conectado
+  if (pool) {
+    try { await pool.close(); } catch (_) {}
+    pool = null;
+  }
+
   try {
-    // Cerrar pool anterior si existe pero no está conectado
-    if (pool && !pool.connected) {
-      try {
-        await pool.close();
-      } catch (_) {}
-      pool = null;
-    }
+    const newPool = new sql.ConnectionPool(runtimeConfig);
 
-    pool = new sql.ConnectionPool(runtimeConfig);
-
-    pool.on('error', (err) => {
+    newPool.on('error', (err) => {
       console.error('[DB] Error en pool:', err.message);
       pool = null;
       isConnecting = false;
     });
 
-    await pool.connect();
+    await newPool.connect();
+    pool = newPool;
     isConnecting = false;
     console.log(`[DB] Conectado: ${runtimeConfig.server} / ${runtimeConfig.database}`);
     return pool;
@@ -166,19 +186,34 @@ async function getConnection() {
   }
 }
 
-async function executeQuery(query, params = {}, retries = 2) {
+/**
+ * Ejecuta una query con reintentos automáticos ante errores transientes.
+ * Los delays progresivos (2s → 5s → 15s → 30s) cubren el tiempo de resume
+ * de Azure SQL Serverless sin bloquear indefinidamente.
+ *
+ * Tiempo máximo total de espera con retries=4:
+ *   ~90s (1er intento) + 2s + ~90s (2do) + 5s + ... ≈ 3-4 minutos worst case
+ *   En práctica: el 2do intento ya conecta porque la BD reanudó durante el 1er timeout.
+ */
+async function executeQuery(query, params = {}, retries = 4) {
+  const delays = [2000, 5000, 15000, 30000]; // delays entre reintentos
+
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const conn = await getConnection();
       const request = conn.request();
       Object.keys(params).forEach(key => request.input(key, params[key]));
-      return request.query(query);
+      return await request.query(query);
     } catch (err) {
-      // Si es "Connection is closed" y hay reintentos, esperar y reintentar
-      if (err.message?.includes('closed') && attempt < retries) {
-        console.log(`[DB] Reintentando query (intento ${attempt + 1}/${retries})...`);
-        pool = null; // Forzar reconexión
-        await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+      if (esErrorTransiente(err) && attempt < retries) {
+        const delay = delays[attempt] ?? 30000;
+        console.log(
+          `[DB] Error transiente (intento ${attempt + 1}/${retries}): ` +
+          `${(err.message || '').substring(0, 100)}`
+        );
+        console.log(`[DB] BD posiblemente reanudando. Reintentando en ${delay / 1000}s...`);
+        pool = null; // forzar nueva conexión en próximo intento
+        await new Promise(resolve => setTimeout(resolve, delay));
         continue;
       }
       throw err;
