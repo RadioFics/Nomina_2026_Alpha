@@ -1,0 +1,21 @@
+INSTRUCCIONES — Logos Collective Mining
+==========================================
+
+Para que el logo oficial aparezca en todas las páginas del sistema,
+guarda los archivos PNG en esta carpeta con los siguientes nombres exactos:
+
+  1. logo-collective-mining.png
+     → Logo principal (rectangular o cuadrado, fondo transparente o negro).
+       Se usa en: login.html, reset-password.html, verificar-email.html,
+                  solicitud-permiso.html, solicitud-vacaciones.html
+       Tamaño recomendado: 400×200 px mínimo (o proporcional).
+
+  2. logo-collective-mining-icon.png
+     → Solo el ícono/monograma CM (sin texto), cuadrado, fondo transparente.
+       Se usa en: el header de index_novedades.html (36×36 px display).
+       Tamaño recomendado: 128×128 px mínimo.
+
+Si los archivos no están presentes, las páginas mostrarán automáticamente
+un logo SVG de respaldo con los colores corporativos (#20A7C9 azul CM).
+
+==========================================

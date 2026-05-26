@@ -47,6 +47,16 @@
   }
   .logo-mark {
     width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  .logo-mark img {
+    width: 100%; height: 100%; object-fit: contain;
+    display: block;
+  }
+  .logo-mark-fallback {
+    width: 36px; height: 36px;
     background: var(--cm-blue);
     clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
     display: flex; align-items: center; justify-content: center;
@@ -617,7 +627,11 @@
 <body>
 
 <header>
-  <div class="logo-mark">CM</div>
+  <div class="logo-mark">
+    <img src="/assets/logo-collective-mining-icon.png" alt="CM"
+         onerror="this.parentElement.style.display='none'; document.getElementById('header-logo-fallback').style.display='flex'">
+  </div>
+  <div id="header-logo-fallback" class="logo-mark-fallback" style="display:none;">CM</div>
   <div>
     <div class="logo-text"><span>Novedades</span> Nómina</div>
     <div class="header-sub">Collective Mining · Adecco</div>

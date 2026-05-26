@@ -4,25 +4,27 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Verificar Email · Collective Mining</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;600;700&family=Barlow+Condensed:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root {
-    --gold: #C9A84C;
-    --gold-light: #E8C96A;
-    --dark: #0E0E0E;
-    --surface: #1A1A1A;
-    --text: #F0EDE8;
-    --muted: #8A857A;
-    --success: #4CAF82;
-    --danger: #E05555;
-    --border: rgba(201,168,76,0.18);
+    --cm-blue:        #20A7C9;
+    --cm-blue-light:  #4DC4E0;
+    --coal:           #2B2B2B;
+    --dark:           #222222;
+    --surface:        #2E2E2E;
+    --surface2:       #383838;
+    --border:         rgba(32, 167, 201, 0.20);
+    --text:           #FFFFFF;
+    --muted:          #706F6F;
+    --success:        #48BB78;
+    --danger:         #E05555;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
-    font-family: 'DM Sans', sans-serif;
-    background: var(--dark);
+    font-family: 'Barlow', sans-serif;
+    background: var(--coal);
     color: var(--text);
     min-height: 100vh;
     display: flex;
@@ -34,90 +36,194 @@
   .card {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 16px;
+    border-radius: 12px;
     padding: 48px 40px;
     max-width: 480px;
     width: 100%;
     text-align: center;
-    box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
   }
 
-  .logo {
-    font-family: 'Syne', sans-serif;
-    font-size: 22px;
+  /* ── Logo ── */
+  .brand-header {
+    margin-bottom: 36px;
+  }
+
+  .brand-logo-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 6px;
+  }
+
+  .logo-mark {
+    width: 38px;
+    height: 38px;
+    background: var(--cm-blue);
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Barlow Condensed', sans-serif;
     font-weight: 800;
-    color: var(--gold);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    margin-bottom: 4px;
+    font-size: 14px;
+    color: #fff;
+    flex-shrink: 0;
   }
-  .logo-sub { font-size: 12px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 36px; }
 
+  .logo-text {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 20px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text);
+  }
+
+  .logo-text span { color: var(--cm-blue); }
+
+  .logo-sub {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  /* ── Icon ── */
   .icon {
-    font-size: 56px;
-    margin-bottom: 20px;
+    font-size: 52px;
+    margin-bottom: 18px;
     display: block;
   }
 
+  /* ── Typography ── */
   .title {
-    font-family: 'Syne', sans-serif;
+    font-family: 'Barlow Condensed', sans-serif;
     font-size: 22px;
-    font-weight: 800;
-    margin-bottom: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
     color: var(--text);
   }
 
   .desc {
-    font-size: 14px;
+    font-size: 13px;
     line-height: 1.7;
     color: var(--muted);
     margin-bottom: 28px;
   }
 
+  /* ── User info box ── */
   .user-info {
-    background: rgba(201,168,76,0.08);
+    background: rgba(32, 167, 201, 0.07);
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: 8px;
     padding: 14px 20px;
     margin-bottom: 28px;
     text-align: left;
   }
-  .user-info-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 4px; }
-  .user-info-name  { font-size: 15px; font-weight: 600; color: var(--gold); }
-  .user-info-email { font-size: 13px; color: var(--muted); margin-top: 2px; }
 
-  .btn {
-    display: inline-block; padding: 13px 32px; border-radius: 8px;
-    font-family: 'DM Sans', sans-serif; font-weight: 600; font-size: 14px;
-    text-decoration: none; cursor: pointer; border: none;
-    transition: all .2s; letter-spacing: 0.04em;
+  .user-info-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 4px;
+    font-weight: 600;
   }
-  .btn-gold { background: var(--gold); color: var(--dark); }
-  .btn-gold:hover { background: var(--gold-light); }
-  .btn-outline { background: transparent; color: var(--muted); border: 1px solid rgba(255,255,255,0.1); }
-  .btn-outline:hover { color: var(--text); border-color: rgba(255,255,255,0.25); }
 
-  .divider { height: 1px; background: var(--border); margin: 28px 0; }
+  .user-info-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--cm-blue-light);
+  }
 
-  /* estados */
-  #stateLoading, #stateSuccess, #stateAlready, #stateError { display: none; }
-  #stateLoading.show, #stateSuccess.show, #stateAlready.show, #stateError.show { display: block; }
+  .user-info-email {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 3px;
+  }
 
+  /* ── Buttons ── */
+  .btn {
+    display: inline-block;
+    padding: 12px 30px;
+    border-radius: 6px;
+    font-family: 'Barlow', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    text-decoration: none;
+    cursor: pointer;
+    border: none;
+    transition: all .2s;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .btn-primary {
+    background: var(--cm-blue);
+    color: #ffffff;
+  }
+
+  .btn-primary:hover {
+    background: var(--cm-blue-light);
+    transform: translateY(-1px);
+  }
+
+  .btn-outline {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+  }
+
+  .btn-outline:hover {
+    color: var(--text);
+    border-color: rgba(255, 255, 255, 0.25);
+  }
+
+  /* ── Divider ── */
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 28px 0;
+  }
+
+  /* ── Spinner ── */
   .spinner {
-    width: 44px; height: 44px; margin: 0 auto 20px;
-    border: 3px solid rgba(201,168,76,0.2);
-    border-top-color: var(--gold);
+    width: 44px;
+    height: 44px;
+    margin: 0 auto 20px;
+    border: 3px solid rgba(32, 167, 201, 0.2);
+    border-top-color: var(--cm-blue);
     border-radius: 50%;
     animation: spin .8s linear infinite;
   }
+
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── State containers ── */
+  #stateLoading, #stateSuccess, #stateAlready, #stateError { display: none; }
+  #stateLoading.show, #stateSuccess.show, #stateAlready.show, #stateError.show { display: block; }
+
+  @media (max-width: 520px) {
+    .card { padding: 32px 24px; }
+    .title { font-size: 18px; }
+  }
 </style>
 </head>
 <body>
 
 <div class="card">
-  <div class="logo">Collective Mining</div>
-  <div class="logo-sub">Sistema de Nómina</div>
+  <!-- Logo / Branding -->
+  <div class="brand-header">
+    <div class="brand-logo-wrap">
+      <div class="logo-mark">CM</div>
+      <div class="logo-text">Collective <span>Mining</span></div>
+    </div>
+    <div class="logo-sub">— Sistema de Nómina —</div>
+  </div>
 
   <!-- CARGANDO -->
   <div id="stateLoading">
@@ -136,7 +242,7 @@
       <div class="user-info-name" id="uiNombre"></div>
       <div class="user-info-email" id="uiEmail"></div>
     </div>
-    <a href="/login.html" class="btn btn-gold">Ir al inicio de sesión</a>
+    <a href="/login.html" class="btn btn-primary">Ir al inicio de sesión</a>
   </div>
 
   <!-- YA VERIFICADO -->
@@ -144,7 +250,7 @@
     <span class="icon">ℹ️</span>
     <div class="title">Ya verificado</div>
     <div class="desc">Este email ya fue verificado anteriormente. Puedes iniciar sesión con normalidad.</div>
-    <a href="/login.html" class="btn btn-gold">Iniciar sesión</a>
+    <a href="/login.html" class="btn btn-primary">Iniciar sesión</a>
   </div>
 
   <!-- ERROR -->
@@ -153,7 +259,7 @@
     <div class="title" id="errorTitle">Enlace inválido</div>
     <div class="desc" id="errorDesc">El enlace de verificación es inválido o ha expirado. Puedes solicitar uno nuevo desde la pantalla de registro.</div>
     <div style="display:flex; flex-direction:column; gap:10px; align-items:center">
-      <a href="/login.html" class="btn btn-gold">Ir al inicio de sesión</a>
+      <a href="/login.html" class="btn btn-primary">Ir al inicio de sesión</a>
     </div>
   </div>
 </div>
