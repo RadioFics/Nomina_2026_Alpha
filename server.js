@@ -22,6 +22,46 @@ app.use(bodyParser.urlencoded({ extended: true }));
 // Logging de requests con errores HTTP (4xx/5xx) hacia GN_LOG_APP
 app.use(logger.middlewareRequest);
 
+// ── Bootstrap diferido ────────────────────────────────────────────────────────
+// NO se conecta a la BD al arrancar el proceso. En Azure Free tier, el proceso
+// Node arranca cada vez que llega una petición (incluyendo pings de Logic App o
+// health checks). Si se conectase aquí, cada ping despertaría la BD e impediría
+// el auto-pause de Azure SQL Serverless.
+//
+// Los bootstraps corren solo ante la primera petición REAL a /api/* (excluye
+// /api/health). El setInterval de 3h también arranca en ese momento.
+// ─────────────────────────────────────────────────────────────────────────────
+let _bootstrapsDone = false;
+async function _runBootstrapsOnce() {
+  if (_bootstrapsDone) return;
+  _bootstrapsDone = true;
+  console.log('[Bootstrap] Primera petición real — iniciando conexión a BD...');
+  const { verificarYCerrarPeriodosVencidos } = require('./controllers/novedadesController');
+  try { await require('./controllers/ocasionalesController').ensureDbObjects(); } catch (_) {}
+  try { await require('./controllers/fijasController').ensureDbObjects();       } catch (_) {}
+  try { await require('./controllers/ausentismosController').ensureDbObjects(); } catch (_) {}
+  try { await require('./controllers/cambiosController').ensureDbObjects();     } catch (_) {}
+  try { await require('./controllers/formularioController').ensureDbObjects();  } catch (_) {}
+  try { await verificarYCerrarPeriodosVencidos();                               } catch (_) {}
+  // Intervalo de 3h — solo en horario laboral (5 AM–10 PM UTC-5 / Colombia)
+  setInterval(async () => {
+    const colHour = ((new Date().getUTCHours() - 5) % 24 + 24) % 24;
+    if (colHour >= 5 && colHour < 22) {
+      const { verificarYCerrarPeriodosVencidos: vc } = require('./controllers/novedadesController');
+      await vc().catch(() => {});
+    }
+  }, 3 * 60 * 60 * 1000);
+  console.log('[Bootstrap] Completado. Intervalo de 3h activo.');
+}
+
+// Este middleware debe estar ANTES de todas las rutas /api
+app.use('/api', (req, res, next) => {
+  if (req.path !== '/health' && req.path !== '/health/python') {
+    _runBootstrapsOnce().catch(() => {});
+  }
+  next();
+});
+
 // Servir archivos estáticos (HTML, CSS, JS)
 app.use(express.static(__dirname));
 
@@ -235,68 +275,8 @@ startListen(async () => {
 
   console.log(`\n  ✅ Verifica en: http://localhost:${PORT}/api/health\n`);
 
-  // Asegurar que la conexión a BD está lista ANTES de los bootstraps
-  const { getConnection } = require('./config/database');
-  const maxWaitTime = 30000; // 30 segundos máximo
-  const startTime = Date.now();
-
-  let connectionReady = false;
-  while (!connectionReady && Date.now() - startTime < maxWaitTime) {
-    try {
-      const pool = await getConnection();
-      if (pool && pool.connected) {
-        connectionReady = true;
-        console.log('[DB] Pool de conexión listo para bootstraps');
-      } else {
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-    } catch (err) {
-      console.error('[DB] Error intentando conectar:', err.message);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-  }
-
-  if (!connectionReady) {
-    console.error('[DB] Timeout esperando conexión. Los bootstraps pueden fallar.');
-  }
-
-  // Bootstrap DB objects DESPUÉS de que el servidor arrancó y el pool está listo.
-  // Se ejecutan en secuencia para que el pool esté activo antes de cada llamada.
-  try {
-    await require('./controllers/ocasionalesController').ensureDbObjects();
-  } catch (_) {}
-  try {
-    await require('./controllers/fijasController').ensureDbObjects();
-  } catch (_) {}
-  try {
-    await require('./controllers/ausentismosController').ensureDbObjects();
-  } catch (_) {}
-  try {
-    await require('./controllers/cambiosController').ensureDbObjects();
-  } catch (_) {}
-  try {
-    await require('./controllers/formularioController').ensureDbObjects();
-  } catch (_) {}
-
-  // Cierre automático de períodos vencidos al arrancar
-  const { verificarYCerrarPeriodosVencidos } = require('./controllers/novedadesController');
-  try {
-    await verificarYCerrarPeriodosVencidos();
-  } catch (_) {}
-
-  // Verificar cada 3 horas si hay períodos que vencieron durante el día.
-  // Intervalo de 3h (no 1h) para que Azure SQL Serverless tenga ~2.5h de
-  // inactividad real entre cada check y pueda entrar en auto-pause.
-  // Con auto-pause delay = 30 min en Azure Portal, la BD se pausa ~2.5h
-  // entre cada ejecución, reduciendo el costo de compute al mínimo.
-  // Solo se ejecuta en horario laboral (5 AM – 10 PM UTC-5 / Colombia).
-  setInterval(async () => {
-    const utcHour  = new Date().getUTCHours();
-    const colHour  = ((utcHour - 5) % 24 + 24) % 24; // UTC-5 (Colombia)
-    if (colHour >= 5 && colHour < 22) {
-      await verificarYCerrarPeriodosVencidos().catch(() => {});
-    }
-  }, 3 * 60 * 60 * 1000); // cada 3 horas
+  // Bootstrap y setInterval se gestionan desde el middleware definido al inicio
+  // de server.js (antes de las rutas), no aquí. Ver _runBootstrapsOnce().
 });
 
 // Función para matar procesos Node en Windows
@@ -348,12 +328,13 @@ server.on('error', (err) => {
       console.error('\n📋 Soluciones manuales:');
       console.error(`  1. Ejecuta: .\\kill-server.ps1`);
       console.error(`  2. O: Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force`);
-      console.error(`  3. O usa otro puerto: PORT=3001 npm start\n`);
+      console.error(`  3. O usa otro puerto: PORT=3001 npm start
+`);
       process.exit(1);
     }
   } else {
-    console.error('[ERROR] Error inesperado del servidor:', err.message);
-    logger.error('node', 'Error inesperado del servidor HTTP: ' + err.message, err.stack);
+    console.error("[ERROR] Error inesperado del servidor:", err.message);
+    logger.error("node", "Error inesperado del servidor HTTP: " + err.message, err.stack);
     throw err;
   }
 });

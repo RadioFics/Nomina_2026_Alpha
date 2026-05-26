@@ -2792,7 +2792,8 @@ function histClearAuto() { /* permite búsqueda al escribir si se desea */ }
 let _ccData        = [];    // último resultado cargado (para re-ordenar sin re-consultar)
 let _ccIniciado    = false; // evita doble carga inicial
 let _ccCatalogo    = [];    // catálogo de centros de costo [{cod, nom}]
-let _ccSeleccionados = new Set(); // CCs seleccionados (vacío = todos)
+let _ccSeleccionados = new Set(); // CCs seleccionados (solo aplica cuando _ccTodosMode=false)
+let _ccTodosMode   = true;  // true = sin filtro CC (todos); false = filtrar por _ccSeleccionados
 
 // ── Inicialización única del panel CC ────────────────────────────────────────
 async function _initDashboardCC() {
@@ -2880,6 +2881,7 @@ function _closeCCDrop() {
 
 // ── Multi-select: checkbox onChange ──────────────────────────────────────────
 function _onCCCheck(cb) {
+  _ccTodosMode = false; // al tocar un checkbox, salir del modo "todos"
   if (cb.checked) _ccSeleccionados.add(String(cb.value));
   else            _ccSeleccionados.delete(String(cb.value));
   _actualizarCCLabel();
@@ -2887,11 +2889,13 @@ function _onCCCheck(cb) {
 
 // ── Multi-select: Seleccionar todos / Ninguno ─────────────────────────────────
 function _ccSelectAll() {
+  _ccTodosMode = true;           // sin filtro → mostrar todos los CC
   _ccSeleccionados.clear();
-  document.querySelectorAll('#cc_ms_options input[type=checkbox]').forEach(cb => cb.checked = true);
+  document.querySelectorAll('#cc_ms_options input[type=checkbox]').forEach(cb => cb.checked = false);
   _actualizarCCLabel();
 }
 function _ccClearAll() {
+  _ccTodosMode = false;          // filtro activo pero vacío → cero resultados
   _ccSeleccionados.clear();
   document.querySelectorAll('#cc_ms_options input[type=checkbox]').forEach(cb => cb.checked = false);
   _actualizarCCLabel();
@@ -2902,17 +2906,28 @@ function _actualizarCCLabel() {
   const label = document.getElementById('cc_ms_label');
   const btn   = document.getElementById('cc_ms_btn');
   if (!label) return;
+
+  if (_ccTodosMode) {
+    label.textContent = 'Todos los centros de costo';
+    label.style.color = '';
+    btn.querySelector('.cc-ms-count')?.remove();
+    return;
+  }
+
   const n = _ccSeleccionados.size;
   if (n === 0) {
-    label.textContent = 'Todos los centros de costo';
+    label.textContent = 'Sin centros seleccionados';
+    label.style.color = 'var(--muted)';
     btn.querySelector('.cc-ms-count')?.remove();
   } else if (n === 1) {
     const cod  = [..._ccSeleccionados][0];
     const item = _ccCatalogo.find(c => String(c.cod) === cod);
     label.textContent = item ? item.nom : cod;
-    _setOrCreateCount(btn, null); // no badge con 1 seleccionado
+    label.style.color = '';
+    _setOrCreateCount(btn, null);
   } else {
     label.textContent = `${n} centros seleccionados`;
+    label.style.color = '';
     _setOrCreateCount(btn, n);
   }
 }
@@ -2949,8 +2964,18 @@ async function cargarTrazabilidadCC() {
     const params = new URLSearchParams({ estado });
     if (period) params.set('codPeriod', period);
 
-    // Multi-CC: enviar como lista separada por comas
-    const ccList = [..._ccSeleccionados];
+    // Sin centros seleccionados (modo "Ninguno") → resultado vacío sin consultar
+    if (!_ccTodosMode && _ccSeleccionados.size === 0) {
+      ui.innerHTML = `<span style="font-size:28px;display:block;margin-bottom:10px;opacity:.25">🏢</span>
+        <strong>Sin centros de costo seleccionados.</strong><br>
+        <span style="font-size:11px;margin-top:6px;display:block">
+          Selecciona al menos un centro en el filtro superior o haz clic en "✓ Todos" para ver todos.
+        </span>`;
+      return;
+    }
+
+    // Multi-CC: enviar como lista separada por comas (solo si no es modo "todos")
+    const ccList = _ccTodosMode ? [] : [..._ccSeleccionados];
     if (ccList.length > 0) params.set('codCcost', ccList.join(','));
 
     const r = await fetch(`/api/novedades/trazabilidad-ccost?${params}`);
