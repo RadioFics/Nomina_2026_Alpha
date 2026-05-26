@@ -404,16 +404,30 @@ async function trazabilidadCCost(req, res) {
     const codEmpr    = Number(req.query.codEmpr)   || DEFAULT_COD_EMPR;
     const codPeriod  = req.query.codPeriod ? Number(req.query.codPeriod) : null;
     const estado     = (req.query.estado || 'A').toUpperCase();
-    const codCcost   = req.query.codCcost  ? Number(req.query.codCcost)  : null;
+
+    // Soporte multi-CC: acepta ?codCcost=1,2,3 o ?codCcost=1&codCcost=2
+    const rawCc = req.query.codCcost;
+    const ccList = rawCc
+      ? (Array.isArray(rawCc) ? rawCc : String(rawCc).split(','))
+          .map(v => Number(v.trim())).filter(v => v > 0)
+      : [];
 
     const params = { codEmpr };
-    const estCond   = estado === 'A' ? `AND n.ACT_ESTA = 'A'`
-                    : estado === 'I' ? `AND n.ACT_ESTA = 'I'`
-                    : '';
-    const perCond   = codPeriod ? `AND n.COD_PERIOD = @codPeriod` : '';
-    const ccostCond = codCcost  ? `AND f.COD_CCOST  = @codCcost`  : '';
+    const estCond = estado === 'A' ? `AND n.ACT_ESTA = 'A'`
+                  : estado === 'I' ? `AND n.ACT_ESTA = 'I'`
+                  : '';
+    const perCond = codPeriod ? `AND n.COD_PERIOD = @codPeriod` : '';
+
+    // Genera IN (@cc0, @cc1, ...) para multi-CC o = @cc0 para uno solo
+    let ccostCond = '';
+    if (ccList.length === 1) {
+      ccostCond = `AND f.COD_CCOST = @cc0`;
+      params.cc0 = ccList[0];
+    } else if (ccList.length > 1) {
+      const placeholders = ccList.map((v, i) => { params[`cc${i}`] = v; return `@cc${i}`; }).join(',');
+      ccostCond = `AND f.COD_CCOST IN (${placeholders})`;
+    }
     if (codPeriod) params.codPeriod = codPeriod;
-    if (codCcost)  params.codCcost  = codCcost;
 
     // ── 1. Resumen por Centro de Costo ──────────────────────────────────────
     const qSummary = `
@@ -498,8 +512,8 @@ async function trazabilidadCCost(req, res) {
 
     res.json({ centros });
   } catch (err) {
-    console.error('[novedades] trazabilidadCCost error:', err);
-    res.status(500).json({ error: 'Error obteniendo trazabilidad por CC', details: err.message });
+    console.error("[novedades] trazabilidadCCost error:", err);
+    res.status(500).json({ error: "Error obteniendo trazabilidad por CC", details: err.message });
   }
 }
 

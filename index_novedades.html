@@ -513,12 +513,62 @@
   /* ── TRAZABILIDAD POR CENTRO DE COSTO ───────────────────────────── */
   .ccost-section { margin-bottom: 20px; }
   .ccost-filters {
-    display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 12px;
-    align-items: flex-end; margin-bottom: 18px;
+    display: grid;
+    grid-template-columns: 1.1fr 1.4fr 1fr 1fr;
+    gap: 12px; align-items: flex-end; margin-bottom: 12px;
+  }
+  .ccost-filters-btn-row {
+    margin-bottom: 18px;
   }
   .ccost-summary-strip {
-    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px;
     margin-bottom: 18px;
+  }
+
+  /* Multi-select CC */
+  .cc-ms-wrap { position: relative; }
+  .cc-ms-btn {
+    width: 100%; padding: 8px 12px; background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 6px; color: var(--text);
+    font-size: 13px; cursor: pointer; text-align: left;
+    display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  }
+  .cc-ms-btn:hover { border-color: var(--cm-blue); }
+  .cc-ms-btn .cc-ms-arrow { font-size: 10px; color: var(--muted); transition: transform .2s; flex-shrink:0; }
+  .cc-ms-btn.open .cc-ms-arrow { transform: rotate(180deg); }
+  .cc-ms-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex:1; }
+  .cc-ms-count {
+    background: var(--cm-blue); color: #fff; border-radius: 10px;
+    font-size: 10px; font-weight: 700; padding: 1px 7px; flex-shrink:0;
+  }
+  .cc-ms-drop {
+    display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+    z-index: 200; max-height: 260px; overflow-y: auto;
+    box-shadow: 0 8px 24px rgba(0,0,0,.4);
+  }
+  .cc-ms-drop.open { display: block; }
+  .cc-ms-actions {
+    display: flex; gap: 8px; padding: 8px 10px;
+    border-bottom: 1px solid var(--border); position: sticky; top: 0;
+    background: var(--surface2);
+  }
+  .cc-ms-actions button {
+    flex:1; padding: 4px 8px; font-size: 11px; font-weight: 600; border-radius: 4px;
+    cursor: pointer; border: 1px solid var(--border); background: rgba(255,255,255,.04);
+    color: var(--muted); transition: all .15s;
+  }
+  .cc-ms-actions button:hover { border-color: var(--cm-blue); color: var(--cm-blue-light); }
+  .cc-ms-option {
+    display: flex; align-items: center; gap: 8px; padding: 7px 12px;
+    cursor: pointer; font-size: 12px; transition: background .1s;
+  }
+  .cc-ms-option:hover { background: rgba(32,167,201,.07); }
+  .cc-ms-option input[type=checkbox] { accent-color: var(--cm-blue); width:13px; height:13px; flex-shrink:0; }
+  .cc-ms-option label { cursor: pointer; flex:1; line-height: 1.3; }
+  .cc-ms-option .cc-ms-opt-code {
+    font-size: 10px; color: var(--muted); font-family: 'Barlow Condensed', sans-serif;
+    background: rgba(255,255,255,.05); border-radius: 3px; padding: 1px 5px;
   }
   .ccost-kpi {
     background: var(--surface); border: 1px solid var(--border);
@@ -759,28 +809,43 @@
           para un análisis detallado.
         </p>
 
-        <!-- Filtros — fila 1 -->
+        <!-- Filtros -->
         <div class="ccost-filters">
           <div class="form-group">
             <label>Período de nómina</label>
-            <select id="cc_period" title="Filtra los registros a un período de nómina específico. Sin selección muestra todos.">
+            <select id="cc_period" title="Filtra los registros a un período de nómina específico.">
               <option value="">Todos los períodos</option>
             </select>
           </div>
+
           <div class="form-group">
-            <label>Centro de Costo</label>
-            <select id="cc_ccost" title="Muestra únicamente el centro de costo seleccionado.">
-              <option value="">Todos los centros</option>
-            </select>
+            <label>Centro de Costo <span id="cc_ccost_sel_count" style="display:none;font-size:10px;color:var(--cm-blue-light);font-weight:700;margin-left:4px"></span></label>
+            <div class="cc-ms-wrap" id="cc_ms_wrap">
+              <button class="cc-ms-btn" id="cc_ms_btn" type="button" onclick="_toggleCCDrop(event)">
+                <span class="cc-ms-label" id="cc_ms_label">Todos los centros de costo</span>
+                <span class="cc-ms-arrow">▾</span>
+              </button>
+              <div class="cc-ms-drop" id="cc_ms_drop">
+                <div class="cc-ms-actions">
+                  <button type="button" onclick="_ccSelectAll()">✓ Todos</button>
+                  <button type="button" onclick="_ccClearAll()">✕ Ninguno</button>
+                </div>
+                <div id="cc_ms_options">
+                  <div style="padding:16px;text-align:center;color:var(--muted);font-size:12px">Cargando centros…</div>
+                </div>
+              </div>
+            </div>
           </div>
+
           <div class="form-group">
             <label>Estado de registros</label>
-            <select id="cc_estado" title="Activos = novedades vigentes. Inactivos = anuladas. Ambos = historial completo.">
+            <select id="cc_estado" title="Activos = novedades vigentes. Inactivos = anuladas.">
               <option value="A">Solo activos</option>
               <option value="todos">Activos e inactivos</option>
               <option value="I">Solo inactivos</option>
             </select>
           </div>
+
           <div class="form-group">
             <label>Ordenar tarjetas por</label>
             <select id="cc_orden">
@@ -791,12 +856,12 @@
               <option value="nombre">Nombre A→Z</option>
             </select>
           </div>
-          <div class="form-group" style="align-self:flex-end">
-            <label>&nbsp;</label>
-            <button class="hist-btn hist-btn-search" onclick="cargarTrazabilidadCC()" id="cc_btnBuscar">
-              ↺ Consultar
-            </button>
-          </div>
+        </div>
+
+        <div class="ccost-filters-btn-row">
+          <button class="hist-btn hist-btn-search" style="min-width:180px" onclick="cargarTrazabilidadCC()" id="cc_btnBuscar">
+            ↺ Consultar
+          </button>
         </div>
 
         <!-- KPIs globales -->
@@ -2726,16 +2791,34 @@ function histClearAuto() { /* permite búsqueda al escribir si se desea */ }
 // ============================================================================
 let _ccData        = [];    // último resultado cargado (para re-ordenar sin re-consultar)
 let _ccIniciado    = false; // evita doble carga inicial
+let _ccCatalogo    = [];    // catálogo de centros de costo [{cod, nom}]
+let _ccSeleccionados = new Set(); // CCs seleccionados (vacío = todos)
 
-// ── Inicialización única del panel CC (carga catálogos + datos) ───────────────
+// ── Inicialización única del panel CC ────────────────────────────────────────
 async function _initDashboardCC() {
   if (_ccIniciado) return;
   _ccIniciado = true;
-  await _cargarCentrosCosto();
+  await Promise.all([_cargarPeriodosCC(), _cargarCentrosCosto()]);
   cargarTrazabilidadCC();
 }
 
-// ── Poblar los selectores de Centros de Costo (panel CC + buscador histórico) ─
+// ── Cargar períodos directamente (sin depender de hist_period) ───────────────
+async function _cargarPeriodosCC() {
+  try {
+    const r = await fetch('/api/novedades/periodos');
+    if (!r.ok) return;
+    const periodos = await r.json();
+    const sel = document.getElementById('cc_period');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Todos los períodos</option>';
+    periodos.forEach(p => {
+      const label = `${p.PER_ANO}-${String(p.PER_MES).padStart(2,'0')}-Q${p.PER_QNA} · ${fmtFecha(p.PER_FINI)} → ${fmtFecha(p.PER_FFIN)}${p.PER_EST==='I' ? ' [Cerrado]' : ''}`;
+      sel.insertAdjacentHTML('beforeend', `<option value="${p.COD_PERIOD}">${label}</option>`);
+    });
+  } catch (_) {}
+}
+
+// ── Poblar los selectores de Centros de Costo ────────────────────────────────
 async function _cargarCentrosCosto() {
   try {
     const r = await fetch('/api/maestros/catalogos-edicion');
@@ -2743,34 +2826,118 @@ async function _cargarCentrosCosto() {
     const cat = await r.json();
     if (!cat.ccost || !cat.ccost.length) return;
 
-    const opts = '<option value="">Todos los centros de costo</option>' +
-      cat.ccost.map(c => `<option value="${c.cod}">${c.nom}${c.cod ? ' · ' + c.cod : ''}</option>`).join('');
+    _ccCatalogo = cat.ccost;
 
-    const selCC   = document.getElementById('cc_ccost');
+    // Selector histórico (select normal)
     const selHist = document.getElementById('hist_ccost');
-    if (selCC)   selCC.innerHTML   = opts;
-    if (selHist) selHist.innerHTML = opts;
-  } catch (_) { /* falla silenciosa — los selects quedan con "Todos" */ }
+    if (selHist) {
+      selHist.innerHTML = '<option value="">Todos los centros de costo</option>' +
+        cat.ccost.map(c => `<option value="${c.cod}">${c.nom}${c.cod ? ' · ' + c.cod : ''}</option>`).join('');
+    }
+
+    // Multi-select CC del panel de trazabilidad
+    _renderCCOpciones();
+  } catch (_) {}
 }
 
-// ── Poblar el select de períodos del panel CC (reutiliza los datos de hist_period) ──
+// ── Poblar el select de períodos del panel CC (llamado desde histCargarPeriodos) ─
 function _sincronizarPeriodosCC() {
-  const origen  = document.getElementById('hist_period');
-  const destino = document.getElementById('cc_period');
-  if (!origen || !destino) return;
-  destino.innerHTML = origen.innerHTML;
-  destino.value = ''; // siempre arranca en "Todos los períodos"
+  // No-op: ahora cc_period se carga de forma independiente en _cargarPeriodosCC()
+  // Se mantiene por compatibilidad con la llamada en histCargarPeriodos()
+}
+
+// ── Multi-select: renderizar opciones ────────────────────────────────────────
+function _renderCCOpciones() {
+  const container = document.getElementById('cc_ms_options');
+  if (!container || !_ccCatalogo.length) return;
+  container.innerHTML = _ccCatalogo.map(c => `
+    <label class="cc-ms-option">
+      <input type="checkbox" value="${c.cod}" onchange="_onCCCheck(this)"
+             ${_ccSeleccionados.has(String(c.cod)) ? 'checked' : ''}>
+      <span style="flex:1">${c.nom}</span>
+      <span class="cc-ms-opt-code">${c.cod}</span>
+    </label>
+  `).join('');
+  _actualizarCCLabel();
+}
+
+// ── Multi-select: toggle dropdown ────────────────────────────────────────────
+function _toggleCCDrop(e) {
+  e.stopPropagation();
+  const drop = document.getElementById('cc_ms_drop');
+  const btn  = document.getElementById('cc_ms_btn');
+  const open = drop.classList.toggle('open');
+  btn.classList.toggle('open', open);
+  if (open) {
+    // Cerrar al hacer clic fuera
+    setTimeout(() => document.addEventListener('click', _closeCCDrop, { once: true }), 0);
+  }
+}
+function _closeCCDrop() {
+  document.getElementById('cc_ms_drop')?.classList.remove('open');
+  document.getElementById('cc_ms_btn')?.classList.remove('open');
+}
+
+// ── Multi-select: checkbox onChange ──────────────────────────────────────────
+function _onCCCheck(cb) {
+  if (cb.checked) _ccSeleccionados.add(String(cb.value));
+  else            _ccSeleccionados.delete(String(cb.value));
+  _actualizarCCLabel();
+}
+
+// ── Multi-select: Seleccionar todos / Ninguno ─────────────────────────────────
+function _ccSelectAll() {
+  _ccSeleccionados.clear();
+  document.querySelectorAll('#cc_ms_options input[type=checkbox]').forEach(cb => cb.checked = true);
+  _actualizarCCLabel();
+}
+function _ccClearAll() {
+  _ccSeleccionados.clear();
+  document.querySelectorAll('#cc_ms_options input[type=checkbox]').forEach(cb => cb.checked = false);
+  _actualizarCCLabel();
+}
+
+// ── Actualizar etiqueta del botón ─────────────────────────────────────────────
+function _actualizarCCLabel() {
+  const label = document.getElementById('cc_ms_label');
+  const btn   = document.getElementById('cc_ms_btn');
+  if (!label) return;
+  const n = _ccSeleccionados.size;
+  if (n === 0) {
+    label.textContent = 'Todos los centros de costo';
+    btn.querySelector('.cc-ms-count')?.remove();
+  } else if (n === 1) {
+    const cod  = [..._ccSeleccionados][0];
+    const item = _ccCatalogo.find(c => String(c.cod) === cod);
+    label.textContent = item ? item.nom : cod;
+    _setOrCreateCount(btn, null); // no badge con 1 seleccionado
+  } else {
+    label.textContent = `${n} centros seleccionados`;
+    _setOrCreateCount(btn, n);
+  }
+}
+function _setOrCreateCount(btn, n) {
+  let badge = btn.querySelector('.cc-ms-count');
+  if (n == null) { badge?.remove(); return; }
+  if (!badge) {
+    badge = document.createElement('span');
+    badge.className = 'cc-ms-count';
+    btn.insertBefore(badge, btn.querySelector('.cc-ms-arrow'));
+  }
+  badge.textContent = n;
 }
 
 // ── Consulta principal ────────────────────────────────────────────────────────
 async function cargarTrazabilidadCC() {
   const period = document.getElementById('cc_period').value;
-  const ccost  = document.getElementById('cc_ccost').value;
   const estado = document.getElementById('cc_estado').value;
   const btn    = document.getElementById('cc_btnBuscar');
   const grid   = document.getElementById('cc_grid');
   const ui     = document.getElementById('cc_estado_ui');
   const kpis   = document.getElementById('cc_kpis');
+
+  // Cerrar dropdown si está abierto
+  _closeCCDrop();
 
   btn.disabled = true; btn.textContent = '⏳ Cargando...';
   ui.innerHTML = '<span style="font-size:22px;display:block;margin-bottom:8px;opacity:.35">⟳</span>Consultando base de datos…';
@@ -2781,7 +2948,10 @@ async function cargarTrazabilidadCC() {
   try {
     const params = new URLSearchParams({ estado });
     if (period) params.set('codPeriod', period);
-    if (ccost)  params.set('codCcost',  ccost);
+
+    // Multi-CC: enviar como lista separada por comas
+    const ccList = [..._ccSeleccionados];
+    if (ccList.length > 0) params.set('codCcost', ccList.join(','));
 
     const r = await fetch(`/api/novedades/trazabilidad-ccost?${params}`);
     if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -2789,9 +2959,9 @@ async function cargarTrazabilidadCC() {
     _ccData = centros || [];
 
     if (!_ccData.length) {
-      const hint = ccost  ? 'el centro de costo seleccionado'
-                 : period ? 'el período seleccionado'
-                 : 'los filtros seleccionados';
+      const hint = ccList.length > 0 ? `los ${ccList.length} centros seleccionados`
+                 : period            ? 'el período seleccionado'
+                 : 'los filtros aplicados';
       ui.innerHTML = `<span style="font-size:28px;display:block;margin-bottom:10px;opacity:.25">🏢</span>
         No hay novedades registradas para <strong>${hint}</strong>.<br>
         <span style="font-size:11px;margin-top:6px;display:block">Prueba cambiando el estado a "Activos e inactivos" o ampliando el rango de períodos.</span>`;
@@ -2991,9 +3161,8 @@ function _ccVerEnHistorial(codCcost) {
 
 // ── Auto-carga cuando el usuario navega al Dashboard ─────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  // El dashboard es la página activa por defecto — inicializar con pequeño delay
-  // para que histCargarPeriodos() tenga tiempo de poblar hist_period primero
-  setTimeout(_initDashboardCC, 800);
+  // _initDashboardCC carga sus propios datos (períodos + CC) de forma independiente
+  _initDashboardCC();
 });
 
 // ============================================================================
