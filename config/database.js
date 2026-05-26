@@ -123,6 +123,11 @@ async function getConnection() {
     return pool;
   }
 
+  if (!pool || !pool.connected) {
+    pool = await sql.connect(config);
+    return pool;
+  }
+
   // Reconectar si es necesario
   isConnecting = true;
   try {
