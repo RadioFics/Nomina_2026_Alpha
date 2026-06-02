@@ -68,7 +68,7 @@ function generarAbrUsuario(nombreCompleto) {
  */
 exports.login = async (req, res) => {
   try {
-    const { cedula_o_email, contrasena } = req.body;
+    const { cedula_o_email, contrasena, rememberMe } = req.body;
     const ip = req.ip || req.connection.remoteAddress;
 
     // Validar entrada
@@ -273,18 +273,19 @@ exports.login = async (req, res) => {
       } catch (_) { /* no crítico */ }
     }
 
-    // Generar token JWT
+    // Generar token JWT — 30 días si el usuario marcó "Recuérdame", 8 h si no
+    const tokenExpiry = rememberMe ? '30d' : '8h';
     const token = generateToken({
       cod_usua: usuario.COD_USUA,
       cod_empr: usuario.COD_EMPR,
-      email: usuario.DIR_ELEC,
-      nombre: usuario.NOM_USUA,
+      email:    usuario.DIR_ELEC,
+      nombre:   usuario.NOM_USUA,
       abr_usua: abrUsua,
-      cedula: usuario.NUM_IDEN || usuario.DIR_ELEC,
+      cedula:   usuario.NUM_IDEN || usuario.DIR_ELEC,
       cod_funci: usuario.COD_FUNCI,
       cod_cargo: usuario.COD_CARGO,
-      grupo: usuario.NOM_GUSU || 'Sin grupo'
-    });
+      grupo:    usuario.NOM_GUSU || 'Sin grupo'
+    }, tokenExpiry);
 
     // Registrar sesión en GN_SESION
     const queryRegistrarSesion = `
@@ -1157,6 +1158,23 @@ exports.registro = async (req, res) => {
         status: 'error',
         message: 'La contraseña debe tener al menos 8 caracteres'
       });
+    }
+
+    // ── Validar dominio de email (si ALLOWED_EMAIL_DOMAINS está configurado) ──────
+    // Ejemplo en .env: ALLOWED_EMAIL_DOMAINS=collectivemining.com,adecco.com
+    // Si la variable no está definida, se permite cualquier dominio (modo abierto).
+    const _dominiosPermitidos = (process.env.ALLOWED_EMAIL_DOMAINS || '')
+      .split(',').map(d => d.trim().toLowerCase()).filter(Boolean);
+
+    if (_dominiosPermitidos.length > 0) {
+      const _dominioEmail = (email.split('@')[1] || '').toLowerCase();
+      if (!_dominioEmail || !_dominiosPermitidos.includes(_dominioEmail)) {
+        return res.status(403).json({
+          status: 'error',
+          message: `El registro está habilitado solo para correos corporativos (${_dominiosPermitidos.join(', ')}). ` +
+                   `Si necesitas acceso con otro correo, contacta a Talento Humano.`
+        });
+      }
     }
 
     // Nombre de usuario: usar el enviado en el body o derivar del email

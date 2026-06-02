@@ -143,18 +143,16 @@ const checkLevel = (nivelMinimo) => {
  * Generar JWT Token
  * ✅ CORRECCIÓN: Solo incluir campos que EXISTEN en GN_USUAR
  */
-const generateToken = (usuarioData) => {
+const generateToken = (usuarioData, expiresIn = '8h') => {
   const payload = {
-    cod_usua: usuarioData.cod_usua,        // COD_USUA (correcto)
-    cod_empr: usuarioData.cod_empr,        // COD_EMPR (correcto)
-    email: usuarioData.email,               // DIR_ELEC (mapear a email)
-    nombre: usuarioData.nombre,             // NOM_USUA (mapear a nombre)
-    cedula: usuarioData.cedula || null,     // NUM_IDEN del join a GN_TERCE
-    cod_gusu: usuarioData.cod_gusu || null  // Grupo usuario
+    cod_usua: usuarioData.cod_usua,
+    cod_empr: usuarioData.cod_empr,
+    email:    usuarioData.email,
+    nombre:   usuarioData.nombre,
+    cedula:   usuarioData.cedula  || null,
+    cod_gusu: usuarioData.cod_gusu || null
   };
-
-  // Token con expiración de 8 horas
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '8h' });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn });
 };
 
 /**

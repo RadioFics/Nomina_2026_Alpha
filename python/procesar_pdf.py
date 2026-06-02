@@ -82,10 +82,55 @@ def _ocr_img(pil_img, config='--oem 3 --psm 6'):
 
 
 def _normalizar_digitos_ocr(s: str) -> str:
-    """Sustituye confusiones comunes de OCR en campos numéricos (l→1, O→0, S→5)."""
+    """
+    Sustituye confusiones de OCR en cadenas que deben ser PURAMENTE numéricas
+    (cédulas, códigos). NO usar sobre texto libre — corrompe nombres y palabras.
+    """
     return s.replace('l', '1').replace('I', '1').replace('i', '1') \
             .replace('O', '0').replace('o', '0') \
             .replace('S', '5').replace('s', '5')
+
+
+def _normalizar_digitos_texto(s: str) -> str:
+    """
+    Versión ligera para texto mixto: solo corrige l→1 y O→0.
+    No toca 's' ni 'i' para preservar letras en nombres y palabras.
+    Usar cuando se buscan fechas o números dentro de un bloque de texto completo.
+    """
+    return s.replace('l', '1').replace('I', '1').replace('O', '0')
+
+
+# ─── Páginas que deben ignorarse (no son formularios de nómina MineDax) ────────
+# Clave: texto que identifica la página. Valor: mensaje descriptivo para el log.
+_PAGINAS_IGNORAR = [
+    # Adobe Acrobat Sign — página de auditoría al final de PDFs firmados digitalmente
+    ('Adobe Acrobat Sign',                    'auditoría Adobe Acrobat Sign'),
+    ('Final Audit Report',                    'auditoría Adobe Acrobat Sign'),
+    ('Adobe Sign',                            'auditoría Adobe Sign'),
+    ('Agreement completed',                   'auditoría Adobe Sign'),
+    ('Document e-signed by',                  'auditoría Adobe Sign'),
+    ('Transaction ID',                        'auditoría Adobe Sign'),
+    # Certificados electorales (Colombia) y constancias de jurado de votación
+    ('CERTIFICADO ELECTORAL',                 'certificado electoral'),
+    ('REGISTRADURÍA',                         'certificado Registraduría'),
+    ('Formulario E-18',                       'Formulario E-18 Registraduría'),
+    ('JURADO DE VOTACIÓN',                    'constancia jurado de votación'),
+    ('SoyJurado',                             'constancia jurado de votación'),
+    ('prestó la función pública de JURADO',   'constancia jurado de votación'),
+    ('ELECCIONES DE SENADO',                  'certificado electoral'),
+    ('ELECCIONES DE CONGRESO',                'certificado electoral'),
+    ('CERTIFICADO ELECTORAL ELECCIONES',      'certificado electoral'),
+]
+
+def _es_pagina_ignorar(text: str) -> tuple:
+    """
+    Detecta si una página no es un formulario de nómina y debe saltarse en silencio.
+    Retorna (True, motivo) si debe ignorarse, (False, '') si debe procesarse.
+    """
+    for marcador, motivo in _PAGINAS_IGNORAR:
+        if marcador in text:
+            return True, motivo
+    return False, ''
 
 
 def normalizar(text: str) -> str:
@@ -726,12 +771,12 @@ def extraer_vacaciones_ocr(pdf_path: str, page_idx: int = 0) -> dict:
                 if cargo_400:
                     data['cargo'] = cargo_400.group(1).strip()
 
-        # ── Pasada 3: normalizar confusiones de OCR (l→1, O→0, S→5) y reintentar ─
-        # Tesseract confunde con frecuencia letras y dígitos en formularios impresos.
+        # ── Pasada 3: normalizar confusiones l→1 y O→0 en texto completo y reintentar ─
+        # Se usa _normalizar_digitos_texto (versión ligera) para no corromper nombres.
         if not fechas_m:
-            fechas_m = _buscar_fechas(_normalizar_digitos_ocr(tn))
+            fechas_m = _buscar_fechas(_normalizar_digitos_texto(tn))
         if not fechas_m and 'tn_400' in dir():
-            fechas_m = _buscar_fechas(_normalizar_digitos_ocr(tn_400))
+            fechas_m = _buscar_fechas(_normalizar_digitos_texto(tn_400))
 
         if fechas_m:
             d1, m1, y1, d2, m2, y2 = fechas_m.groups()
@@ -1399,11 +1444,41 @@ def _procesar_pagina(pdf_path: str, page_idx: int, tipo: str,
     es_forms=True → usar extractor determinístico para PDFs generados por
     Power Automate (plantilla Word + Microsoft Forms). Prioridad máxima:
     texto nativo, sin OCR, sin ambigüedades.
+
+    Retorna {'skip': True} para páginas que deben ignorarse silenciosamente
+    (audit trail de Adobe Sign, certificados electorales, constancias de jurado).
     """
     with pdfplumber.open(pdf_path) as pdf:
         page    = pdf.pages[page_idx]
         text    = page.extract_text() or ''
         es_img  = len(page.chars) == 0 and len(page.images) > 0
+
+    # ── Detectar páginas que no son formularios de nómina ──────────────────────
+    ignorar, motivo_ignorar = _es_pagina_ignorar(text)
+    if ignorar:
+        return {
+            'success': False,
+            'skip':    True,
+            'error':   f'Página {page_idx + 1} ignorada ({motivo_ignorar})',
+            'tipo_archivo': 'pdf',
+        }
+
+    # Si es imagen y no tenemos texto, intentar OCR rápido para detectar tipo no-formulario
+    if es_img and HAS_OCR and not text.strip():
+        try:
+            with pdfplumber.open(pdf_path) as _p:
+                _mini = _p.pages[page_idx].to_image(resolution=100).original
+            _txt_mini = pytesseract.image_to_string(_mini, lang='eng')
+            ignorar2, motivo2 = _es_pagina_ignorar(_txt_mini)
+            if ignorar2:
+                return {
+                    'success': False,
+                    'skip':    True,
+                    'error':   f'Página {page_idx + 1} ignorada ({motivo2})',
+                    'tipo_archivo': 'pdf',
+                }
+        except Exception:
+            pass
 
     try:
         # ── Ruta 1: PDF generado por Power Automate (marcador [FORMS]) ──────────

@@ -14,12 +14,49 @@
 
 const { executeQuery } = require('../config/database');
 const { spawn }        = require('child_process');
+const crypto           = require('crypto');
 const fs               = require('fs');
 const path             = require('path');
 const multer           = require('multer');
 const logger           = require('../config/logger');
 
 const DEFAULT_COD_EMPR = 1;
+
+// ─── Mensajes de error legibles para el usuario final ────────────────────────
+function _mapearErrorOCR(msg) {
+  if (!msg) return 'Error desconocido al procesar el archivo.';
+  const m = msg.toLowerCase();
+  if (m.includes('cédula no detectada') || m.includes('cedula no detectada'))
+    return 'No se encontró la cédula en el documento. El formulario puede estar manuscrito o el escaneo es ilegible — regístralo manualmente.';
+  if (m.includes('nombre no detectado'))
+    return 'No se pudo leer el nombre del empleado. Verifica que el formulario esté bien escaneado.';
+  if (m.includes('fecha') && (m.includes('no detectada') || m.includes('inválida') || m.includes('no encontrada')))
+    return 'Las fechas del período no pudieron leerse. El formulario puede estar incompleto o borroso.';
+  if (m.includes('no encontrado o inactivo') || m.includes('no encontrado en bd'))
+    return 'La cédula detectada no corresponde a ningún empleado activo en el sistema. Verifica que el número sea correcto.';
+  if (m.includes('no existe período activo') || m.includes('período activo'))
+    return 'No hay un período de nómina abierto actualmente. Contacta al administrador del sistema.';
+  if (m.includes('python no encontrado') || m.includes('probados:'))
+    return 'El procesador de PDFs del servidor no está disponible. Contacta al administrador técnico.';
+  if (m.includes('python error') || m.includes('code '))
+    return 'Error técnico al leer el PDF. Verifica que el archivo no esté dañado ni protegido con contraseña.';
+  if (m.includes('json parse') || m.includes('json error'))
+    return 'El archivo generó una respuesta inesperada. Intenta subirlo nuevamente.';
+  if (m.includes('formulario pdf no reconocido') || m.includes('no reconocido'))
+    return 'El PDF no corresponde a un formulario de permiso (CM-TH-FR-003) ni de vacaciones (CM-TH-SV-001).';
+  if (m.includes('días de vacaciones no detectados'))
+    return 'No se pudo determinar el número de días de vacaciones. El campo puede estar vacío o ilegible.';
+  if (m.includes('archivo no encontrado'))
+    return 'El archivo PDF no pudo procesarse. Intenta subirlo nuevamente.';
+  if (m.includes('expiró') || m.includes('expirado') || m.includes('expired'))
+    return 'La sesión de revisión expiró (15 min). Vuelve a subir los archivos.';
+  return msg.charAt(0).toUpperCase() + msg.slice(1);
+}
+
+// ─── Cache de previsualizaciones (token → datos extraídos, sin escritura en BD) ─
+// Evita re-ejecutar el OCR al confirmar; expira en 15 minutos.
+const _prevCache  = new Map();
+const PREV_TTL_MS = 15 * 60 * 1000;
 
 // ─── Multer ──────────────────────────────────────────────────────────────────
 const upload = multer({
@@ -154,17 +191,11 @@ async function buscarNovedEnPeriodo(codEmpr, codPeriod, codFunci, codConc) {
 // ─── Mapeo motivo → COD_CONC ──────────────────────────────────────────────────
 
 /**
- * Resuelve el concepto correcto según el motivo extraído del PDF.
- *  COMPENSATORIO → 74 (Compensatorio)
- *  DIA_FAMILIA   → 75 (Día de la Familia)
- *  resto         → 68 (Permiso Remunerado): MEDICO, ESTUDIO, CALAMIDAD, FUERZA_MAYOR, OTRA
+ * Todos los formularios CM-TH-FR-003 se registran como Permiso Remunerado (68).
+ * El motivo detectado por el OCR se conserva solo en OBS_NOVED (informativo).
  */
-function resolverCodConcPermiso(motivo) {
-  switch ((motivo || '').toUpperCase()) {
-    case 'COMPENSATORIO': return 74;
-    case 'DIA_FAMILIA':   return 75;
-    default:              return 68;
-  }
+function resolverCodConcPermiso(_motivo) {
+  return 68; // Permiso Remunerado — único concepto para CM-TH-FR-003
 }
 
 // ─── Insertar / reactivar Permiso ────────────────────────────────────────────
@@ -175,11 +206,8 @@ function resolverCodConcPermiso(motivo) {
  * Si ya existe y está activo → retorna como 'ACUMULADO'.
  */
 async function insertarOReactivarPermiso({ codEmpr, codFunci, periodo, datos }) {
-  // Preferir COD_CONC embebido en el bloque [FORMS] del PDF (determinístico);
-  // solo caer en la heurística por motivo si el PDF no lo trae.
-  const COD_CONC_PERMISO = (datos.cod_conc && !isNaN(Number(datos.cod_conc)))
-    ? Number(datos.cod_conc)
-    : resolverCodConcPermiso(datos.motivo);
+  // Siempre COD_CONC=68 (Permiso Remunerado) para CM-TH-FR-003, independiente del motivo.
+  const COD_CONC_PERMISO = resolverCodConcPermiso();
 
   const fechaIni = datos.fecha_inicio || datos.fecha_novedad;
   const fechaFin = datos.fecha_fin    || datos.fecha_novedad || fechaIni;
@@ -676,12 +704,12 @@ exports.importarPDFs = [
           };
 
           if (!datos.success) {
+            if (datos.skip) continue; // audit trail, certificados — ignorar silenciosamente
             resumen.estado = 'ERROR';
-            // Mostrar errores reales del extractor, no el genérico
-            const errMsg = datos.error
+            const rawErr = datos.error
               || (datos.errores && datos.errores.length > 0 ? datos.errores.join('; ') : null)
               || 'Error al procesar PDF';
-            resumen.error = errMsg;
+            resumen.error = _mapearErrorOCR(rawErr);
             totalErrores++;
             archivos.push(resumen);
             continue;
@@ -769,7 +797,7 @@ exports.importarPDFs = [
           nombre:      null,
           estado:      'ERROR',
           detalle:     null,
-          error:       err.message,
+          error:       _mapearErrorOCR(err.message),
         });
         totalErrores++;
       } finally {
@@ -833,4 +861,186 @@ exports.obtenerPeriodoActual = async (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
+};
+
+// ─── Previsualizar PDFs (extracción OCR sin escritura en BD) ──────────────────
+
+exports.previsualizar = [
+  upload,
+  async (req, res) => {
+    const codEmpr = DEFAULT_COD_EMPR;
+
+    if (!req.files || req.files.length === 0)
+      return res.status(400).json({ success: false, error: 'No se enviaron archivos PDF' });
+
+    const tempDir = path.join(__dirname, '..', 'temp');
+    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+
+    const preview         = [];  // lo que se envía al cliente para mostrar en la tabla de revisión
+    const cacheRegistros  = [];  // lo que se guarda en memoria para el confirmar (no repite OCR)
+    const periodo = await resolverPeriodo(codEmpr).catch(() => null);
+
+    for (const file of req.files) {
+      const tmpPath = path.join(tempDir, `${Date.now()}_${file.originalname}`);
+      try {
+        fs.writeFileSync(tmpPath, file.buffer);
+        const rawResult = await procesarPDFconPython(tmpPath);
+        const registros = Array.isArray(rawResult) ? rawResult : [rawResult];
+
+        for (const [pageIdx, datos] of registros.entries()) {
+          const etiqueta = registros.length > 1
+            ? `${file.originalname} (pág. ${pageIdx + 1})`
+            : file.originalname;
+
+          if (datos.skip) continue; // audit trail, certificados — ignorar
+
+          let codFunci = null, nombreBD = null, empleado_encontrado = false, errorLegible = null;
+
+          if (!datos.success) {
+            const rawErr = datos.error || (datos.errores || []).join('; ') || 'Error al procesar';
+            errorLegible = _mapearErrorOCR(rawErr);
+          } else if (!datos.cedula) {
+            errorLegible = _mapearErrorOCR('Cédula no detectada');
+          } else {
+            codFunci = await resolverCodFunci(datos.cedula, codEmpr).catch(() => null);
+            if (!codFunci) {
+              errorLegible = _mapearErrorOCR(`Empleado con cédula ${datos.cedula} no encontrado en BD`);
+            } else {
+              nombreBD = await resolverNombreEmpleado(datos.cedula, codEmpr).catch(() => null);
+              if (nombreBD) nombreBD = nombreBD.trim();
+              empleado_encontrado = true;
+            }
+          }
+
+          preview.push({
+            archivo:             etiqueta,
+            cedula:              datos.cedula  || null,
+            nombre:              nombreBD || datos.nombre || null,
+            tipo_novedad:        datos.tipo_novedad || null,
+            fecha_inicio:        datos.fecha_inicio || null,
+            fecha_fin:           datos.fecha_fin    || null,
+            success:             datos.success && empleado_encontrado,
+            empleado_encontrado,
+            error:               errorLegible,
+          });
+
+          cacheRegistros.push({ etiqueta, datos, codFunci, nombreBD, empleado_encontrado });
+        }
+      } catch (err) {
+        logger.error('previsualizar', 'Error en ' + file.originalname + ': ' + err.message, err.stack);
+        preview.push({
+          archivo: file.originalname, cedula: null, nombre: null, tipo_novedad: null,
+          fecha_inicio: null, fecha_fin: null, success: false, empleado_encontrado: false,
+          error: _mapearErrorOCR(err.message),
+        });
+        cacheRegistros.push({ etiqueta: file.originalname, datos: { success: false }, codFunci: null, nombreBD: null, empleado_encontrado: false });
+      } finally {
+        if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
+      }
+    }
+
+    // Limpiar entradas expiradas antes de insertar
+    for (const [k, v] of _prevCache.entries()) {
+      if (Date.now() - v.timestamp > PREV_TTL_MS) _prevCache.delete(k);
+    }
+
+    const token = crypto.randomUUID();
+    _prevCache.set(token, { registros: cacheRegistros, periodo, timestamp: Date.now() });
+
+    let periodoResp = null;
+    if (periodo) {
+      const mes = String(periodo.PER_MES).padStart(2, '0');
+      periodoResp = {
+        etiqueta: `${periodo.PER_ANO}-${mes}-${periodo.PER_QNA}Q`,
+        inicio:   periodo.PER_FINI,
+        fin:      periodo.PER_FFIN,
+      };
+    }
+
+    res.json({ success: true, token, preview, periodo: periodoResp });
+  }
+];
+
+// ─── Confirmar importación (usa datos cacheados, sin re-ejecutar OCR) ─────────
+
+exports.confirmar = async (req, res) => {
+  const { token } = req.body || {};
+  if (!token)
+    return res.status(400).json({ success: false, error: 'Token de revisión requerido.' });
+
+  const cached = _prevCache.get(token);
+  if (!cached || Date.now() - cached.timestamp > PREV_TTL_MS) {
+    _prevCache.delete(token);
+    return res.status(410).json({
+      success: false,
+      error: _mapearErrorOCR('expiró')
+    });
+  }
+  _prevCache.delete(token);
+
+  const codEmpr          = DEFAULT_COD_EMPR;
+  const { registros, periodo } = cached;
+
+  if (!periodo)
+    return res.status(422).json({ success: false, error: _mapearErrorOCR('No existe período activo') });
+
+  const archivos = [];
+  let totalInsertados = 0, totalActualizados = 0, totalAcumulados = 0, totalReactivados = 0, totalErrores = 0;
+
+  for (const { etiqueta, datos, codFunci, empleado_encontrado } of registros) {
+    const resumen = { archivo: etiqueta, tipoNovedad: datos.tipo_novedad, cedula: datos.cedula, nombre: null, estado: 'PENDIENTE', detalle: null, error: null };
+
+    if (!datos.success || !empleado_encontrado || !codFunci) {
+      resumen.estado = 'ERROR';
+      const rawErr = datos.error || (datos.errores || []).join('; ') || 'Registro no válido';
+      resumen.error = _mapearErrorOCR(rawErr);
+      totalErrores++;
+      archivos.push(resumen);
+      continue;
+    }
+
+    const nombreBD = await resolverNombreEmpleado(datos.cedula, codEmpr).catch(() => null);
+    if (nombreBD) resumen.nombre = nombreBD.trim();
+
+    let resultado;
+    if (datos.tipo_novedad === 'PERMISO') {
+      resultado = await insertarOReactivarPermiso({ codEmpr, codFunci, periodo, datos });
+    } else if (datos.tipo_novedad === 'VACACIONES') {
+      resultado = await insertarOReactivarVacaciones({ codEmpr, codFunci, periodo, datos });
+    } else {
+      resultado = { success: false, error: `Tipo no soportado: ${datos.tipo_novedad}` };
+    }
+
+    if (resultado.success) {
+      resumen.estado  = resultado.estado || 'INSERTADO';
+      resumen.detalle = resultado.mensaje;
+      if (resumen.estado === 'INSERTADO')   totalInsertados++;
+      if (resumen.estado === 'ACTUALIZADO') totalActualizados++;
+      if (resumen.estado === 'ACUMULADO')   totalAcumulados++;
+      if (resumen.estado === 'REACTIVADO')  totalReactivados++;
+    } else {
+      resumen.estado = 'ERROR';
+      resumen.error  = _mapearErrorOCR(resultado.error);
+      totalErrores++;
+    }
+    archivos.push(resumen);
+  }
+
+  let periodoResp = null;
+  if (periodo) {
+    const mes = String(periodo.PER_MES).padStart(2, '0');
+    periodoResp = { etiqueta: `${periodo.PER_ANO}-${mes}-${periodo.PER_QNA}Q`, inicio: periodo.PER_FINI, fin: periodo.PER_FFIN };
+  }
+
+  res.json({
+    success: true,
+    archivos,
+    periodo: periodoResp,
+    resumen: {
+      totalArchivos: registros.length, procesados: archivos.length,
+      insertados: totalInsertados, actualizados: totalActualizados,
+      acumulados: totalAcumulados, reactivados: totalReactivados,
+      conErrores: totalErrores, errores: totalErrores,
+    }
+  });
 };

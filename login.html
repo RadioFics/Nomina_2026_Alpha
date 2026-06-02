@@ -580,11 +580,10 @@
         <!-- Mensaje de estado -->
         <div id="statusMessage" class="status-message"></div>
 
-        <!-- Tabs -->
         <div class="tabs">
-          <button class="tab-btn active" data-tab="login">Login</button>
-          <button class="tab-btn" data-tab="registro">Crear Cuenta</button>
-          <button class="tab-btn" data-tab="recuperar">Recuperar Contraseña</button>
+          <button class="tab-btn active" data-tab="login">Iniciar sesión</button>
+          <button class="tab-btn" data-tab="registro">Crear cuenta</button>
+          <button class="tab-btn" data-tab="recuperar">Olvidé mi contraseña</button>
         </div>
 
         <!-- TAB 1: LOGIN -->
@@ -643,8 +642,10 @@
         <!-- TAB 2: REGISTRO -->
         <div id="registro" class="tab-content">
           <div class="form-header">
-            <h2 class="form-title">Crear Cuenta</h2>
-            <p class="form-description">Ingresa tus datos para acceder al sistema</p>
+            <h2 class="form-title">Crear cuenta</h2>
+            <p class="form-description">
+              Usa tu correo corporativo. Recibirás un enlace de verificación para activar la cuenta.
+            </p>
           </div>
 
           <form id="registroForm">
@@ -654,18 +655,18 @@
                 type="text"
                 id="registroNombre"
                 name="nombre"
-                placeholder="Juan Pérez"
+                placeholder="Juan Pérez García"
                 autocomplete="name"
               >
             </div>
 
             <div class="form-group">
-              <label for="registroEmail">Email</label>
+              <label for="registroEmail">Correo corporativo</label>
               <input
                 type="email"
                 id="registroEmail"
                 name="email"
-                placeholder="tu@email.com"
+                placeholder="tu@collectivemining.com"
                 required
               >
             </div>
@@ -684,7 +685,7 @@
             </div>
 
             <div class="form-group">
-              <label for="registroConfirm">Confirmar Contraseña</label>
+              <label for="registroConfirm">Confirmar contraseña</label>
               <input
                 type="password"
                 id="registroConfirm"
@@ -696,7 +697,7 @@
             </div>
 
             <div class="button-group">
-              <button type="submit" class="btn-primary" id="registroBtn">Crear Cuenta</button>
+              <button type="submit" class="btn-primary" id="registroBtn">Crear cuenta</button>
             </div>
 
             <div class="helper-text">
@@ -808,7 +809,8 @@
           signal: _ctrl.signal,
           body: JSON.stringify({
             cedula_o_email: email,
-            contrasena: password
+            contrasena: password,
+            rememberMe: remember
           })
         });
 
@@ -817,16 +819,19 @@
         const data = await response.json();
 
         if (data.status === 'success') {
-          localStorage.setItem('authToken', data.token);
-          localStorage.setItem('usuario', JSON.stringify(data.usuario));
-
+          // Token en localStorage (persiste) si recuérdame activo, en sessionStorage si no.
+          // Así el token desaparece al cerrar el navegador cuando no fue pedido recordar.
           if (remember) {
+            localStorage.setItem('authToken', data.token);
             localStorage.setItem('rememberEmail', email);
-            localStorage.setItem('rememberPass', btoa(unescape(encodeURIComponent(password))));
           } else {
+            sessionStorage.setItem('authToken', data.token);
+            localStorage.removeItem('authToken');
             localStorage.removeItem('rememberEmail');
-            localStorage.removeItem('rememberPass');
           }
+          // Nunca se guarda la contraseña — el JWT de larga duración cumple ese rol.
+          localStorage.removeItem('rememberPass');
+          localStorage.setItem('usuario', JSON.stringify(data.usuario));
 
           mostrarMensaje('¡Bienvenido! Redirigiendo...', 'success');
           setTimeout(() => {
@@ -1014,20 +1019,16 @@
       }
     }
 
-    // Pre-fill credentials if remembered
+    // Pre-rellenar email si fue guardado con "Recuérdame".
+    // La contraseña nunca se guarda — el token JWT de larga duración cumple ese rol.
     window.addEventListener('DOMContentLoaded', () => {
+      // Limpiar cualquier contraseña guardada por versiones anteriores
+      localStorage.removeItem('rememberPass');
+
       const rememberEmail = localStorage.getItem('rememberEmail');
-      const rememberPass  = localStorage.getItem('rememberPass');
       if (rememberEmail) {
-        document.getElementById('loginEmail').value    = rememberEmail;
-        document.getElementById('rememberMe').checked  = true;
-      }
-      if (rememberPass) {
-        try {
-          document.getElementById('loginPassword').value = decodeURIComponent(escape(atob(rememberPass)));
-        } catch (_) {
-          localStorage.removeItem('rememberPass');
-        }
+        document.getElementById('loginEmail').value   = rememberEmail;
+        document.getElementById('rememberMe').checked = true;
       }
     });
   </script>

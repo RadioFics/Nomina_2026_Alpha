@@ -14,8 +14,16 @@ const app = express();
 // Confiar en el primer proxy/router (necesario para req.protocol y req.get('host') correcto)
 app.set('trust proxy', 1);
 
-// Middleware
-app.use(cors());
+// CORS — permite solo el origen configurado en APP_URL (producción) o localhost (dev)
+const _corsOrigins = process.env.APP_URL
+  ? [process.env.APP_URL, 'http://localhost:' + (process.env.PORT || 3000)]
+  : true; // desarrollo sin APP_URL: permite cualquier origen
+app.use(cors({
+  origin: _corsOrigins,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
@@ -62,8 +70,25 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
-// Servir archivos estáticos (HTML, CSS, JS)
-app.use(express.static(__dirname));
+// Bloquear rutas y extensiones de archivos del servidor antes de express.static
+// Evita que config/, controllers/, routes/, python/, *.sql, *.md, etc.
+// sean accesibles directamente desde el navegador.
+app.use((req, res, next) => {
+  // Directorios con código de servidor
+  const blockedDirs = /^\/(config|controllers|routes|middleware|python|scripts|database|sql|utils|node_modules|logs|assets\/ultimo_maestro|formularios_automatizacion|txtFiles)(\/|$)/i;
+  // Extensiones de código/configuración del servidor
+  const blockedExts = /\.(py|sql|env|md|txt|example|lock|log|pem|key|pfx|p12)$/i;
+  // Archivos raíz sensibles por nombre exacto
+  const blockedFiles = /^\/(package(-lock)?\.json|server\.js|import.*\.py|generar.*\.py|diagnostico.*\.js|create-admin\.js|setup-database\.js|validarenviroment\.js|get-(my|server)-ip\.js|ver-usuario\.js|generate-bcrypt-hash\.js|fix.*\.js|crear-usuario.*\.js)$/i;
+
+  if (blockedDirs.test(req.path) || blockedExts.test(req.path) || blockedFiles.test(req.path)) {
+    return res.status(404).end();
+  }
+  next();
+});
+
+// Servir archivos estáticos (HTML, CSS, JS del frontend)
+app.use(express.static(__dirname, { dotfiles: 'deny' }));
 
 // Servir login.html en la raíz (página inicial)
 app.get('/', (req, res) => {
@@ -120,9 +145,9 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Servidor de nómina funcionando' });
 });
 
-// Diagnóstico completo de Python — busca en PATH, rutas fijas y Site Extensions.
-// GET /api/health/python — sin autenticacion, solo para diagnostico.
-app.get('/api/health/python', (req, res) => {
+// Diagnóstico completo de Python — requiere token JWT de administrador (COD_GUSU >= 3).
+const { verifyToken: _vt, checkLevel: _cl } = require('./middleware/authMiddleware');
+app.get('/api/health/python', _vt, _cl(3), (req, res) => {
   const { execSync, spawnSync } = require('child_process');
   const fs2 = require('fs');
 

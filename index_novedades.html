@@ -501,6 +501,18 @@
   .upload-sub { color: var(--muted); font-size: 12px; }
   #fileInput { display: none; }
 
+  /* ─── PANEL DE REVISIÓN PREVIA (PDFs) ─── */
+  .review-table td { vertical-align: middle; }
+  .review-row-ok   { border-left: 3px solid var(--success); }
+  .review-row-warn { border-left: 3px solid #E8A84C; }
+  .review-row-err  { border-left: 3px solid var(--danger); }
+  .review-badge-ok   { background:rgba(76,175,130,0.15); color:var(--success); }
+  .review-badge-warn { background:rgba(232,168,76,0.15);  color:#E8A84C; }
+  .review-badge-err  { background:rgba(224,85,85,0.15);   color:var(--danger); }
+  .review-resumen-ok  { background:rgba(76,175,130,0.1);  border:1px solid rgba(76,175,130,0.3);  color:var(--success); }
+  .review-resumen-err { background:rgba(224,85,85,0.1);   border:1px solid rgba(224,85,85,0.3);   color:var(--danger); }
+  .review-resumen-mix { background:rgba(232,168,76,0.1);  border:1px solid rgba(232,168,76,0.3);  color:#E8A84C; }
+
   /* ─── CONN FORM ─── */
   .conn-status { display: flex; align-items: center; gap: 8px; font-size: 12px; }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
@@ -1766,8 +1778,42 @@
 
           <div style="display:flex; justify-content:flex-end; gap:10px; align-items:center; border-top:1px solid rgba(255,255,255,0.07); padding-top:12px;">
             <button class="btn btn-secondary" onclick="cancelarImport()" style="padding:8px 16px;">✕ Cancelar</button>
-            <button class="btn btn-primary" id="btnImportar" onclick="ejecutarImportMasiva()" style="padding:8px 18px;">
+            <button class="btn btn-primary" id="btnImportar" onclick="manejarBtnImportar()" style="padding:8px 18px;">
               ⬆ Importar a la BD
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── PANEL DE REVISIÓN PREVIA (PDFs) ── -->
+      <div id="importReview" style="display:none; margin-bottom:16px;">
+        <div class="form-card" style="padding:20px;">
+          <div class="form-card-title">🔍 Revisión previa — datos extraídos de los PDFs</div>
+          <p style="font-size:12px;color:var(--muted);margin:-6px 0 16px;line-height:1.7;">
+            Verifica que los datos se hayan leído correctamente antes de guardar en la base de datos.
+            Las filas en <span style="color:var(--success);font-weight:600">verde</span> se importarán.
+            Las filas en <span style="color:var(--danger);font-weight:600">rojo</span> tienen errores y serán omitidas.
+          </p>
+          <div class="table-wrap" style="margin-bottom:14px;">
+            <table class="review-table">
+              <thead>
+                <tr>
+                  <th>Archivo</th>
+                  <th>Empleado</th>
+                  <th>Cédula</th>
+                  <th>Tipo</th>
+                  <th>Período</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody id="tbReview"></tbody>
+            </table>
+          </div>
+          <div id="reviewResumen" style="padding:11px 16px; border-radius:8px; font-size:13px; margin-bottom:16px;"></div>
+          <div style="display:flex; gap:10px; justify-content:flex-end; border-top:1px solid var(--border); padding-top:14px;">
+            <button class="btn btn-secondary" onclick="cancelarReview()" style="padding:8px 16px;">✕ Cancelar y volver</button>
+            <button class="btn btn-primary" id="btnConfirmarReview" onclick="confirmarImportPDF()" style="padding:8px 20px;">
+              ✓ Confirmar e importar
             </button>
           </div>
         </div>
@@ -2426,8 +2472,7 @@ async function clCargar(forzar = false) {
   document.getElementById('cl-detalle').style.display = 'none';
 
   try {
-    const token = localStorage.getItem('authToken');
-    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+    const headers = { 'Authorization': `Bearer ${_getAuthToken()}` };
     const res  = await fetch('/api/changelog', { headers });
     if (res.status === 401) throw new Error('No autorizado — sesión expirada');
     const data = await res.json();
@@ -5390,7 +5435,11 @@ function seleccionarArchivoImport(e) {
     _importFiles.length > 1
       ? `${_importFiles.length} archivos listos`
       : 'Archivo listo';
-  document.getElementById('uploadSub').textContent = 'Haz clic en "Importar a la BD" para proceder, o arrastra más archivos';
+  const hasPDFs = _importFiles.some(f => f.name.match(/\.pdf$/i));
+  document.getElementById('uploadSub').textContent = hasPDFs
+    ? 'Haz clic en "Revisar y confirmar PDFs" para continuar, o arrastra más archivos'
+    : 'Haz clic en "Importar a la BD" para proceder, o arrastra más archivos';
+  _actualizarBtnImportar();
 
   // Renderizar lista y mostrar panel
   renderListaArchivos();
@@ -5416,6 +5465,268 @@ function cancelarImport() {
 function resetearImport() {
   cancelarImport();
 }
+
+// ── Helpers internos ─────────────────────────────────────────────────────────
+
+function _getAuthToken() {
+  return localStorage.getItem('authToken') || sessionStorage.getItem('authToken') || '';
+}
+
+function _escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function _fmtFecha(iso) {
+  if (!iso) return '—';
+  try {
+    const [y, m, d] = iso.split('-');
+    return `${d}/${m}/${y}`;
+  } catch(_) { return iso; }
+}
+
+function _actualizarBtnImportar() {
+  const hasPDFs = _importFiles.some(f => f.name.match(/\.pdf$/i));
+  const btn = document.getElementById('btnImportar');
+  if (hasPDFs) {
+    btn.innerHTML = '🔍 Revisar y confirmar PDFs';
+  } else {
+    btn.innerHTML = '⬆ Importar a la BD';
+  }
+}
+
+// ── Decisor: PDF → previsualizar primero; solo Excel → importar directo ───────
+function manejarBtnImportar() {
+  const hasPDFs = _importFiles.some(f => f.name.match(/\.pdf$/i));
+  if (hasPDFs) {
+    previzualizarPDFs();
+  } else {
+    ejecutarImportMasiva();
+  }
+}
+
+// ── Token de revisión en memoria (no en disco) ────────────────────────────────
+let _prevToken = null;
+
+// ── Paso 1: Extracción OCR sin escritura en BD ────────────────────────────────
+async function previzualizarPDFs() {
+  const pdfFiles = _importFiles.filter(f => f.name.match(/\.pdf$/i));
+  const btn = document.getElementById('btnImportar');
+  btn.disabled = true;
+  document.getElementById('importFileInfo').style.display  = 'none';
+  document.getElementById('importProgress').style.display  = 'block';
+  document.getElementById('importProgressText').textContent = `Analizando ${pdfFiles.length} PDF${pdfFiles.length > 1 ? 's' : ''}… esto puede tardar hasta 1 minuto`;
+  document.getElementById('importProgressBar').style.width  = '0%';
+
+  let pct = 0;
+  const bar   = document.getElementById('importProgressBar');
+  const timer = setInterval(() => {
+    pct = Math.min(pct + (pct < 60 ? 5 : pct < 85 ? 2 : 0.5), 90);
+    bar.style.width = pct + '%';
+  }, 500);
+
+  try {
+    const fd = new FormData();
+    for (const f of pdfFiles) fd.append('archivos[]', f);
+
+    const resp = await fetch('/api/pdf/previsualizar', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${_getAuthToken()}` },
+      body: fd
+    });
+
+    clearInterval(timer);
+    bar.style.width = '100%';
+    await new Promise(r => setTimeout(r, 350));
+    document.getElementById('importProgress').style.display = 'none';
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.error || `Error del servidor (${resp.status})`);
+    }
+
+    const data = await resp.json();
+    if (!data.success) throw new Error(data.error || 'Error al previsualizar');
+
+    _prevToken = data.token;
+    _mostrarRevision(data.preview);
+
+  } catch (err) {
+    clearInterval(timer);
+    document.getElementById('importProgress').style.display = 'none';
+    document.getElementById('importFileInfo').style.display = 'block';
+    document.getElementById('importResult').style.display = 'block';
+    mostrarResultadoImport(null, `No se pudo analizar los PDFs: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    _actualizarBtnImportar();
+  }
+}
+
+// ── Mostrar tabla de revisión ─────────────────────────────────────────────────
+function _mostrarRevision(preview) {
+  const tbody = document.getElementById('tbReview');
+  tbody.innerHTML = '';
+  let okCount = 0, errCount = 0;
+
+  for (const r of preview) {
+    const ok = r.success && r.empleado_encontrado;
+    const rowCls = ok ? 'review-row-ok' : 'review-row-err';
+    if (ok) okCount++; else errCount++;
+
+    const tipo = r.tipo_novedad === 'PERMISO'
+      ? '<span class="badge badge-aus">Permiso Remunerado</span>'
+      : r.tipo_novedad === 'VACACIONES'
+      ? '<span class="badge badge-dev">Vacaciones</span>'
+      : '<span style="color:var(--muted)">—</span>';
+
+    const periodo = r.fecha_inicio
+      ? `${_fmtFecha(r.fecha_inicio)} → ${_fmtFecha(r.fecha_fin || r.fecha_inicio)}`
+      : '—';
+
+    const estadoBadge = ok
+      ? `<span class="badge review-badge-ok">✓ Listo para importar</span>`
+      : `<span class="badge review-badge-err" title="${_escHtml(r.error || '')}">✕ ${_escHtml((r.error || 'Error').split('.')[0])}</span>`;
+
+    tbody.insertAdjacentHTML('beforeend', `
+      <tr class="${rowCls}">
+        <td style="font-size:11px;max-width:180px;word-break:break-word;line-height:1.4">${_escHtml(r.archivo)}</td>
+        <td>${r.nombre ? _escHtml(r.nombre) : '<span style="color:var(--muted)">No detectado</span>'}</td>
+        <td style="font-family:monospace;font-size:12px;white-space:nowrap">${r.cedula || '—'}</td>
+        <td>${tipo}</td>
+        <td style="font-size:12px;white-space:nowrap">${periodo}</td>
+        <td style="max-width:260px">${estadoBadge}</td>
+      </tr>`);
+  }
+
+  // Resumen
+  const resEl = document.getElementById('reviewResumen');
+  let resCls, resTxt;
+  if (okCount === 0) {
+    resCls = 'review-resumen-err';
+    resTxt = `Ningún registro pudo leerse correctamente. Revisa la calidad de los documentos o regístralos manualmente.`;
+  } else if (errCount === 0) {
+    resCls = 'review-resumen-ok';
+    resTxt = `Todos los registros (${okCount}) están listos para importar.`;
+  } else {
+    resCls = 'review-resumen-mix';
+    resTxt = `${okCount} registro${okCount > 1 ? 's' : ''} listo${okCount > 1 ? 's' : ''} · ${errCount} con errores (serán omitidos automáticamente).`;
+  }
+  resEl.className = resCls;
+  resEl.style.cssText = 'padding:11px 16px;border-radius:8px;font-size:13px;margin-bottom:16px';
+  resEl.textContent = resTxt;
+
+  const btnConf = document.getElementById('btnConfirmarReview');
+  if (okCount === 0) {
+    btnConf.disabled = true;
+    btnConf.textContent = 'Sin registros válidos';
+  } else {
+    btnConf.disabled = false;
+    btnConf.textContent = `✓ Confirmar e importar (${okCount} registro${okCount > 1 ? 's' : ''})`;
+  }
+
+  document.getElementById('importReview').style.display  = 'block';
+  document.getElementById('importResult').style.display  = 'none';
+  document.getElementById('importFileInfo').style.display = 'none';
+}
+
+// ── Cancelar revisión y volver a selección ────────────────────────────────────
+function cancelarReview() {
+  _prevToken = null;
+  document.getElementById('importReview').style.display = 'none';
+  cancelarImport();
+}
+
+// ── Paso 2: Confirmar e importar (usa datos cacheados en servidor) ─────────────
+async function confirmarImportPDF() {
+  if (!_prevToken) { cancelarReview(); return; }
+
+  const btnConf = document.getElementById('btnConfirmarReview');
+  btnConf.disabled = true;
+  btnConf.textContent = '⏳ Guardando…';
+  document.getElementById('importReview').style.display  = 'none';
+  document.getElementById('importProgress').style.display = 'block';
+  document.getElementById('importProgressText').textContent = 'Guardando novedades en la base de datos…';
+  document.getElementById('importProgressBar').style.width = '20%';
+
+  const bar   = document.getElementById('importProgressBar');
+  const timer = setInterval(() => {
+    const cur = parseFloat(bar.style.width) || 20;
+    if (cur < 85) bar.style.width = (cur + 4) + '%';
+  }, 400);
+
+  try {
+    // Si hay también archivos Excel en el lote, procesarlos al mismo tiempo
+    const excelFiles = _importFiles.filter(f => f.name.match(/\.(xlsx?|csv)$/i));
+    let resultadosFinales = {
+      success: true, periodo: null, archivos: [],
+      resumen: { totalArchivos: _importFiles.length, procesados: 0, totalFilas: 0, insertados: 0, acumulados: 0, reactivados: 0, conErrores: 0, errores: 0 }
+    };
+
+    if (excelFiles.length > 0) {
+      const fdExcel = new FormData();
+      for (const f of excelFiles) fdExcel.append('archivos[]', f);
+      const modoRadio = document.querySelector('input[name="adeccoModo"]:checked');
+      if (modoRadio && excelFiles.some(f => esArchivoAdecco(f.name))) fdExcel.append('modo', modoRadio.value);
+      const rExcel = await fetch('/api/ocasionales/importar-excel', {
+        method: 'POST', headers: { 'Authorization': `Bearer ${_getAuthToken()}` }, body: fdExcel
+      });
+      if (rExcel.ok || rExcel.status === 207) {
+        const dExcel = await rExcel.json();
+        if (dExcel.archivos) resultadosFinales.archivos.push(...dExcel.archivos);
+        if (dExcel.periodo)  resultadosFinales.periodo = dExcel.periodo;
+        const rs = dExcel.globalResumen || dExcel.resumen || {};
+        resultadosFinales.resumen.insertados += rs.insertados || 0;
+        resultadosFinales.resumen.errores    += rs.conErrores || rs.errores || 0;
+      }
+    }
+
+    bar.style.width = '70%';
+    document.getElementById('importProgressText').textContent = 'Confirmando permisos y vacaciones…';
+
+    const respConf = await fetch('/api/pdf/confirmar', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${_getAuthToken()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: _prevToken })
+    });
+
+    clearInterval(timer);
+    bar.style.width = '100%';
+    await new Promise(r => setTimeout(r, 350));
+    document.getElementById('importProgress').style.display = 'none';
+
+    if (!respConf.ok) {
+      const err = await respConf.json().catch(() => ({}));
+      throw new Error(err.error || `Error del servidor (${respConf.status})`);
+    }
+
+    const dataPDF = await respConf.json();
+    if (dataPDF.archivos) resultadosFinales.archivos.push(...dataPDF.archivos);
+    if (dataPDF.periodo && !resultadosFinales.periodo) resultadosFinales.periodo = dataPDF.periodo;
+    if (dataPDF.resumen) {
+      const r = dataPDF.resumen;
+      resultadosFinales.resumen.insertados  += r.insertados  || 0;
+      resultadosFinales.resumen.acumulados  += r.acumulados  || 0;
+      resultadosFinales.resumen.reactivados += r.reactivados || 0;
+      resultadosFinales.resumen.conErrores  += r.conErrores  || 0;
+      resultadosFinales.resumen.errores     += r.errores     || 0;
+    }
+
+    _prevToken = null;
+    mostrarResultadoImport(resultadosFinales, null);
+    cargarOcasionalesDelPeriodo();
+
+  } catch (err) {
+    clearInterval(timer);
+    document.getElementById('importProgress').style.display = 'none';
+    document.getElementById('importReview').style.display   = 'block';
+    mostrarResultadoImport(null, `Error al importar: ${err.message}`);
+  } finally {
+    btnConf.disabled = false;
+    btnConf.textContent = '✓ Confirmar e importar';
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 async function ejecutarImportMasiva() {
   if (_importFiles.length === 0) {
@@ -5457,9 +5768,7 @@ async function ejecutarImportMasiva() {
   }, 300);
 
   try {
-    const token = localStorage.getItem('authToken');
-    const headers = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const headers = { 'Authorization': `Bearer ${_getAuthToken()}` };
 
     let resultadosFinales = {
       success: true,
