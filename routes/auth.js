@@ -71,6 +71,12 @@ router.post('/cambiar-contrasena', verifyToken, authController.cambiarContrasena
 router.get('/me', verifyToken, authController.obtenerUsuarioActual);
 
 /**
+ * Ruta protegida - DATOS DE EMPLEADO VINCULADO AL USUARIO (APE_TERC, NOM_TERC, etc.)
+ * GET /api/auth/datos
+ */
+router.get('/datos', verifyToken, authController.obtenerDatosTerce);
+
+/**
  * Ruta protegida (Solo Admin) - CREAR USUARIO
  * POST /api/auth/crear-usuario
  * Body: { cedula, email, contrasena }

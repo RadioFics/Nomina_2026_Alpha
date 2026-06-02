@@ -265,11 +265,13 @@ async function crearAusencia() {
 }
 
 async function cargarAusencias() {
+  // Ruta legacy /nomina/ausencias migrada a /api/ausentismos — carga manejada en index_novedades.html
+  return;
   try {
     const periodo = document.getElementById('cfgPeriodo').value;
     const url = periodo
-      ? `${API_BASE}/nomina/ausencias?periodo=${encodeURIComponent(periodo)}`
-      : `${API_BASE}/nomina/ausencias`;
+      ? `${API_BASE}/nomina/ausentismos?periodo=${encodeURIComponent(periodo)}`
+      : `${API_BASE}/nomina/ausentismos`;
 
     const response = await fetch(url);
     const ausencias = await response.json();
@@ -340,7 +342,8 @@ function actualizarContador(elementId, cantidad) {
 
 async function cargarActividad() {
   try {
-    const response = await fetch(`${API_BASE}/nomina/actividad`);
+    const response = await fetch(`${API_BASE}/novedades/recientes?limite=10`);
+    if (!response.ok) return;
     const actividades = await response.json();
 
     const tbody = document.getElementById('tbActivity');
@@ -348,19 +351,23 @@ async function cargarActividad() {
 
     tbody.innerHTML = '';
 
-    if (actividades.length === 0) {
+    if (!actividades.length) {
       tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px">Sin registros aún</td></tr>';
       return;
     }
 
     actividades.forEach(act => {
+      const fecha = act.ACT_HORA || act.FEC_REGI;
+      const fechaStr = fecha
+        ? new Date(fecha).toLocaleDateString('es-CO') + ' ' + new Date(fecha).toLocaleTimeString('es-CO')
+        : '—';
       const row = tbody.insertRow();
       row.innerHTML = `
-        <td>${act.modulo}</td>
-        <td>${act.nombre}</td>
-        <td>${act.tipo}</td>
-        <td>${new Date(act.fechaRegistro).toLocaleDateString('es-CO')} ${new Date(act.fechaRegistro).toLocaleTimeString('es-CO')}</td>
-        <td><span style="color: var(--success);">${act.estado}</span></td>
+        <td>${act.TIPO_NOVED || act.modulo || ''}</td>
+        <td>${act.NOMBRE || act.nombre || ''}</td>
+        <td>${act.CONCEPTO || act.tipo || ''}</td>
+        <td>${fechaStr}</td>
+        <td><span style="color: var(--success);">${act.ACT_ESTA === 'A' ? 'Activo' : (act.ACT_ESTA || '')}</span></td>
       `;
     });
   } catch (err) {

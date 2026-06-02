@@ -1746,3 +1746,29 @@ exports.reenviarVerificacion = async (req, res) => {
     return res.status(500).json({ status: 'error', message: 'Error al procesar la solicitud.', error: err.message });
   }
 };
+
+
+/**
+ * DATOS DE EMPLEADO (desde GN_TERCE via GN_FUNCI)
+ * GET /api/auth/datos
+ * Retorna APE_TERC, SEG_APEL, NOM_TERC, SEG_NOMB del empleado vinculado al usuario logueado.
+ */
+exports.obtenerDatosTerce = async (req, res) => {
+  try {
+    const usuarioId = req.usuarioId;
+    const r = await executeQuery(`
+      SELECT TOP 1 t.APE_TERC, t.SEG_APEL, t.NOM_TERC, t.SEG_NOMB, t.NUM_IDEN
+      FROM dbo.GN_USUAR u
+      LEFT JOIN dbo.GN_FUNCI f ON u.COD_FUNCI = f.COD_FUNCI AND u.COD_EMPR = f.COD_EMPR
+      LEFT JOIN dbo.GN_TERCE t ON f.COD_TERC = t.COD_TERC
+      WHERE u.COD_USUA = @usuarioId AND t.NUM_IDEN IS NOT NULL
+    `, { usuarioId });
+    if (!r.recordset || r.recordset.length === 0) {
+      return res.status(404).json({ error: 'Empleado no vinculado al usuario' });
+    }
+    res.json(r.recordset[0]);
+  } catch (err) {
+    console.error('[AUTH/DATOS ERROR]', err);
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};

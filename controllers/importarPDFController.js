@@ -22,6 +22,21 @@ const logger           = require('../config/logger');
 
 const DEFAULT_COD_EMPR = 1;
 
+/**
+ * Corrige la codificación de nombres de archivo con caracteres especiales (tildes, ñ).
+ * Multer/navegadores a veces envían el Content-Disposition como Latin-1 en lugar de UTF-8.
+ * Patrón de síntoma: "ProtecciÃ³n" en lugar de "Protección" (Ã³ = ó en Latin-1 mal leído).
+ * Solo recodifica si detecta la secuencia de escape de doble codificación.
+ */
+function _decodificarNombre(nombre) {
+  try {
+    if (/Ã[\x80-\xBF]|Â[\x80-\xBF]/.test(nombre)) {
+      return Buffer.from(nombre, 'latin1').toString('utf8');
+    }
+  } catch (_) {}
+  return nombre;
+}
+
 // ─── Mensajes de error legibles para el usuario final ────────────────────────
 function _mapearErrorOCR(msg) {
   if (!msg) return 'Error desconocido al procesar el archivo.';
@@ -688,10 +703,11 @@ exports.importarPDFs = [
         // Resolver período activo una sola vez por archivo (se reutiliza por página)
         const periodo = await resolverPeriodo(codEmpr);
 
+        const nombreArchivo = _decodificarNombre(file.originalname);
         for (const [pageIdx, datos] of registros.entries()) {
           const etiqueta = registros.length > 1
-            ? `${file.originalname} (pág. ${pageIdx + 1})`
-            : file.originalname;
+            ? `${nombreArchivo} (pág. ${pageIdx + 1})`
+            : nombreArchivo;
 
           const resumen = {
             archivo:     etiqueta,
@@ -884,13 +900,14 @@ exports.previsualizar = [
       const tmpPath = path.join(tempDir, `${Date.now()}_${file.originalname}`);
       try {
         fs.writeFileSync(tmpPath, file.buffer);
-        const rawResult = await procesarPDFconPython(tmpPath);
-        const registros = Array.isArray(rawResult) ? rawResult : [rawResult];
+        const rawResult  = await procesarPDFconPython(tmpPath);
+        const registros  = Array.isArray(rawResult) ? rawResult : [rawResult];
+        const nombreArch = _decodificarNombre(file.originalname);
 
         for (const [pageIdx, datos] of registros.entries()) {
           const etiqueta = registros.length > 1
-            ? `${file.originalname} (pág. ${pageIdx + 1})`
-            : file.originalname;
+            ? `${nombreArch} (pág. ${pageIdx + 1})`
+            : nombreArch;
 
           if (datos.skip) continue; // audit trail, certificados — ignorar
 
@@ -927,13 +944,14 @@ exports.previsualizar = [
           cacheRegistros.push({ etiqueta, datos, codFunci, nombreBD, empleado_encontrado });
         }
       } catch (err) {
-        logger.error('previsualizar', 'Error en ' + file.originalname + ': ' + err.message, err.stack);
+        const _na = _decodificarNombre(file.originalname);
+        logger.error('previsualizar', 'Error en ' + _na + ': ' + err.message, err.stack);
         preview.push({
-          archivo: file.originalname, cedula: null, nombre: null, tipo_novedad: null,
+          archivo: _na, cedula: null, nombre: null, tipo_novedad: null,
           fecha_inicio: null, fecha_fin: null, success: false, empleado_encontrado: false,
           error: _mapearErrorOCR(err.message),
         });
-        cacheRegistros.push({ etiqueta: file.originalname, datos: { success: false }, codFunci: null, nombreBD: null, empleado_encontrado: false });
+        cacheRegistros.push({ etiqueta: _na, datos: { success: false }, codFunci: null, nombreBD: null, empleado_encontrado: false });
       } finally {
         if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
       }

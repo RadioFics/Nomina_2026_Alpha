@@ -100,6 +100,201 @@ def _normalizar_digitos_texto(s: str) -> str:
     return s.replace('l', '1').replace('I', '1').replace('O', '0')
 
 
+# ─── Infraestructura de fechas robusta ───────────────────────────────────────
+# Mapa completo de nombres/abreviaciones de meses (español + inglés + variantes OCR).
+# Las variantes de OCR cubren confusiones típicas de Tesseract sobre texto manuscrito:
+#   Abril → Abnil, Abn, Abm   |   Agosto → Agt, Agt0   |   Noviembre → Nob
+_MESES_ES: dict = {
+    'enero':1, 'ene':1, 'jan':1, 'january':1,
+    'febrero':2, 'feb':2, 'february':2,
+    'marzo':3, 'mar':3, 'march':3, 'marz':3,
+    'abril':4, 'abr':4, 'april':4, 'abn':4, 'abm':4, 'abnil':4, 'abnil':4,
+    'mayo':5, 'may':5,
+    'junio':6, 'jun':6, 'june':6,
+    'julio':7, 'jul':7, 'july':7,
+    'agosto':8, 'ago':8, 'august':8, 'agt':8,
+    'septiembre':9, 'sep':9, 'sept':9, 'september':9, 'set':9,
+    'octubre':10, 'oct':10, 'october':10,
+    'noviembre':11, 'nov':11, 'november':11, 'nob':11,
+    'diciembre':12, 'dic':12, 'december':12, 'dec':12,
+}
+
+def _mes_a_numero(s: str) -> Optional[int]:
+    """
+    Convierte nombre o abreviación de mes (español/inglés, con variantes OCR) a 1-12.
+    Estrategia: exacto → por prefijo de 3 letras → búsqueda parcial.
+    """
+    if not s:
+        return None
+    c = s.lower().strip()
+    # Quitar acentos comunes para normalizar
+    c = c.replace('á','a').replace('é','e').replace('í','i').replace('ó','o').replace('ú','u')
+    if c in _MESES_ES:
+        return _MESES_ES[c]
+    if len(c) >= 3 and c[:3] in _MESES_ES:
+        return _MESES_ES[c[:3]]
+    # Búsqueda parcial: el texto de OCR puede contener el nombre con ruido alrededor
+    for nombre, num in sorted(_MESES_ES.items(), key=lambda x: -len(x[0])):
+        if nombre in c:
+            return num
+    return None
+
+
+def _parsear_fecha_robusta(s: str) -> Optional[str]:
+    """
+    Parseo generalista de fechas para formularios colombianos.
+    Cubre todos los formatos observados en CM-TH-FR-003 y CM-TH-SV-001:
+      • DD/MM/YYYY  DD-MM-YYYY  DD.MM.YYYY  DD MM YYYY
+      • DD/MM/YY   DD-MM-YY   (año 2 dígitos: 26 → 2026)
+      • DD/NombreMes/YYYY  (e.g., 21/Abril/2026  o  21-Abil-26)
+      • DD NombreMes YYYY  (separado por espacios)
+    También tolera ruido OCR en separadores (lL|\\).
+    Retorna 'YYYY-MM-DD' o None si no puede parsear.
+    """
+    if not s:
+        return None
+    s = s.strip()
+    # Normalizar confusiones OCR en posibles dígitos (solo l→1, O→0; no s→5)
+    sn = _normalizar_digitos_texto(s)
+
+    def _validar(d, m, y_s):
+        y = int('20' + y_s) if len(str(y_s)) <= 2 else int(y_s)
+        try:
+            dt = date(y, int(m), int(d))
+            # Descartar fechas absurdas (antes de 2020 o después de 2035)
+            if 2020 <= y <= 2035:
+                return dt.isoformat()
+        except ValueError:
+            pass
+        return None
+
+    # ── Patrón A: DD sep MM sep YYYY/YY  (sep = / - . o espacio) ────────────
+    m = re.match(
+        r'^(\d{1,2})\s*[\/\-\.\|lL\\]\s*(\d{1,2})\s*[\/\-\.\|lL\\]\s*(\d{2,4})$',
+        sn
+    )
+    if m:
+        r = _validar(m.group(1), m.group(2), m.group(3))
+        if r: return r
+
+    # ── Patrón B: DD sep NombreMes sep YYYY/YY ──────────────────────────────
+    m = re.match(
+        r'^(\d{1,2})\s*[\/\-\s]\s*([A-Za-záéíóú]{2,12})\s*[\/\-\s]\s*(\d{2,4})$',
+        sn, re.IGNORECASE
+    )
+    if m:
+        mo = _mes_a_numero(m.group(2))
+        if mo:
+            r = _validar(m.group(1), mo, m.group(3))
+            if r: return r
+
+    # ── Patrón C: buscar dentro de cadena con ruido (OCR puede agregar chars) ─
+    # Numérico primero
+    for pat in [
+        r'(\d{1,2})[\/\-\.\|](\d{1,2})[\/\-\.\|](\d{2,4})',
+        r'(\d{1,2})\s+(\d{1,2})\s+(20\d{2})',           # solo año 4 dígitos
+        r'(\d{1,2})\s+(\d{1,2})\s+(2[0-9])(?!\d)',       # año 2 dígitos
+    ]:
+        m = re.search(pat, sn)
+        if m:
+            r = _validar(m.group(1), m.group(2), m.group(3))
+            if r: return r
+    # Nombre de mes dentro de la cadena
+    m = re.search(
+        r'(\d{1,2})\s*[\/\-\s]\s*([A-Za-záéíóú]{3,12})\s*[\/\-\s]\s*(\d{2,4})',
+        sn, re.IGNORECASE
+    )
+    if m:
+        mo = _mes_a_numero(m.group(2))
+        if mo:
+            r = _validar(m.group(1), mo, m.group(3))
+            if r: return r
+
+    return None
+
+
+# Palabras que aparecen en los formularios pero no son parte de un nombre de empleado.
+# Se usan para limpiar resultados de OCR que contaminan el campo nombre.
+_TOKENS_NO_NOMBRE = {
+    'nombre', 'cedula', 'cargo', 'area', 'fecha', 'solicitante', 'completos',
+    'ciudadania', 'apellidos', 'collective', 'mining', 'talento', 'humano',
+    'jefe', 'inmediato', 'formato', 'solicitud', 'permiso', 'version',
+    'codigo', 'creacion', 'informacion', 'personal', 'datos', 'motivo',
+    'tipo', 'remunerado', 'no', 'de', 'la', 'el', 'los', 'las',
+}
+
+def _limpiar_nombre_ocr(texto: str) -> Optional[str]:
+    """
+    Filtra y tituliza el resultado OCR de un campo nombre.
+    Elimina tokens que son parte del formulario, muy cortos, o solo símbolos.
+    Retorna el nombre limpio o None si queda vacío.
+    """
+    if not texto:
+        return None
+    tokens = []
+    for tok in texto.split():
+        # Dejar solo letras y tildes
+        tok_limpio = re.sub(r'[^A-Za-záéíóúñÁÉÍÓÚÑüÜ]', '', tok)
+        if len(tok_limpio) < 2:
+            continue
+        if tok_limpio.lower() in _TOKENS_NO_NOMBRE:
+            continue
+        tokens.append(tok_limpio.capitalize())
+    if len(tokens) < 2:
+        return None
+    return ' '.join(tokens[:6])  # máx 6 palabras
+
+
+def _extraer_cedula_de_texto(texto: str, solo_cabecera: bool = True) -> Optional[str]:
+    """
+    Extrae la cédula del solicitante de un texto OCR de formulario.
+
+    Estrategia en 4 niveles:
+      1. Patrón completo "Cedula de Ciudadanía No. XXXXX" (más específico)
+      2. Formato colombiano con puntos de miles: 1.053.842.239
+      3. Bloque compacto de 7-11 dígitos seguidos
+      4. Fallback: primer número de 7-11 dígitos en texto (cualquier posición)
+
+    solo_cabecera=True limita la búsqueda al primer 45% del texto para evitar
+    tomar la cédula del jefe inmediato o de Talento Humano en las firmas.
+    """
+    # Prefijos de años y códigos de formulario que NO son cédulas
+    _EXCL = ('0108', '2022', '2023', '2024', '2025', '2026', '2027', '2028')
+
+    zona = texto[:int(len(texto) * 0.45)] if solo_cabecera else texto
+
+    # Nivel 1: ancla completa con "Ciudadania"
+    patrones_ancla = [
+        r'[Cc][\xE9e]dula.*?[Cc]iudadan[\xED i]a.*?[Nn]o\.?\s*([\d.\s]{8,16})',
+        r'[Cc]\.?\s*[Cc]\.?\s*[Nn]o\.?\s*([\d.\s]{8,16})',
+        r'[Cc][\xE9e]dula\s*:\s*([\d.\s]{8,16})',
+    ]
+    for pat in patrones_ancla:
+        m = re.search(pat, zona, re.IGNORECASE | re.DOTALL)
+        if m:
+            raw = re.sub(r'[\s.]', '', _normalizar_digitos_ocr(m.group(1).split()[0]))
+            if raw.isdigit() and 7 <= len(raw) <= 11 and not any(raw.startswith(p) for p in _EXCL):
+                return raw
+
+    # Nivel 2: formato con puntos de miles (ej: 1.053.842.239)
+    for m in re.finditer(r'\b\d{1,3}(?:\.\d{3}){2,3}\b', zona):
+        raw = m.group().replace('.', '')
+        if raw.isdigit() and 7 <= len(raw) <= 11 and not any(raw.startswith(p) for p in _EXCL):
+            return raw
+
+    # Nivel 3: secuencia compacta de dígitos con posibles confusiones OCR (oOlI)
+    for m in re.finditer(r'\b([0-9oOlIsS]{9,11})\b', zona):
+        raw = _normalizar_digitos_ocr(m.group(1))
+        if raw.isdigit() and not any(raw.startswith(p) for p in _EXCL):
+            return raw
+
+    # Nivel 4: fallback sin restricción de zona (toma la primera ocurrencia posible)
+    if solo_cabecera:
+        return _extraer_cedula_de_texto(texto, solo_cabecera=False)
+
+    return None
+
+
 # ─── Páginas que deben ignorarse (no son formularios de nómina MineDax) ────────
 # Clave: texto que identifica la página. Valor: mensaje descriptivo para el log.
 _PAGINAS_IGNORAR = [
@@ -111,27 +306,34 @@ _PAGINAS_IGNORAR = [
     ('Document e-signed by',                  'auditoría Adobe Sign'),
     ('Transaction ID',                        'auditoría Adobe Sign'),
     # Certificados electorales (Colombia) y constancias de jurado de votación
+    # Variantes sin acento porque OCR sobre fondo azul pierde tildes
     ('CERTIFICADO ELECTORAL',                 'certificado electoral'),
-    ('REGISTRADURÍA',                         'certificado Registraduría'),
+    ('CERTIFICADO ELECT',                     'certificado electoral'),
+    ('REGISTRADUR',                           'certificado Registraduría'),
     ('Formulario E-18',                       'Formulario E-18 Registraduría'),
-    ('JURADO DE VOTACIÓN',                    'constancia jurado de votación'),
+    ('FORMULARIO E-18',                       'Formulario E-18 Registraduría'),
+    ('JURADO DE VOTACI',                      'constancia jurado de votación'),
     ('SoyJurado',                             'constancia jurado de votación'),
-    ('prestó la función pública de JURADO',   'constancia jurado de votación'),
+    ('Soy Jurado',                            'constancia jurado de votación'),
+    ('prestó',                                 'constancia jurado de votación'),
     ('ELECCIONES DE SENADO',                  'certificado electoral'),
     ('ELECCIONES DE CONGRESO',                'certificado electoral'),
-    ('CERTIFICADO ELECTORAL ELECCIONES',      'certificado electoral'),
+    ('ELECCIONES DE CAMARA',                  'certificado electoral'),
+    ('Yo cuido tu voto',                      'certificado electoral'),
+    ('YO CUIDO TU VOTO',                      'certificado electoral'),
 ]
 
 def _es_pagina_ignorar(text: str) -> tuple:
     """
     Detecta si una página no es un formulario de nómina y debe saltarse en silencio.
+    Compara en minúsculas para tolerar variaciones de OCR en mayúsculas/tildes.
     Retorna (True, motivo) si debe ignorarse, (False, '') si debe procesarse.
     """
+    text_low = text.lower()
     for marcador, motivo in _PAGINAS_IGNORAR:
-        if marcador in text:
+        if marcador.lower() in text_low:
             return True, motivo
     return False, ''
-
 
 def normalizar(text: str) -> str:
     """Colapsa espacios y saltos de línea múltiples en uno solo."""
@@ -235,16 +437,9 @@ def extraer_permiso(text: str, pdf_path: str) -> dict:
     tn = normalizar(text)   # texto normalizado con espacios simples
 
     # ── Cédula ──────────────────────────────────────────────────────────────
-    # Soporte 8-11 digitos (antiguo formato colombiano) y puntos separadores.
-    cedula_m = re.search(r'\bCedula:\s*([\d.]{7,13})', tn, re.IGNORECASE)
-    if not cedula_m:
-        cedula_m = re.search(r'(?:Cedula|Cedula)\s+(\d{7,11})', tn, re.IGNORECASE)
-    if not cedula_m:
-        cedula_m = re.search(r'\b(\d{8,11})\b', tn)
-    if cedula_m:
-        ced_raw = cedula_m.group(1).replace('.', '').strip()
-        if ced_raw.isdigit() and 7 <= len(ced_raw) <= 11:
-            data['cedula'] = ced_raw
+    # Usa _extraer_cedula_de_texto que busca primero en la cabecera del formulario
+    # (zona INFORMACION PERSONAL) para evitar tomar la CC del jefe o TH.
+    data['cedula'] = _extraer_cedula_de_texto(tn, solo_cabecera=True)
 
     # ── Nombre ──────────────────────────────────────────────────────────────
     nombre_m = re.search(
@@ -279,26 +474,33 @@ def extraer_permiso(text: str, pdf_path: str) -> dict:
         ).strip()
         data['area'] = area_limpia if area_limpia else area_raw.split()[0]
 
-    # ── Fechas del permiso: "Fecha Permiso: De: DD-MM-YYYY Hasta: DD-MM-YYYY" ─
+    # ── Fechas del permiso: "Fecha Permiso: De: ... Hasta: ..." ────────────────
+    # _parsear_fecha_robusta cubre: DD/MM/YYYY, DD-MM-YY, DD/NombreMes/26, etc.
     fechas_m = re.search(
-        r'Fecha\s+Permiso:.*?De:\s*(\d{1,2}[-/]\d{1,2}[-/]\d{4})'
-        r'.*?Hasta:\s*(\d{1,2}[-/]\d{1,2}[-/]\d{4})',
+        r'Fecha\s+Permiso:.*?De:\s*(.{3,28}?)\s*Hasta:\s*(.{3,28}?)(?:\n|Horas|$)',
         tn, re.IGNORECASE
     )
     if fechas_m:
-        fi = parse_fecha_ddmmyyyy(fechas_m.group(1))
-        ff = parse_fecha_ddmmyyyy(fechas_m.group(2))
-        data['fecha_novedad'] = fi
-        data['fecha_inicio']  = fi
-        data['fecha_fin']     = ff
-    else:
-        # Fallback: buscar cualquier fecha DD-MM-YYYY
-        fecha_sola = re.search(r'(\d{1,2}[-/]\d{1,2}[-/]\d{4})', tn)
-        if fecha_sola:
-            fi = parse_fecha_ddmmyyyy(fecha_sola.group(1))
+        fi = _parsear_fecha_robusta(fechas_m.group(1))
+        ff = _parsear_fecha_robusta(fechas_m.group(2))
+        if fi:
             data['fecha_novedad'] = fi
             data['fecha_inicio']  = fi
-            data['fecha_fin']     = fi
+            data['fecha_fin']     = ff or fi
+    if not data['fecha_inicio']:
+        # Fallback: buscar dos fechas en cualquier formato dentro del texto
+        candidatas = []
+        for m in re.finditer(
+            r'\b(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{1,2}\s+\d{1,2}\s+20\d{2})\b',
+            tn
+        ):
+            f = _parsear_fecha_robusta(m.group(1))
+            if f and f not in candidatas and f >= '2025-01-01':
+                candidatas.append(f)
+        if candidatas:
+            data['fecha_novedad'] = candidatas[0]
+            data['fecha_inicio']  = candidatas[0]
+            data['fecha_fin']     = candidatas[-1] if len(candidatas) > 1 else candidatas[0]
 
     # ── Horas ────────────────────────────────────────────────────────────────
     horas_m = re.search(
@@ -437,36 +639,7 @@ def extraer_permiso_ocr(pdf_path, page_idx=0):
         data['errores'].append('pytesseract no instalado')
         return data
 
-    _MESES = [
-        (r'en[eoa3]',1),(r'feb',2),(r'mar',3),(r'ab[rln]',4),
-        (r'may',5),(r'jun',6),(r'jul',7),(r'ag[oa]',8),
-        (r'se[pb]',9),(r'oc[t]',10),(r'no[vb]',11),(r'di[c]',12),
-    ]
-
-    def _mes(s):
-        for p, n in _MESES:
-            if re.search(p, s.lower()): return n
-        return None
-
     def _digs(s): return ''.join(c for c in s if c.isdigit())
-
-    def _fecha_ocr(s):
-        if not s: return None
-        m = re.search(r'(\d{1,2})\s*[-/lL|\\]\s*(\d{1,2})\s*[-/lL|\\]\s*(\d{2,4})', s)
-        if m:
-            d, mo, y = m.group(1), m.group(2), m.group(3)
-            if len(y) == 2: y = '20' + y
-            r = parse_fecha_ddmmyyyy(f'{d}-{mo}-{y}')
-            if r: return r
-        m = re.search(r'(\d{1,2})\s*[-]?\s*([A-Za-z]{2,8})\s*[-]?\s*(\d{2,4})', s)
-        if m:
-            d2, ms, y2 = m.group(1), m.group(2), m.group(3)
-            mn = _mes(ms)
-            if mn:
-                if len(y2) == 2: y2 = '20' + y2
-                r = parse_fecha_ddmmyyyy(f'{d2}-{mn}-{y2}')
-                if r: return r
-        return None
 
     def _dias_ocr(s):
         s2 = re.sub(r'onch', 'och', s.lower().strip())
@@ -486,67 +659,70 @@ def extraer_permiso_ocr(pdf_path, page_idx=0):
             if 1 <= v <= 30: return v
         return None
 
-    def _clean_tok(raw):
-        toks = []
-        for t in raw.split():
-            if not t or not t[0].isalpha(): continue
-            alpha = sum(1 for c in t if c.isalpha())
-            # >= 3 letras, mayoria de chars son letras, no todo ruido de case
-            if alpha < 3 or alpha < max(3, len(t) // 2): continue
-            toks.append(t)
-        return ' '.join(toks) if len(toks) >= 2 else None
+    def _ocr_text(resolution, cfg='--oem 3 --psm 6'):
+        """Extrae texto OCR de la página a la resolución indicada."""
+        with pdfplumber.open(pdf_path) as _p:
+            _img = _p.pages[page_idx].to_image(resolution=resolution).original
+        return re.sub(r'[ \t|]+', ' ',
+                      pytesseract.image_to_string(_img, lang=_LANG_OCR, config=cfg)).strip()
 
     try:
-        with pdfplumber.open(pdf_path) as pdf:
-            _img = pdf.pages[page_idx].to_image(resolution=250).original
-        tn = re.sub(r'[ \t|]+', ' ', pytesseract.image_to_string(_img, lang='eng')).strip()
-        _t3 = None
+        # Pasada 1: 300 DPI — equilibrio calidad/velocidad
+        tn = _ocr_text(300)
+        _t4 = None  # pasada 400 DPI bajo demanda
 
-        def _300():
-            nonlocal _t3
-            if _t3 is None:
-                with pdfplumber.open(pdf_path) as pdf:
-                    _i3 = pdf.pages[page_idx].to_image(resolution=300).original
-                _t3 = re.sub(r'[ \t|]+', ' ',
-                             pytesseract.image_to_string(_i3, lang='eng')).strip()
-            return _t3
+        def _400():
+            nonlocal _t4
+            if _t4 is None:
+                _t4 = _ocr_text(400, '--oem 3 --psm 4')
+            return _t4
 
-        for _f in [tn, _300()]:
+        # ── Nombre ──────────────────────────────────────────────────────────
+        for _f in [tn, _400()]:
             if data['nombre']: break
-            _nm = re.search(r'[Nn]ombre:\s*(.{3,55}?)\s*[Cc]edula', _f, re.IGNORECASE)
-            if _nm: data['nombre'] = _clean_tok(_nm.group(1))
+            _nm = re.search(r'[Nn]ombre:\s*(.{3,60}?)\s*[Cc][eé]?dula', _f, re.IGNORECASE)
+            if _nm:
+                data['nombre'] = _limpiar_nombre_ocr(_nm.group(1))
 
-        for _f in [tn, _300()]:
+        # ── Cédula — busca solo en cabecera (primer 45%) para no tomar CC del jefe ─
+        for _f in [tn, _400()]:
             if data['cedula']: break
-            _cm = re.search(
-                r'[Cc]edula[):\s]+(.{2,22}?)(?:\s{2,}|[A-Z][a-z]|\n|Cargo|Area|$)', _f
-            )
-            if _cm:
-                _cd = _digs(_cm.group(1))
-                if 7 <= len(_cd) <= 11: data['cedula'] = _cd
+            data['cedula'] = _extraer_cedula_de_texto(_f, solo_cabecera=True)
 
+        # ── Cargo / Área ──────────────────────────────────────────────────────
         _cg = re.search(r'[Cc]argo:\s*(.{3,55}?)\s*[Aa]rea', tn, re.IGNORECASE)
-        if _cg: data['cargo'] = _clean_tok(_cg.group(1))
+        if _cg: data['cargo'] = _limpiar_nombre_ocr(_cg.group(1)) or _cg.group(1).strip()
         _ar = re.search(r'[Aa]rea:\s*(.{2,35}?)(?:\s{2,}|\n|DATOS|$)', tn, re.IGNORECASE)
         if _ar:
             _at = [t for t in _ar.group(1).split()
                    if sum(1 for c in t if c.isalpha()) >= max(2, len(t)//2)]
             if _at: data['area'] = ' '.join(_at[:3])
 
-        for _f in [tn, _300()]:
+        # ── Fechas — usa _parsear_fecha_robusta para manejar todos los formatos ──
+        for _f in [tn, _400()]:
             if data['fecha_inicio']: break
             _fb = re.search(
-                r'[Ff]echa\s+[Pp]ermiso.*?[Dd]e:\s*(.{3,28}?)\s*[Hh]asta:\s*(.{3,28}?)(?:\n|[Hh]oras|$)',
+                r'[Ff]echa\s+[Pp]ermiso.*?[Dd]e:\s*(.{3,30}?)\s*[Hh]asta:\s*(.{3,30}?)(?:\n|[Hh]oras|$)',
                 _f, re.IGNORECASE
             )
             if _fb:
-                _fi = _fecha_ocr(_fb.group(1))
-                _ff = _fecha_ocr(_fb.group(2))
+                _fi = _parsear_fecha_robusta(_fb.group(1))
+                _ff = _parsear_fecha_robusta(_fb.group(2))
                 if _fi:
-                    data['fecha_inicio'] = _fi
+                    data['fecha_inicio']  = _fi
                     data['fecha_novedad'] = _fi
-                if _ff: data['fecha_fin'] = _ff
-                elif _fi: data['fecha_fin'] = _fi
+                    data['fecha_fin']     = _ff or _fi
+        # Fallback: cualquier par de fechas en el texto
+        if not data['fecha_inicio']:
+            _candidatas = []
+            for _mf in re.finditer(r'\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\b', tn):
+                _f2 = _parsear_fecha_robusta(_mf.group())
+                if _f2 and _f2 not in _candidatas and _f2 >= '2025-01-01':
+                    _candidatas.append(_f2)
+            if _candidatas:
+                data['fecha_inicio']  = _candidatas[0]
+                data['fecha_novedad'] = _candidatas[0]
+                data['fecha_fin']     = _candidatas[-1]
 
         _hm = re.search(
             r'[Hh]oras:.*?[Dd]e:\s*([0-9]{1,2}:[0-9]{2}\s*(?:Am|Pm|AM|PM)?)'
@@ -676,60 +852,67 @@ def extraer_vacaciones_ocr(pdf_path: str, page_idx: int = 0) -> dict:
     def _leer(pil_img, cfg=_CFG_FORM):
         return _ocr_img(_preprocesar_img(pil_img), config=cfg)
 
-    # ── Helper interno: busca cédula en un texto OCR dado ──────────────────
-    _EXCLUIR_PREFIJOS = ('0108', '2023', '2024', '2025', '2026', '2027')
-
+    # ── Helper interno: busca cédula delegando en _extraer_cedula_de_texto ──
+    # La versión global ya maneja zona de cabecera, puntos de miles y confusiones OCR.
     def _buscar_cedula(texto):
-        m = re.search(
-            r'(?:Cedula|Cédula|cedula).*?(?:Ciudadan[ií]a).*?No\.?\s*([\d\s]{9,14})',
-            texto, re.IGNORECASE
-        )
-        if m:
-            digitos = re.sub(r'\s', '', _normalizar_digitos_ocr(m.group(1)))
-            if digitos.isdigit() and 9 <= len(digitos) <= 11:
-                return digitos
-        # Fallback: primer bloque de 9-10 dígitos que no sea fecha ni código de form
-        for candidato_m in re.finditer(r'\b([0-9oOlIsS]{9,11})\b', texto):
-            raw = _normalizar_digitos_ocr(candidato_m.group(1))
-            if raw.isdigit() and not any(raw.startswith(p) for p in _EXCLUIR_PREFIJOS):
-                return raw
-        return None
+        return _extraer_cedula_de_texto(texto, solo_cabecera=True)
 
     # ── Helper interno: busca nombre en un texto OCR dado ──────────────────
     def _buscar_nombre(texto):
+        candidato = None
         # Patrón A: "Completos | NOMBRE APELLIDO"
         m = re.search(
-            r'Completes?\s*\|?\s*([A-Za-záéíóúñÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s]{5,55}?)'
+            r'Completes?\s*\|?\s*([A-Za-záéíóúñÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s]{5,65}?)'
             r'(?=\s*(?:Cedula|Cédula|cedula)|\s*$)',
             texto, re.IGNORECASE
         )
-        if m:
-            return m.group(1).strip()
+        if m: candidato = m.group(1)
         # Patrón B: "Nombre y Apellidos ... NOMBRE"
-        m = re.search(
-            r'(?:Nombre|Apellidos).*?Completos?\s+([A-Za-záéíóúñÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s]{5,55}?)'
-            r'(?=\s*(?:Cedula|Cédula))',
-            texto, re.IGNORECASE
-        )
-        if m:
-            return m.group(1).strip()
+        if not candidato:
+            m = re.search(
+                r'(?:Nombre|Apellidos).*?Completos?\s+([A-Za-záéíóúñÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s]{5,65}?)'
+                r'(?=\s*(?:Cedula|Cédula))',
+                texto, re.IGNORECASE
+            )
+            if m: candidato = m.group(1)
         # Patrón C (CamScanner): texto antes de "Cedula de Ciudadania"
-        m = re.search(
-            r'([A-Za-záéíóúñÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ]+(?:\s+[A-Za-záéíóúñÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ]+){1,4})'
-            r'\s+(?:Cedula|Cédula)',
-            texto, re.IGNORECASE
-        )
-        if m:
-            return m.group(1).strip()
-        return None
+        if not candidato:
+            m = re.search(
+                r'([A-Za-záéíóúñÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ]+(?:\s+[A-Za-záéíóúñÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ]+){1,4})'
+                r'\s+(?:Cedula|Cédula)',
+                texto, re.IGNORECASE
+            )
+            if m: candidato = m.group(1)
+        # Filtrar con _limpiar_nombre_ocr para eliminar tokens del formulario
+        return _limpiar_nombre_ocr(candidato) if candidato else None
 
-    # ── Helper interno: busca "DD MM YYYY DD MM YYYY" en un texto OCR dado ─
+    # ── Helper interno: busca par de fechas en múltiples formatos ─────────────
     def _buscar_fechas(texto):
-        return re.search(
+        # Normalizar confusiones OCR de letra-dígito antes de buscar fechas
+        texto = texto.replace('O','0').replace('o','0').replace('I','1').replace('l','1')
+        # Formato 1: DD MM YYYY DD MM YYYY (año 4 dígitos)
+        m = re.search(
             r'(\d{1,2})\s+(\d{1,2})\s+(20\d{2})\s+'
             r'(\d{1,2})\s+(\d{1,2})\s+(20\d{2})',
             texto
         )
+        if m: return m
+        # Formato 2: DD MM YY DD MM YY (año 2 dígitos, 20-35 → 2020-2035)
+        m = re.search(
+            r'(\d{1,2})\s+(\d{1,2})\s+(2[0-9])\s+'
+            r'(\d{1,2})\s+(\d{1,2})\s+(2[0-9])(?!\d)',
+            texto
+        )
+        if m:
+            # Envolver para que groups() devuelva años de 4 dígitos
+            class _FechasWrap:
+                def __init__(self, inner):
+                    g = list(inner.groups())
+                    g[2] = '20' + g[2]; g[5] = '20' + g[5]
+                    self._groups = tuple(g)
+                def groups(self): return self._groups
+            return _FechasWrap(m)
+        return None
 
     try:
         # ── Pasada 1: 300 DPI + preprocesamiento (equilibrio calidad/velocidad) ──
@@ -949,43 +1132,50 @@ def extraer_vacaciones_texto(text: str, pdf_path: str) -> dict:
         data['cargo'] = cargo_m.group(1).strip()
 
     # ── Fechas: "Periodo Solicitado" con encabezados DD MM AA ─────────────────
-    # Intento 1: encabezados DD MM AA presentes antes de los valores (formato estándar)
-    fechas_m = re.search(
-        r'(?:DD\s+MM\s+AA\s*){1,2}\s*'
-        r'(\d{1,2})\s+(\d{1,2})\s+(20\d{2})\s+'
-        r'(\d{1,2})\s+(\d{1,2})\s+(20\d{2})',
-        tn, re.IGNORECASE
-    )
-    # Intento 2: sin encabezados — pdfplumber a veces invierte el orden celda/etiqueta
-    if not fechas_m:
-        fechas_m = re.search(
-            r'(\d{1,2})\s+(\d{1,2})\s+(20\d{2})\s+'
-            r'(\d{1,2})\s+(\d{1,2})\s+(20\d{2})',
-            tn
+    def _intentar_par_fechas(txt):
+        """Busca dos fechas consecutivas (inicio/fin) en múltiples formatos."""
+        # Normalizar confusiones OCR de dígitos antes de buscar (l→1, I→1, O→0)
+        txt = _normalizar_digitos_texto(txt)
+        # Intento A: DD MM YYYY DD MM YYYY (con o sin encabezados DD MM AA)
+        for pat in [
+            r'(?:DD\s+MM\s+AA\s*){1,2}\s*(\d{1,2})\s+(\d{1,2})\s+(20\d{2})\s+(\d{1,2})\s+(\d{1,2})\s+(20\d{2})',
+            r'(\d{1,2})\s+(\d{1,2})\s+(20\d{2})\s+(\d{1,2})\s+(\d{1,2})\s+(20\d{2})',
+        ]:
+            m = re.search(pat, txt, re.IGNORECASE)
+            if m:
+                try:
+                    fi = date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+                    ff = date(int(m.group(6)), int(m.group(5)), int(m.group(4)))
+                    return fi.isoformat(), ff.isoformat()
+                except ValueError:
+                    pass
+        # Intento B: año de 2 dígitos (26 → 2026)
+        m = re.search(
+            r'(\d{1,2})\s+(\d{1,2})\s+(2\d)\s+(\d{1,2})\s+(\d{1,2})\s+(2\d)',
+            txt
         )
-    if fechas_m:
-        d1, m1, y1, d2, m2, y2 = fechas_m.groups()
-        try:
-            fi = date(int(y1), int(m1), int(d1))
-            ff = date(int(y2), int(m2), int(d2))
-            data['fecha_inicio'] = fi.isoformat()
-            data['fecha_fin']    = ff.isoformat()
-        except ValueError:
-            data['errores'].append('Fechas invalidas en el periodo solicitado')
-
-    # Intento 3: formato DD/MM/YYYY o DD-MM-YYYY (versiones alternativas del formulario)
-    if not data['fecha_inicio']:
-        fechas_slash = re.findall(r'(\d{1,2})[/-](\d{1,2})[/-](20\d{2})', tn)
-        if len(fechas_slash) >= 2:
+        if m:
             try:
-                d1, m1, y1 = fechas_slash[0]
-                d2, m2, y2 = fechas_slash[-1]
-                fi = date(int(y1), int(m1), int(d1))
-                ff = date(int(y2), int(m2), int(d2))
-                data['fecha_inicio'] = fi.isoformat()
-                data['fecha_fin']    = ff.isoformat()
+                fi = date(2000 + int(m.group(3)), int(m.group(2)), int(m.group(1)))
+                ff = date(2000 + int(m.group(6)), int(m.group(5)), int(m.group(4)))
+                if 2020 <= fi.year <= 2035 and 2020 <= ff.year <= 2035:
+                    return fi.isoformat(), ff.isoformat()
             except ValueError:
                 pass
+        # Intento C: formato DD/MM/YYYY o DD-MM-YY con separadores
+        candidatas = []
+        for raw in re.findall(r'\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}', txt):
+            f = _parsear_fecha_robusta(raw)
+            if f and f not in candidatas:
+                candidatas.append(f)
+        if len(candidatas) >= 2:
+            return candidatas[0], candidatas[-1]
+        return None, None
+
+    fi, ff = _intentar_par_fechas(tn)
+    if fi:
+        data['fecha_inicio'] = fi
+        data['fecha_fin']    = ff or fi
 
     # ── Dias disfrutados ──────────────────────────────────────────────────────
     dias_m = re.search(
@@ -1467,7 +1657,7 @@ def _procesar_pagina(pdf_path: str, page_idx: int, tipo: str,
     if es_img and HAS_OCR and not text.strip():
         try:
             with pdfplumber.open(pdf_path) as _p:
-                _mini = _p.pages[page_idx].to_image(resolution=100).original
+                _mini = _p.pages[page_idx].to_image(resolution=200).original
             _txt_mini = pytesseract.image_to_string(_mini, lang='eng')
             ignorar2, motivo2 = _es_pagina_ignorar(_txt_mini)
             if ignorar2:
