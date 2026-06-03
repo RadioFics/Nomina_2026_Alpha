@@ -6,542 +6,15 @@
   <title>Login - Collective Mining Sistema de Nómina</title>
 
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;600;700&family=Barlow+Condensed:wght@400;600;700&display=swap" rel="stylesheet">
-
-  <style>
-    :root {
-      --coal: #2B2B2B;
-      --cm-blue: #20A7C9;
-      --cm-blue-light: #4DC4E0;
-      --dark: #222222;
-      --surface: #2E2E2E;
-      --surface2: #383838;
-      --border: rgba(32, 167, 201, 0.20);
-      --text: #FFFFFF;
-      --muted: #706F6F;
-      --error: #E53E3E;
-      --success: #48BB78;
-    }
-
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    body {
-      font-family: 'Barlow', sans-serif;
-      background: var(--coal);
-      color: var(--text);
-      min-height: 100vh;
-      overflow-y: auto;
-    }
-
-    /* Right panel background with dark brand style */
-    .right-panel {
-      background: var(--coal);
-    }
-
-    .login-layout {
-      display: flex;
-      min-height: 100vh;
-    }
-
-    /* PANEL IZQUIERDO - Branding */
-    .left-panel {
-      width: 40%;
-      background: linear-gradient(160deg, var(--cm-blue) 0%, #1580A0 40%, var(--dark) 100%);
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      padding: 60px 40px;
-      border-right: 1px solid var(--border);
-      position: relative;
-      overflow: hidden;
-    }
-
-    /* Topographic contour lines decoration (CM brand element) */
-    .left-panel::before {
-      content: '';
-      position: absolute;
-      bottom: -10%;
-      left: -10%;
-      width: 120%;
-      height: 60%;
-      background-image: repeating-linear-gradient(
-        0deg,
-        transparent,
-        transparent 18px,
-        rgba(255,255,255,0.06) 18px,
-        rgba(255,255,255,0.06) 19px
-      );
-      border-radius: 60% 40% 70% 30% / 60% 40% 60% 40%;
-      pointer-events: none;
-    }
-
-    .left-panel::after {
-      content: '';
-      position: absolute;
-      top: -5%;
-      right: -15%;
-      width: 70%;
-      height: 50%;
-      background-image: repeating-linear-gradient(
-        -30deg,
-        transparent,
-        transparent 14px,
-        rgba(255,255,255,0.05) 14px,
-        rgba(255,255,255,0.05) 15px
-      );
-      border-radius: 40% 60% 30% 70% / 40% 60% 40% 60%;
-      pointer-events: none;
-    }
-
-    .brand-content {
-      text-align: center;
-      position: relative;
-      z-index: 1;
-    }
-
-    .brand-icon {
-      font-size: 64px;
-      margin-bottom: 24px;
-      display: block;
-    }
-
-    .brand-title {
-      font-family: 'Barlow Condensed', sans-serif;
-      font-size: 32px;
-      font-weight: 700;
-      color: #FFFFFF;
-      margin-bottom: 4px;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-    }
-
-    .brand-subtitle {
-      font-size: 13px;
-      color: rgba(255,255,255,0.7);
-      text-transform: uppercase;
-      letter-spacing: 2px;
-      margin-bottom: 40px;
-      font-weight: 300;
-    }
-
-    .brand-description {
-      font-size: 14px;
-      line-height: 1.8;
-      color: var(--text);
-      opacity: 0.8;
-      margin-bottom: 0;
-      max-width: 280px;
-      text-align: center;
-      margin-left: auto;
-      margin-right: auto;
-    }
-
-    /* PANEL DERECHO - Login */
-    .right-panel {
-      width: 60%;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      padding: 60px 40px;
-      overflow-y: auto;
-    }
-
-    .form-wrapper {
-      width: 100%;
-      max-width: 420px;
-    }
-
-    .form-header {
-      margin-bottom: 32px;
-    }
-
-    .form-title {
-      font-family: 'Barlow Condensed', sans-serif;
-      font-size: 26px;
-      font-weight: 700;
-      color: var(--cm-blue);
-      margin-bottom: 8px;
-      text-transform: uppercase;
-      letter-spacing: 0.03em;
-    }
-
-    .form-description {
-      font-size: 13px;
-      color: var(--muted);
-      line-height: 1.5;
-    }
-
-    /* TABs */
-    .tabs {
-      display: flex;
-      gap: 0;
-      margin-bottom: 32px;
-      border-bottom: 1px solid var(--border);
-      background: rgba(32, 167, 201, 0.03);
-      border-radius: 8px 8px 0 0;
-      padding: 0;
-      margin-left: -0;
-      margin-right: -0;
-    }
-
-    .tab-btn {
-      flex: 1;
-      padding: 14px 16px;
-      background: transparent;
-      border: none;
-      color: var(--muted);
-      font-family: 'Barlow', sans-serif;
-      font-size: 12px;
-      font-weight: 700;
-      cursor: pointer;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      transition: all 0.2s ease;
-      border-bottom: 2px solid transparent;
-      margin-bottom: -1px;
-    }
-
-    .tab-btn.active {
-      color: var(--cm-blue);
-      border-bottom-color: var(--cm-blue);
-    }
-
-    .tab-btn:hover:not(.active) {
-      color: var(--text);
-    }
-
-    /* STATUS MESSAGE */
-    .status-message {
-      padding: 12px 16px;
-      margin-bottom: 20px;
-      border-radius: 6px;
-      font-size: 13px;
-      display: none;
-      animation: slideIn 0.3s ease-out;
-    }
-
-    @keyframes slideIn {
-      from {
-        opacity: 0;
-        transform: translateY(-10px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    .status-message.show {
-      display: block;
-    }
-
-    .status-message.error {
-      background: rgba(229, 62, 62, 0.1);
-      color: var(--error);
-      border: 1px solid rgba(229, 62, 62, 0.3);
-    }
-
-    .status-message.success {
-      background: rgba(72, 187, 120, 0.1);
-      color: var(--success);
-      border: 1px solid rgba(72, 187, 120, 0.3);
-    }
-
-    .status-message.info {
-      background: rgba(32, 167, 201, 0.1);
-      color: var(--cm-blue-light);
-      border: 1px solid var(--border);
-    }
-
-    /* FORM FIELDS */
-    .form-group {
-      margin-bottom: 20px;
-    }
-
-    label {
-      display: block;
-      font-size: 12px;
-      font-weight: 600;
-      margin-bottom: 8px;
-      color: var(--text);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    input[type="email"],
-    input[type="password"],
-    input[type="text"] {
-      width: 100%;
-      padding: 12px 16px;
-      background: var(--surface2);
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 6px;
-      color: var(--text);
-      font-family: 'Barlow', sans-serif;
-      font-size: 14px;
-      transition: all 0.2s ease;
-    }
-
-    input::placeholder {
-      color: var(--muted);
-    }
-
-    input:focus {
-      outline: none;
-      border-color: var(--cm-blue);
-      box-shadow: 0 0 0 3px rgba(32, 167, 201, 0.15);
-    }
-
-    /* BUTTONS */
-    .button-group {
-      display: flex;
-      gap: 12px;
-      margin-top: 24px;
-    }
-
-    button {
-      padding: 12px 24px;
-      border: none;
-      border-radius: 6px;
-      font-family: 'Barlow', sans-serif;
-      font-size: 13px;
-      font-weight: 700;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-    }
-
-    .btn-primary {
-      flex: 1;
-      background: var(--cm-blue);
-      color: #ffffff;
-    }
-
-    .btn-primary:hover:not(:disabled) {
-      background: var(--cm-blue-light);
-      transform: translateY(-2px);
-    }
-
-    .btn-primary:disabled {
-      background: var(--muted);
-      cursor: not-allowed;
-      opacity: 0.6;
-    }
-
-    .btn-secondary {
-      flex: 1;
-      background: transparent;
-      color: var(--cm-blue);
-      border: 1px solid var(--cm-blue);
-    }
-
-    .btn-secondary:hover {
-      background: rgba(32, 167, 201, 0.1);
-    }
-
-    /* HELPER TEXT */
-    .helper-text {
-      font-size: 12px;
-      color: var(--muted);
-      margin-top: 16px;
-      text-align: center;
-      line-height: 1.5;
-    }
-
-    .helper-text a {
-      color: var(--cm-blue);
-      text-decoration: none;
-      cursor: pointer;
-      transition: color 0.2s ease;
-    }
-
-    .helper-text a:hover {
-      color: var(--cm-blue-light);
-    }
-
-    /* RESEND VERIFICATION PANEL */
-    .resend-panel {
-      display: none;
-      margin-top: 16px;
-      padding: 14px 16px;
-      background: rgba(32, 167, 201, 0.06);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      text-align: center;
-    }
-
-    .resend-panel.show {
-      display: block;
-      animation: slideIn 0.3s ease-out;
-    }
-
-    .resend-panel p {
-      font-size: 12px;
-      color: var(--muted);
-      margin-bottom: 10px;
-      line-height: 1.5;
-    }
-
-    .btn-resend {
-      display: inline-block;
-      padding: 8px 20px;
-      background: transparent;
-      border: 1px solid var(--cm-blue);
-      border-radius: 6px;
-      color: var(--cm-blue);
-      font-family: 'Barlow', sans-serif;
-      font-size: 12px;
-      font-weight: 700;
-      cursor: pointer;
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-      transition: all 0.2s ease;
-    }
-
-    .btn-resend:hover:not(:disabled) {
-      background: rgba(32, 167, 201, 0.12);
-    }
-
-    .btn-resend:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    /* TAB CONTENT */
-    .tab-content {
-      display: none;
-      animation: fadeIn 0.3s ease-out;
-    }
-
-    .tab-content.active {
-      display: block;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-
-    .remember-me {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 13px;
-      color: var(--text);
-      margin-bottom: 20px;
-    }
-
-    .remember-me input[type="checkbox"] {
-      width: auto;
-      margin: 0;
-      cursor: pointer;
-    }
-
-    .loading-spinner {
-      display: inline-block;
-      width: 14px;
-      height: 14px;
-      border: 2px solid rgba(32, 167, 201, 0.3);
-      border-top-color: #ffffff;
-      border-radius: 50%;
-      animation: spin 0.6s linear infinite;
-      margin-right: 8px;
-      vertical-align: middle;
-    }
-
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-
-    /* RESPONSIVE */
-    @media (max-width: 1024px) {
-      .left-panel {
-        width: 35%;
-        padding: 40px 20px;
-      }
-
-      .right-panel {
-        width: 65%;
-        padding: 40px 20px;
-      }
-
-      .brand-title {
-        font-size: 24px;
-      }
-
-      .form-wrapper {
-        max-width: 360px;
-      }
-    }
-
-    @media (max-width: 768px) {
-      .login-layout {
-        flex-direction: column;
-      }
-
-      .left-panel {
-        width: 100%;
-        min-height: auto;
-        padding: 40px 20px;
-        border-right: none;
-        border-bottom: 1px solid var(--border);
-      }
-
-      .right-panel {
-        width: 100%;
-        padding: 40px 20px;
-      }
-
-      .brand-title {
-        font-size: 20px;
-      }
-
-      .tabs {
-        flex-wrap: wrap;
-      }
-
-      .tab-btn {
-        flex: auto;
-        min-width: 100px;
-      }
-    }
-
-    @media (max-width: 480px) {
-      .left-panel,
-      .right-panel {
-        padding: 20px;
-      }
-
-      .form-wrapper {
-        max-width: 100%;
-      }
-
-      .brand-description {
-        font-size: 12px;
-      }
-
-      .button-group {
-        flex-direction: column;
-      }
-
-      button {
-        width: 100%;
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="/src/css/login.css">
 </head>
 <body>
   <div class="login-layout">
-    <!-- PANEL IZQUIERDO - Branding -->
+
+    <!-- PANEL IZQUIERDO — Branding -->
     <div class="left-panel">
       <div class="brand-content">
-        <!-- Logo Collective Mining: usa el PNG oficial si está disponible, SVG como fallback -->
+        <!-- Logo Collective Mining: PNG oficial si está disponible, SVG como fallback -->
         <div style="margin-bottom: 20px; display: flex; justify-content: center;">
           <img src="/assets/logo-collective-mining.png"
                alt="Collective Mining"
@@ -549,34 +22,29 @@
                onerror="this.style.display='none'; document.getElementById('login-logo-svg').style.display='block'">
           <svg id="login-logo-svg" style="display:none; margin:0 auto;"
                width="90" height="90" viewBox="0 0 90 90" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <!-- Outer circle -->
             <circle cx="45" cy="45" r="42" stroke="rgba(255,255,255,0.55)" stroke-width="2" fill="none"/>
-            <!-- Top decorative arc -->
             <path d="M 16,38 Q 30,12 45,10 Q 60,12 74,38"
                   stroke="rgba(255,255,255,0.35)" stroke-width="1.5" fill="none"/>
-            <!-- Inner hexagonal shield -->
             <polygon points="45,18 74,34 74,58 45,74 16,58 16,34"
                      fill="none" stroke="white" stroke-width="2.2"/>
-            <!-- C letterform (angular bracket) -->
             <path d="M 50,34 L 34,34 L 34,45 L 34,56 L 50,56"
                   stroke="white" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-            <!-- M letterform -->
             <path d="M 54,56 L 54,34 L 62,46 L 70,34 L 70,56"
                   stroke="white" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </div>
         <h1 class="brand-title">Collective Mining</h1>
         <p class="brand-subtitle">— Sistema de Nómina —</p>
-
         <p class="brand-description">
           Plataforma integral para la gestión de nómina, administración de empleados y reportes financieros.
         </p>
       </div>
     </div>
 
-    <!-- PANEL DERECHO - Formularios -->
+    <!-- PANEL DERECHO — Formularios -->
     <div class="right-panel">
       <div class="form-wrapper">
+
         <!-- Mensaje de estado -->
         <div id="statusMessage" class="status-message"></div>
 
@@ -596,24 +64,12 @@
           <form id="loginForm">
             <div class="form-group">
               <label for="loginEmail">Email</label>
-              <input
-                type="email"
-                id="loginEmail"
-                name="email"
-                placeholder="tu@email.com"
-                required
-              >
+              <input type="email" id="loginEmail" name="email" placeholder="tu@email.com" required>
             </div>
 
             <div class="form-group">
               <label for="loginPassword">Contraseña</label>
-              <input
-                type="password"
-                id="loginPassword"
-                name="password"
-                placeholder="••••••••"
-                required
-              >
+              <input type="password" id="loginPassword" name="password" placeholder="••••••••" required>
             </div>
 
             <div class="remember-me">
@@ -651,49 +107,27 @@
           <form id="registroForm">
             <div class="form-group">
               <label for="registroNombre">Nombre completo</label>
-              <input
-                type="text"
-                id="registroNombre"
-                name="nombre"
-                placeholder="Juan Pérez García"
-                autocomplete="name"
-              >
+              <input type="text" id="registroNombre" name="nombre"
+                     placeholder="Juan Pérez García" autocomplete="name">
             </div>
 
             <div class="form-group">
               <label for="registroEmail">Correo corporativo</label>
-              <input
-                type="email"
-                id="registroEmail"
-                name="email"
-                placeholder="tu@collectivemining.com"
-                required
-              >
+              <input type="email" id="registroEmail" name="email"
+                     placeholder="tu@collectivemining.com" required>
             </div>
 
             <div class="form-group">
               <label for="registroPassword">Contraseña</label>
-              <input
-                type="password"
-                id="registroPassword"
-                name="password"
-                placeholder="••••••••"
-                required
-                minlength="8"
-              >
+              <input type="password" id="registroPassword" name="password"
+                     placeholder="••••••••" required minlength="8">
               <small style="color: var(--muted); margin-top: 6px; display: block;">Mínimo 8 caracteres</small>
             </div>
 
             <div class="form-group">
               <label for="registroConfirm">Confirmar contraseña</label>
-              <input
-                type="password"
-                id="registroConfirm"
-                name="confirm"
-                placeholder="••••••••"
-                required
-                minlength="8"
-              >
+              <input type="password" id="registroConfirm" name="confirm"
+                     placeholder="••••••••" required minlength="8">
             </div>
 
             <div class="button-group">
@@ -718,13 +152,8 @@
           <form id="recuperarForm">
             <div class="form-group">
               <label for="recuperarEmail">Email</label>
-              <input
-                type="email"
-                id="recuperarEmail"
-                name="email"
-                placeholder="tu@email.com"
-                required
-              >
+              <input type="email" id="recuperarEmail" name="email"
+                     placeholder="tu@email.com" required>
             </div>
 
             <p style="font-size: 12px; color: var(--muted); margin-bottom: 20px; line-height: 1.5;">
@@ -740,297 +169,12 @@
             </div>
           </form>
         </div>
+
       </div>
     </div>
   </div>
 
-  <script src="js/auth.js"></script>
-  <script>
-    // Email objetivo para reenvío de verificación
-    let resendEmailTarget = '';
-
-    // Elementos del DOM
-    const loginForm = document.getElementById('loginForm');
-    const registroForm = document.getElementById('registroForm');
-    const recuperarForm = document.getElementById('recuperarForm');
-    const statusMessage = document.getElementById('statusMessage');
-    const tabBtns = document.querySelectorAll('.tab-btn');
-    const tabContents = document.querySelectorAll('.tab-content');
-
-    // Tab switching
-    function switchTab(tabName) {
-      tabBtns.forEach(btn => btn.classList.remove('active'));
-      tabContents.forEach(content => content.classList.remove('active'));
-
-      document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
-      document.getElementById(tabName).classList.add('active');
-
-      statusMessage.classList.remove('show', 'error', 'success', 'info');
-
-      // Ocultar panel de reenvío al cambiar de tab
-      const rp = document.getElementById('resendPanel');
-      if (rp) rp.classList.remove('show');
-    }
-
-    tabBtns.forEach(btn => {
-      btn.addEventListener('click', () => switchTab(btn.dataset.tab));
-    });
-
-    // Login form submission
-    loginForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      const email = document.getElementById('loginEmail').value;
-      const password = document.getElementById('loginPassword').value;
-      const remember = document.getElementById('rememberMe').checked;
-
-      const loginBtn = document.getElementById('loginBtn');
-      loginBtn.disabled = true;
-
-      // Contador de segundos visible si el servidor tarda en responder
-      // (ocurre cuando Azure SQL Serverless está reanudando desde auto-pause)
-      mostrarMensaje('Iniciando sesión...', 'info');
-      let _seg = 0;
-      const _ticker = setInterval(() => {
-        _seg++;
-        if (_seg >= 5) {
-          mostrarMensaje(`Conectando con el servidor… (${_seg}s) — por favor espera`, 'info');
-        }
-      }, 1000);
-
-      // Timeout de 120s para cubrir el resume completo de la BD (hasta ~90s)
-      const _ctrl    = new AbortController();
-      const _timeout = setTimeout(() => _ctrl.abort(), 120000);
-
-      try {
-        const response = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal: _ctrl.signal,
-          body: JSON.stringify({
-            cedula_o_email: email,
-            contrasena: password,
-            rememberMe: remember
-          })
-        });
-
-        clearTimeout(_timeout); clearInterval(_ticker);
-
-        const data = await response.json();
-
-        if (data.status === 'success') {
-          // Token en localStorage (persiste) si recuérdame activo, en sessionStorage si no.
-          // Así el token desaparece al cerrar el navegador cuando no fue pedido recordar.
-          if (remember) {
-            localStorage.setItem('authToken', data.token);
-            localStorage.setItem('rememberEmail', email);
-          } else {
-            sessionStorage.setItem('authToken', data.token);
-            localStorage.removeItem('authToken');
-            localStorage.removeItem('rememberEmail');
-          }
-          // Nunca se guarda la contraseña — el JWT de larga duración cumple ese rol.
-          localStorage.removeItem('rememberPass');
-          localStorage.setItem('usuario', JSON.stringify(data.usuario));
-
-          mostrarMensaje('¡Bienvenido! Redirigiendo...', 'success');
-          setTimeout(() => {
-            window.location.href = '/index_novedades.html';
-          }, 1000);
-        } else if (data.pendingVerification) {
-          loginBtn.disabled = false;
-          mostrarMensaje(
-            data.message || 'Tu cuenta no ha sido verificada. Revisa tu correo y haz clic en el enlace de verificación.',
-            'info'
-          );
-          resendEmailTarget = email;
-          document.getElementById('resendPanel').classList.add('show');
-        } else {
-          loginBtn.disabled = false;
-          mostrarMensaje(data.message || 'Error al iniciar sesión', 'error');
-          document.getElementById('resendPanel').classList.remove('show');
-        }
-      } catch (error) {
-        clearTimeout(_timeout); clearInterval(_ticker);
-        loginBtn.disabled = false;
-        const msg = error.name === 'AbortError'
-          ? 'El servidor tardó demasiado. Intenta de nuevo en unos segundos.'
-          : 'Error de conexión. Intenta de nuevo.';
-        mostrarMensaje(msg, 'error');
-        console.error('Login error:', error);
-      }
-    });
-
-    // Registro form submission
-    registroForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      const nombre  = (document.getElementById('registroNombre').value || '').trim();
-      const email   = document.getElementById('registroEmail').value;
-      const password = document.getElementById('registroPassword').value;
-      const confirm = document.getElementById('registroConfirm').value;
-
-      if (password !== confirm) {
-        mostrarMensaje('Las contraseñas no coinciden', 'error');
-        return;
-      }
-
-      if (password.length < 8) {
-        mostrarMensaje('La contraseña debe tener al menos 8 caracteres', 'error');
-        return;
-      }
-
-      mostrarMensaje('Creando cuenta...', 'info');
-
-      try {
-        const response = await fetch('/api/auth/registro', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            nombre,
-            email,
-            contrasena: password,
-            contrasena_confirmacion: confirm
-          })
-        });
-
-        const data = await response.json();
-
-        if (data.status === 'success') {
-          const emailRegistrado = document.getElementById('registroEmail').value;
-          mostrarMensaje(
-            `¡Cuenta creada! Te hemos enviado un enlace de verificación a ${emailRegistrado}. Revisa tu correo (incluida la carpeta de spam) y haz clic en el enlace para activar tu cuenta.`,
-            'success'
-          );
-          registroForm.reset();
-          // Redirigir a login después de 6 segundos para que el usuario lea el mensaje
-          setTimeout(() => switchTab('login'), 6000);
-        } else {
-          mostrarMensaje(data.message || 'Error al crear cuenta', 'error');
-        }
-      } catch (error) {
-        mostrarMensaje('Error de conexión. Intenta de nuevo.', 'error');
-        console.error('Registro error:', error);
-      }
-    });
-
-    // Recuperar contraseña form submission
-    recuperarForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      const email = document.getElementById('recuperarEmail').value;
-
-      mostrarMensaje('Enviando instrucciones...', 'info');
-
-      try {
-        const response = await fetch('/api/auth/olvide-contrasena', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email })
-        });
-
-        const data = await response.json();
-
-        if (data.status === 'success') {
-          mostrarMensaje('Si tu email existe, recibirás instrucciones para restablecer tu contraseña.', 'success');
-          recuperarForm.reset();
-
-          setTimeout(() => {
-            switchTab('login');
-          }, 2000);
-        } else {
-          mostrarMensaje(data.message || 'Error al procesar solicitud', 'error');
-        }
-      } catch (error) {
-        mostrarMensaje('Error de conexión. Intenta de nuevo.', 'error');
-        console.error('Recovery error:', error);
-      }
-    });
-
-    // Helper function
-    function mostrarMensaje(mensaje, tipo = 'info') {
-      statusMessage.textContent = mensaje;
-      statusMessage.className = `status-message show ${tipo}`;
-    }
-
-    // Mostrar panel de reenvío desde el tab de Registro (enlace en helper-text)
-    function mostrarReenvioDesdeRegistro() {
-      const emailRegistro = document.getElementById('registroEmail').value.trim();
-      if (emailRegistro) resendEmailTarget = emailRegistro;
-      switchTab('login');
-      if (resendEmailTarget) {
-        document.getElementById('loginEmail').value = resendEmailTarget;
-        document.getElementById('resendPanel').classList.add('show');
-        mostrarMensaje('Usa el botón de abajo para reenviar el enlace de verificación a tu correo.', 'info');
-      } else {
-        switchTab('login');
-        mostrarMensaje('Ingresa tu email en el campo de arriba e intenta iniciar sesión para ver la opción de reenvío.', 'info');
-      }
-    }
-
-    // Reenviar enlace de verificación
-    async function reenviarVerificacion() {
-      const email = resendEmailTarget || document.getElementById('loginEmail').value.trim();
-
-      if (!email) {
-        mostrarMensaje('Ingresa tu email primero en el campo de arriba.', 'error');
-        return;
-      }
-
-      const btn = document.getElementById('resendBtn');
-      btn.disabled = true;
-      btn.textContent = 'Enviando...';
-
-      try {
-        const response = await fetch('/api/auth/reenviar-verificacion', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email })
-        });
-
-        const data = await response.json();
-
-        if (data.yaActiva) {
-          mostrarMensaje('¡Tu cuenta ya está activa! Puedes iniciar sesión normalmente.', 'success');
-          document.getElementById('resendPanel').classList.remove('show');
-        } else {
-          mostrarMensaje(
-            `Enlace enviado. Revisa tu correo ${email} (incluida la carpeta de spam). El enlace expira en 24 horas.`,
-            'success'
-          );
-          // Deshabilitar botón 60s para evitar spam
-          let segundos = 60;
-          btn.textContent = `Reenviar en ${segundos}s`;
-          const intervalo = setInterval(() => {
-            segundos--;
-            btn.textContent = `Reenviar en ${segundos}s`;
-            if (segundos <= 0) {
-              clearInterval(intervalo);
-              btn.disabled = false;
-              btn.textContent = 'Reenviar enlace de verificación';
-            }
-          }, 1000);
-        }
-      } catch (error) {
-        mostrarMensaje('Error de conexión. Intenta de nuevo.', 'error');
-        btn.disabled = false;
-        btn.textContent = 'Reenviar enlace de verificación';
-        console.error('Resend error:', error);
-      }
-    }
-
-    // Pre-rellenar email si fue guardado con "Recuérdame".
-    // La contraseña nunca se guarda — el token JWT de larga duración cumple ese rol.
-    window.addEventListener('DOMContentLoaded', () => {
-      // Limpiar cualquier contraseña guardada por versiones anteriores
-      localStorage.removeItem('rememberPass');
-
-      const rememberEmail = localStorage.getItem('rememberEmail');
-      if (rememberEmail) {
-        document.getElementById('loginEmail').value   = rememberEmail;
-        document.getElementById('rememberMe').checked = true;
-      }
-    });
-  </script>
+  <script src="/js/auth.js"></script>
+  <script src="/src/js/login.js"></script>
 </body>
 </html>

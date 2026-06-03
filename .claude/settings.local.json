@@ -34,7 +34,15 @@
       "Bash(curl -s -X POST http://localhost:3000/api/auth/olvide-contrasena -H 'Content-Type: application/json' -d '{\"email\":\"juane.calle@upb.edu.co\"}')",
       "Bash(sqlcmd -S \"DESKTOP-VEABB8R\\\\SQLEXPRESS\" -U sa -P \"LetItHappen35*\" -d MineDax -Q \"SELECT COD_USUA, NOM_USUA, LEFT\\(DIR_ELEC,35\\) AS EMAIL, ACT_INAC, ACT_ESTA, IND_BLOQ FROM GN_USUAR\")",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(Test-Path \"C:\\\\Users\\\\Juanes\\\\Documents\\\\GitHub\\\\Nomina_2026_Alpha\\\\node_modules\\\\pdf-lib\")",
+      "Bash(Test-Path \"C:\\\\Users\\\\Juanes\\\\Documents\\\\GitHub\\\\Nomina_2026_Alpha\\\\src\\\\css\")",
+      "Bash(Test-Path \"C:\\\\Users\\\\Juanes\\\\Documents\\\\GitHub\\\\Nomina_2026_Alpha\\\\src\\\\js\")",
+      "mcp__Claude_Preview__preview_start",
+      "PowerShell(Get-Process node -ErrorAction SilentlyContinue)",
+      "PowerShell(Stop-Process -Force)",
+      "Bash(grep -v \"^[[:space:]]*//\\\\|p\\\\.\\\\\\(PER\\\\|COD\\\\\\)\\\\|n\\\\.\\\\\\(PER\\\\|COD\\\\\\)\\\\|r\\\\.\\\\\\(PER\\\\|COD\\\\\\)\\\\|data\\\\.\\\\\\(PER\\\\|COD\\\\\\)\")",
+      "Bash(grep -n \"novedades\\\\/periodos\\\\|listarPeriodos\\\\|etiqueta\\\\|codPeriod\\\\|PER_EST\\\\|estado\\\\b\" \"/c/Users/Juanes/Documents/GitHub/Nomina_2026_Alpha/controllers/novedadesController.js\")"
     ]
   }
 }

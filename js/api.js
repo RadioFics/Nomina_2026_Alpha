@@ -340,40 +340,13 @@ function actualizarContador(elementId, cantidad) {
   }
 }
 
-async function cargarActividad() {
-  try {
-    const response = await fetch(`${API_BASE}/novedades/recientes?limite=10`);
-    if (!response.ok) return;
-    const actividades = await response.json();
-
-    const tbody = document.getElementById('tbActivity');
-    if (!tbody) return;
-
-    tbody.innerHTML = '';
-
-    if (!actividades.length) {
-      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px">Sin registros aún</td></tr>';
-      return;
-    }
-
-    actividades.forEach(act => {
-      const fecha = act.ACT_HORA || act.FEC_REGI;
-      const fechaStr = fecha
-        ? new Date(fecha).toLocaleDateString('es-CO') + ' ' + new Date(fecha).toLocaleTimeString('es-CO')
-        : '—';
-      const row = tbody.insertRow();
-      row.innerHTML = `
-        <td>${act.TIPO_NOVED || act.modulo || ''}</td>
-        <td>${act.NOMBRE || act.nombre || ''}</td>
-        <td>${act.CONCEPTO || act.tipo || ''}</td>
-        <td>${fechaStr}</td>
-        <td><span style="color: var(--success);">${act.ACT_ESTA === 'A' ? 'Activo' : (act.ACT_ESTA || '')}</span></td>
-      `;
-    });
-  } catch (err) {
-    console.error('Error cargando actividad:', err);
-  }
-}
+// NOTA: cargarActividad() [DEPRECADO — reemplazada por cargarActividadReciente()
+// en src/js/novedades.js]. La tabla #tbActivity ahora tiene 9 columnas (TIPO,
+// CÉDULA, EMPLEADO, CONCEPTO, PERÍODO, VALOR, FECHA REG, RESPONSABLE, ESTADO).
+// Esta versión legada escribía solo 5 celdas, desalineando todas las columnas
+// y sobreescribiendo (tras 500 ms) la salida correcta de novedades.js.
+// NO REHABILITAR SIN ACTUALIZAR AL ESQUEMA DE 9 COLUMNAS.
+// function cargarActividad() { /* ver src/js/novedades.js → cargarActividadReciente */ }
 
 // ===== FUNCIONES WRAPPER (nombres esperados por HTML) =====
 // NOTA: guardarOcasional() se define ahora en index_novedades.html y apunta
@@ -442,15 +415,14 @@ function editarAusencia(id) {
 }
 
 // Cargar datos al iniciar
+// NOTA: cargarActividad() y su setInterval fueron eliminados — la tabla
+// #tbActivity es manejada exclusivamente por cargarActividadReciente()
+// en src/js/novedades.js, que usa el esquema correcto de 9 columnas.
 document.addEventListener('DOMContentLoaded', () => {
-  // Esperar a que el DOM esté completamente listo
   setTimeout(() => {
     cargarOcasionales();
     cargarFijas();
     cargarAusencias();
-    cargarActividad();
-
-    // Recargar actividad cada 30 segundos
-    setInterval(cargarActividad, 30000);
+    // cargarActividad()  ← DEPRECADO: ver src/js/novedades.js
   }, 500);
 });
