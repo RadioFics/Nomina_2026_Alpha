@@ -77,6 +77,7 @@ function initFormulariosPage() {
 }
 
 function cerrarSesion() {
+  if (!confirm('¿Deseas cerrar sesión?')) return;
   localStorage.removeItem('authToken');
   localStorage.removeItem('usuario');
   localStorage.removeItem('rememberEmail');

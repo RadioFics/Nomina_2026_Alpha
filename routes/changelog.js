@@ -61,6 +61,275 @@ function descripcionCommit(subject) {
 // ─── Catálogo de cambios conocidos por versión ────────────────────────────────
 // Complementa los commits con descripciones elaboradas cuando están disponibles.
 const CATALOG = {
+  // ── Versiones recientes ─────────────────────────────────────────────────────
+
+  'v0.20.1': {
+    titulo: 'Correcciones críticas de frontend y mejoras de sesión',
+    resumen: [
+      'Corregido crash silencioso en novedades.js: tres accesos síncronos al DOM producían TDZ para _selOcas y dejaban todos los eventos sin registrar',
+      'Corrección del trigger TR_NO_NOVED_PERIODO_CERRADO: ahora permite anulaciones lógicas (A→I) en períodos cerrados sin bloquear el batch',
+      'Anulación masiva restaurada: los 4 controllers (Ocasionales, Fijas, Ausentismos, Cambios) procesan todos los seleccionados, límite ampliado a 2.000',
+      'Login: "Recuérdame" renombrado a "Recordar contraseña"; auto-redirige al app si el token guardado sigue vigente',
+      'Agregado botón "Cerrar sesión" en el header del app',
+      'Modales de edición unificados: títulos usan var(--cm-blue-light) en los 5 modales (antes algunos mostraban dorado)',
+      'Plantillas de email centralizadas en EMAIL_CFG (config/mailer.js): colores, textos y pie de página editables en un solo lugar',
+      'Corregido contraste del link de recuperación: texto blanco sobre fondo azul oscuro (#3A5A70) en lugar de teal sobre gris',
+    ],
+    detalle: [
+      { categoria: 'src/js/novedades.js', items: [
+        'Bug: #dropZone ya no existe en el HTML (renombrado a #dropZoneExcel/#dropZonePDF); null.addEventListener() crasheaba el script completo en la línea 3725, dejando todos los sets/eventos sin inicializar después',
+        'Bug: modalExportarAdecco y modalAnularBatch se declaran DESPUÉS del <script> en el HTML, por lo que los addEventListener síncronos fallaban con null',
+        'Fix: los tres accesos problemáticos envueltos en DOMContentLoaded con null-guard',
+        'Nueva función cerrarSesion(): limpia authToken, usuario, rememberEmail de localStorage/sessionStorage y redirige a /',
+      ]},
+      { categoria: 'controllers/*.js (ocasionales, fijas, ausentismos, cambios)', items: [
+        'ausentismosController.ensureDbObjects(): ALTER TRIGGER dbo.TR_NO_NOVED_PERIODO_CERRADO — agrega cláusula RETURN anticipado si el UPDATE es una transición ACT_ESTA A→I (anulación lógica) en un período cerrado',
+        'Los cuatro anularBatch(): cláusula de período eliminada — WHERE solo filtra COD_EMPR, COD_NOVED y ACT_ESTA=\'A\'',
+        'Límite de registros por batch cambiado de 500 a 2.000 en todos los controllers',
+      ]},
+      { categoria: 'index_novedades.html', items: [
+        'Cinco modales de edición: color de título cambiado de var(--gold-light) a var(--cm-blue-light) (#4DC4E0)',
+        'modalEditOcas: fondo y borde hardcodeados reemplazados por var(--surface) y var(--border)',
+        'Botón "Cerrar sesión" añadido al header con hover rojo',
+      ]},
+      { categoria: 'src/js/login.js', items: [
+        'Nueva función _tokenValido(token): decodifica el JWT, verifica exp * 1000 > Date.now()',
+        'DOMContentLoaded: si localStorage.authToken existe y es válido, redirige a /index_novedades.html sin pasar por el formulario',
+        'Restauración del email guardado en campo loginEmail al cargar',
+      ]},
+      { categoria: 'config/mailer.js', items: [
+        'Objeto EMAIL_CFG al inicio del archivo: accentBlue, accentLight, bgOuter, bgCard, bgBlock, textPrimary, textSecond, textMuted, linkText (#FFF), linkBg (#3A5A70), linkBorder, brandName, brandSub, footerAuto, footerCopy',
+        'Funciones _emailHeader, _emailFooter, _wrap() refactorizadas para leer de EMAIL_CFG',
+        'emailRecuperacion y emailVerificacion: cuadro de link fallback cambiado a fondo azul oscuro (#3A5A70) con texto blanco — contraste AA',
+      ]},
+    ],
+  },
+
+  'v0.20': {
+    titulo: 'Reorganización de archivos y documentación del proyecto',
+    resumen: [
+      'CLAUDE.md creado con documentación completa de la arquitectura para asistentes de código',
+      'Archivos de documentación y scripts auxiliares organizados en subcarpetas (docs/, database/, python/)',
+      'Scripts Python legacy (importar_adecco.py, rellenar_pdf.py, etc.) movidos a python/',
+      'Herramientas de documentación (db-config.html, GN_USUAR.ipynb) movidas a docs/',
+      'Scripts SQL movidos a database/',
+    ],
+    detalle: [
+      { categoria: 'CLAUDE.md (nuevo)', items: [
+        'Documenta arquitectura general: flujo de request, frontend, backend, convenciones de BD',
+        'Sección de comandos de desarrollo: npm start, npm run dev, kill-server, health check',
+        'Tabla de módulos de novedades: Ocasionales, Fijas, Ausentismos, Cambios con rutas y tablas',
+        'Describe la canalización de importación y el sistema de parsers extensible',
+        'Modelo de seguridad: blocklist middleware, niveles de acceso COD_GUSU 1-3',
+        'Instrucciones de entorno local (.env) y producción (Azure Managed Identity)',
+      ]},
+      { categoria: 'Reorganización de carpetas', items: [
+        'docs/: AZURE_SETUP.md, DATABASE_SETUP_ORDER.md, DEPLOYMENT_CHECKLIST.md, ENV_EXAMPLE, Informe_Tecnico_Nomina2026.md, db-config.html, GN_USUAR.ipynb, EJEMPLOS_EDICION.html',
+        'database/: fix_estciv.sql, fix_estciv_bd.sql y scripts SQL de mantenimiento',
+        'python/: 01_pdf_extractor.py, 02_database_handler.py, 03_web_app.py, generar_documentos_MineDax.py, import_excel.py, importar_adecco.py, pdf_import_extension.py',
+        'Sin cambios funcionales en controllers, routes ni lógica de negocio',
+      ]},
+    ],
+  },
+
+  'v0.19': {
+    titulo: 'Módulo de Gráficos & Analítica — métricas en tiempo real',
+    resumen: [
+      'Nueva pestaña "Gráficos & Analítica" con 5 endpoints y 8 gráficos interactivos (Chart.js)',
+      'KPIs del período activo: empleados con novedades, total registros, devengos, deducciones y días de ausentismo',
+      'Gráfico de distribución por tipo de novedad (donut) y Top 10 empleados por ausentismo (barras)',
+      'Trazabilidad histórica: devengos vs deducciones por período, ausentismos históricos, tipos más frecuentes',
+      'Panel de centros de costo: novedades y ausentismos por CC en gráficos de barras horizontales',
+      'Selector de período con opción "Todos los períodos" para análisis cruzado',
+    ],
+    detalle: [
+      { categoria: 'controllers/graficosController.js (nuevo)', items: [
+        'GET /api/graficos/resumen: KPIs del período — COUNT empleados únicos, COUNT novedades, SUM devengos/deducciones, SUM días ausentismo',
+        'GET /api/graficos/historico: devengos y deducciones agrupados por período (NO_OCASI + NO_FIJAS)',
+        'GET /api/graficos/novedades: distribución de registros por TIP_NATU y período',
+        'GET /api/graficos/ausentismos: top 10 empleados + tipos de ausentismo más frecuentes con LEFT JOIN a MAE_COAUS',
+        'GET /api/graficos/centros: novedades y ausentismos agrupados por centro de costo (MAE_CCOST)',
+        'Helper resolverPeriodoActual(): busca en NO_PERIOD donde GETDATE() está entre PER_FINI y PER_FFIN',
+      ]},
+      { categoria: 'routes/graficos.js (nuevo)', items: [
+        'GET /api/graficos/resumen → graficosController.resumen',
+        'GET /api/graficos/historico → graficosController.historico',
+        'GET /api/graficos/novedades → graficosController.novedades',
+        'GET /api/graficos/ausentismos → graficosController.ausentismos',
+        'GET /api/graficos/centros → graficosController.centros',
+        'Todos los endpoints protegidos con verifyToken y checkLevel(2)',
+      ]},
+      { categoria: 'index_novedades.html — Pestaña Gráficos', items: [
+        'Página page-graficos añadida al sidebar como nueva sección con ícono de gráfico',
+        'Filtro superior: selector grf_periodo + botón Actualizar + spinner de carga',
+        'Sección "Período activo": fila de 5 KPI cards con accent colors por tipo',
+        'Sección "Trazabilidad histórica": gráfico bar grouped (devengos/deducciones), line chart (ausentismos), bar horizontal (tipos de ausentismo), bar grouped (centros de costo)',
+        'Todos los canvas registrados en graficosCargar() con destroy() preventivo para evitar duplicados',
+      ]},
+      { categoria: 'src/js/novedades.js', items: [
+        '+564 líneas: función graficosCargar() que obtiene datos en paralelo (Promise.all) y construye los 8 charts',
+        'graficosInicializarPeriodos(): carga NO_PERIOD y puebla el selector al abrir la pestaña',
+        'navigate(\'graficos\') llama graficosInicializarPeriodos() automáticamente',
+      ]},
+    ],
+  },
+
+  'v0.18': {
+    titulo: 'Separación completa de JS — novedades.js a src/js/',
+    resumen: [
+      'Migración completada: todo el JavaScript de index_novedades.html movido a src/js/novedades.js (~4.200 líneas)',
+      'index_novedades.html reducido en ~8.600 líneas; ahora es solo markup + <script src="src/js/novedades.js">',
+      'CLAUDE.md inicializado con documentación de arquitectura y comandos de desarrollo',
+      'js/api.js refactorizado: funciones redundantes comentadas para evitar conflictos con novedades.js',
+    ],
+    detalle: [
+      { categoria: 'index_novedades.html', items: [
+        'Todo el bloque <script> interno (~8.600 líneas de JS) eliminado y reemplazado por un único <script src="src/js/novedades.js">',
+        'El HTML resultante es markup puro: estructura de secciones, modales y formularios sin lógica incrustada',
+        'Separación permite edición independiente del JS sin impactar el DOM del HTML',
+      ]},
+      { categoria: 'js/api.js', items: [
+        'Funciones duplicadas (cargarEmpleados, cargarPeriodos, etc.) comentadas para evitar colisiones con las versiones en novedades.js',
+        'Nota de compatibilidad añadida al encabezado del archivo',
+      ]},
+    ],
+  },
+
+  'v0.17': {
+    titulo: 'Separación de JavaScript — extracción a src/js/novedades.js',
+    resumen: [
+      'Inicio de la separación: JavaScript de la app principal extraído de index_novedades.html a src/js/novedades.js',
+      'index_novedades.html reorganizado (~17.500 líneas procesadas) con nuevas secciones de PDF y solicitudes',
+      'Nuevo endpoint GET /api/auth/datos: devuelve datos del empleado (GN_TERCE) vinculado al usuario logueado',
+      'Motor Python de extracción ampliado (+532 líneas): mejor manejo de múltiples tipos de formularios y OCR',
+      'importarPDFController.js actualizado con flujo de previsualización previa al confirmar',
+    ],
+    detalle: [
+      { categoria: 'controllers/authController.js', items: [
+        'Nueva función exports.obtenerDatosTerce: SELECT de APE_TERC, SEG_APEL, NOM_TERC, SEG_NOMB desde GN_TERCE JOIN GN_FUNCI JOIN GN_USUAR por usuarioId',
+        'Devuelve 404 si el usuario no tiene empleado vinculado (COD_FUNCI null)',
+      ]},
+      { categoria: 'routes/auth.js', items: [
+        'Nueva ruta GET /api/auth/datos → authController.obtenerDatosTerce (protegida con verifyToken)',
+      ]},
+      { categoria: 'python/procesar_pdf.py', items: [
+        '+532 líneas de lógica de extracción: mejoras en detección de tipo de formulario, fallbacks por regex, manejo de OCR con caracteres especiales',
+        'Soporte para variantes extendidas de CM-TH-FR-003 y CM-TH-SV-001',
+        'Modo batch: lista de archivos PDF con resultado individual por archivo y conteo global',
+      ]},
+      { categoria: 'controllers/importarPDFController.js', items: [
+        'Flujo de dos pasos: POST /api/pdf/previsualizar guarda resultado OCR en caché (_prevCache, TTL 15 min); POST /api/pdf/confirmar escribe en BD usando el caché',
+        'Función _mapearErrorOCR(): convierte mensajes técnicos de Python en texto amigable para el usuario',
+        'resolverCodConcPermiso(): todos los CM-TH-FR-003 usan COD_CONC=68 (Permiso Remunerado) independiente del motivo detectado',
+      ]},
+    ],
+  },
+
+  'v0.16': {
+    titulo: 'Azure App Service — pruebas y estabilización de despliegue en la nube',
+    resumen: [
+      'Primer despliegue estable en Azure App Service (Windows) con iisnode + Express.js',
+      'Autenticación Managed Identity para Azure SQL Serverless — sin credenciales en variables de entorno',
+      'Logger.js refactorizado para escritura asíncrona en GN_LOG_APP sin bloquear el hilo principal',
+      'Manejo de reanudación de conexión Azure SQL: getConnection/executeQuery reescritos con reintentos',
+      'Panel Centro de Costos reestructurado con multi-select y visualización en grid',
+      'Logos oficiales Collective Mining añadidos (SVG y PNG) e integrados en el header del app',
+      'Fix bootstrap diferido: la conexión a BD se establece en la primera solicitud real, no al arrancar',
+      'Soporte para formularios de Adecco con múltiples centros de costo por empleado',
+      'Fallback pdfkit para generación de PDF cuando Python no está disponible',
+      'Correcciones de web.config para routing Express en iisnode (todas las rutas → server.js)',
+    ],
+    detalle: [
+      { categoria: 'Despliegue en Azure App Service', items: [
+        'web.config configurado para iisnode en Windows App Service: httpPlatform handler, reescritura de todas las rutas a server.js',
+        'GitHub Actions workflow (main_nominacollectivemining.yml): build, zip, deploy a Azure via publish-profile',
+        'be21831: Node 18 compatible, azure-active-directory-mssql-node para Azure SQL encryption, postinstall omite Python en App Service',
+        'startup.sh: script de arranque con npm install + node server.js para entornos Linux/Azure',
+        'ecosystem.config.js: configuración PM2 para VPS',
+      ]},
+      { categoria: 'config/database.js', items: [
+        'getConnection() reescrito: si la conexión está en estado PAUSED (Azure Serverless), espera resume y reintenta',
+        'executeQuery() con retry automático en error de conexión caída (código ETIMEOUT/ECONNRESET)',
+        'Managed Identity: si NODE_ENV=production, usa DefaultAzureCredential en lugar de UID/PWD',
+        'Pool config: max:20, min:0 (permite auto-pause de Azure SQL Serverless), acquireTimeoutMillis:30000',
+      ]},
+      { categoria: 'Centro de Costos — multi-select', items: [
+        'dc0f105: Panel CC reestructurado en layout grid con multi-select nativo',
+        '126f22f: Bootstrap diferido — initApp() separado de DOMContentLoaded; carga de centros de costo con soporte multi-selección en backend',
+        'controllers/cambiosController.js: endpoints actualizados para recibir array de COD_CCOST',
+      ]},
+      { categoria: 'Otros', items: [
+        'f8df6e7: Logos Collective Mining añadidos a assets/; integrados en header y login',
+        '61b69ed: pdfPlantillaController usa pdfkit como fallback si pdf-lib no está disponible',
+        'config/logger.js: escritura asíncrona en GN_LOG_APP con cola interna; no lanza excepciones al caller',
+        'importarPDFController.js: función _mapearErrorOCR() para errores amigables; caché de previsualización',
+        'python/procesar_pdf.py: compatibilidad con Azure App Service (rutas relativas, timeouts)',
+      ]},
+    ],
+  },
+
+  'v0.15': {
+    titulo: 'Pipeline de despliegue Azure y documentación técnica',
+    resumen: [
+      'Primer pipeline CI/CD con GitHub Actions para Azure App Service (Windows)',
+      'AZURE_SETUP.md: guía paso a paso de configuración en Azure Portal (App Service, SQL, identidades)',
+      'config/database.js: pool de conexiones mejorado con parámetros de timeout y retry',
+      'Script generar_documentos_MineDax.py (905 líneas): genera fichas técnicas y documentación Word desde la BD',
+      'Documentación técnica formal del proyecto: Informe_Tecnico y Mensaje_Informativo',
+    ],
+    detalle: [
+      { categoria: 'GitHub Actions CI/CD', items: [
+        'bc243a5 + 2d644a9: workflow .github/workflows/main_nominacollectivemining.yml — build Node 18, Compress-Archive, Deploy a Azure App Service via publish-profile',
+        'msnodesqlv8 marcado como dependencia opcional (optionalDependencies) — no bloquea build si no está disponible',
+        'publish-profile almacenado como secreto AZURE_WEBAPP_PUBLISH_PROFILE en el repositorio',
+      ]},
+      { categoria: 'Documentación', items: [
+        'AZURE_SETUP.md (294 líneas): pasos para crear App Service, configurar variables de entorno, Managed Identity, SQL Firewall',
+        'Informe_Tecnico_Nomina2026.md: arquitectura, módulos, tablas de BD, flujo de datos y guía de operación',
+        'Mensaje_Informativo_Nomina2026.md: comunicado ejecutivo del proyecto para stakeholders no técnicos',
+      ]},
+      { categoria: 'Otros', items: [
+        'generar_documentos_MineDax.py (905 líneas): conexión pyodbc a MineDax, genera fichas de empleado y reportes en DOCX usando python-docx',
+        'config/database.js: opciones pool.idleTimeoutMillis, pool.acquireTimeoutMillis añadidas',
+        '461d6d9 Margenes_PDF: ajuste de márgenes en pdfPlantillaController.js para formularios oficiales',
+      ]},
+    ],
+  },
+
+  'v0.14': {
+    titulo: 'Formularios de solicitud, SharePoint y documentación de despliegue',
+    resumen: [
+      'solicitudesController.js refactorizado: formularios públicos de Permiso y Vacaciones con notificaciones email a RRHH',
+      'config/sharepoint.js: módulo de integración con SharePoint Online (subida de documentos via Graph API)',
+      'importarPDFController.js: ajustes de robustez y manejo de errores mejorado',
+      'Documentación de despliegue: DATABASE_SETUP_ORDER.md y DEPLOYMENT_CHECKLIST.md añadidos',
+      'Esquemas de base de datos actualizados: auth_schema.sql y schema.sql con columnas de verificación',
+    ],
+    detalle: [
+      { categoria: 'controllers/solicitudesController.js', items: [
+        'Refactorización completa (+323 líneas netas): lógica separada por tipo de solicitud (permiso / vacaciones)',
+        'Notificación email a RRHH (_emailRRHH): asunto con tipo, cédula y nombre del solicitante; datos del formulario en tabla HTML',
+        'Confirmación al empleado (_emailConfirmacion): resumen de su solicitud con fechas, días y estado Recibida',
+        'Validación de campos obligatorios: NUM_IDEN, fechas de período y tipo de solicitud',
+        'Endpoint GET /api/solicitudes/estado/:token para consulta pública sin autenticación',
+      ]},
+      { categoria: 'config/sharepoint.js (nuevo)', items: [
+        'Client Credentials flow con MSAL (@azure/msal-node): obtiene token para Microsoft Graph API',
+        'uploadFile(siteId, driveId, folderPath, fileName, buffer): sube buffer a OneDrive/SharePoint',
+        'Variables de entorno: SHAREPOINT_TENANT_ID, SHAREPOINT_CLIENT_ID, SHAREPOINT_CLIENT_SECRET, SHAREPOINT_SITE_ID, SHAREPOINT_DRIVE_ID',
+        'Módulo opcional: si las variables no están configuradas, las funciones retornan null sin error',
+      ]},
+      { categoria: 'Documentación', items: [
+        'DATABASE_SETUP_ORDER.md (129 líneas): orden correcto de ejecución de scripts SQL, dependencias entre tablas',
+        'DEPLOYMENT_CHECKLIST.md (414 líneas): checklist completo para despliegue en Azure App Service y VPS',
+        'InformeTecnico_MineDax_2026.docx y MineDax_Guia_Migracion_Online.docx: documentación formal del sistema',
+        '.env.example actualizado con todas las variables requeridas y opcionales documentadas',
+      ]},
+    ],
+  },
+
+  // ── Versiones anteriores ─────────────────────────────────────────────────────
+
   'v0.13': {
     titulo: 'Maestro Original funcional — Alta real de empleados en MineDax',
     resumen: [
@@ -612,6 +881,33 @@ router.get('/', (req, res) => {
       commits: [],
       pending: true,
     });
+  }
+
+  // ── Extraer commits post-V0.20 como versión de parche v0.20.1 ─────────────
+  // Los commits realizados después del tag V0.20 (sin su propio tag de versión)
+  // se muestran como una entrada independiente en lugar de quedar enterrados
+  // dentro de los "commits incluidos" de V0.20.
+  const PATCH_V20_1 = ['734c2a2', '217147e', '0067b66'];
+  const v20idx = versions.findIndex(v => v.version === 'v0.20');
+  if (v20idx !== -1) {
+    const patches = versions[v20idx].commits.filter(
+      c => PATCH_V20_1.includes(c.hash.substring(0, 7))
+    );
+    if (patches.length > 0) {
+      versions[v20idx].commits = versions[v20idx].commits.filter(
+        c => !PATCH_V20_1.includes(c.hash.substring(0, 7))
+      );
+      const cat201 = CATALOG['v0.20.1'] || {};
+      versions.splice(v20idx, 0, {
+        version: 'v0.20.1',
+        fecha:   patches[0]?.date || '',
+        commit:  patches[0]?.hash.substring(0, 7) || '',
+        titulo:  cat201.titulo || 'Correcciones post-lanzamiento',
+        resumen: cat201.resumen || patches.map(c => c.subject),
+        detalle: cat201.detalle || [],
+        commits: patches,
+      });
+    }
   }
 
   res.json({ ok: true, versiones: versions });
