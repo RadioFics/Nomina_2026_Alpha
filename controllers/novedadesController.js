@@ -87,9 +87,98 @@ async function verificarYCerrarPeriodosVencidos() {
         )
     `);
 
+    // ── 4. Mantener el horizonte de períodos futuros ───────────────────────────
+    await _asegurarPeriodosFuturos(DEFAULT_COD_EMPR);
+
   } catch (err) {
     console.error('[periodos] ✗ Error en cierre/activación automática:', err.message);
   }
+}
+
+// ---------------------------------------------------------------------------
+// _asegurarPeriodosFuturos(codEmpr)
+// Garantiza que siempre existan períodos 'F' pre-creados hasta HORIZONTE_MESES
+// meses en el futuro, contados desde hoy.
+//
+// Se llama automáticamente al final de verificarYCerrarPeriodosVencidos()
+// (cada 3 h). Es idempotente: usa NOT EXISTS para no duplicar quincenas.
+//
+// Con HORIZONTE_MESES = 36 el sistema opera sin intervención manual
+// durante al menos 3 años desde la última ejecución.
+// ---------------------------------------------------------------------------
+async function _asegurarPeriodosFuturos(codEmpr) {
+  const HORIZONTE_MESES = 36;
+
+  // Última quincena existente (sea cual sea su estado)
+  const lastRes = await executeQuery(`
+    SELECT TOP 1 PER_ANO, PER_MES, PER_QNA, COD_PERIOD
+    FROM dbo.NO_PERIOD
+    WHERE COD_EMPR = @codEmpr AND ACT_ESTA = 'A' AND COD_PERIOD > 0
+    ORDER BY COD_PERIOD DESC
+  `, { codEmpr });
+
+  if (!lastRes.recordset.length) return 0;
+  const last = lastRes.recordset[0];
+
+  // Fecha límite del horizonte (hoy + 36 meses)
+  const hoy       = new Date();
+  const limiteAno = hoy.getFullYear() + Math.floor((hoy.getMonth() + HORIZONTE_MESES) / 12);
+  const limiteMes = ((hoy.getMonth() + HORIZONTE_MESES) % 12) + 1; // 1-12
+
+  // Si el último período ya cubre el horizonte, no hay nada que hacer
+  if (last.PER_ANO > limiteAno ||
+     (last.PER_ANO === limiteAno && last.PER_MES >= limiteMes)) {
+    return 0;
+  }
+
+  // Avanzador de quincena: modifica {ano, mes, qna} en el siguiente período
+  const avanzar = (state) => {
+    if (state.qna === 1) {
+      state.qna = 2;
+    } else {
+      state.qna = 1;
+      if (state.mes === 12) { state.mes = 1; state.ano++; }
+      else { state.mes++; }
+    }
+  };
+
+  // Empezar desde la quincena inmediatamente siguiente a la última
+  const state = { ano: last.PER_ANO, mes: last.PER_MES, qna: last.PER_QNA };
+  avanzar(state);
+  let creados = 0;
+
+  while (state.ano < limiteAno || (state.ano === limiteAno && state.mes <= limiteMes)) {
+    const { ano, mes, qna } = state;
+    const mm = String(mes).padStart(2, '0');
+    const fini = qna === 1 ? `${ano}-${mm}-01` : `${ano}-${mm}-16`;
+    const diasMes = new Date(ano, mes, 0).getDate(); // último día del mes
+    const ffin = qna === 1 ? `${ano}-${mm}-15`
+                           : `${ano}-${mm}-${String(diasMes).padStart(2, '0')}`;
+
+    // COD_PERIOD es IDENTITY → se omite del INSERT y SQL Server lo auto-genera
+    const ins = await executeQuery(`
+      INSERT INTO dbo.NO_PERIOD
+        (COD_EMPR, PER_ANO, PER_MES, PER_QNA,
+         PER_FINI, PER_FFIN, PER_EST, ACT_USUA)
+      SELECT @codEmpr, @ano, @mes, @qna,
+             CONVERT(date, @fini), CONVERT(date, @ffin),
+             'F', 'system'
+      WHERE NOT EXISTS (
+        SELECT 1 FROM dbo.NO_PERIOD
+        WHERE COD_EMPR = @codEmpr AND PER_ANO = @ano
+          AND PER_MES  = @mes    AND PER_QNA  = @qna AND ACT_ESTA = 'A'
+      )
+    `, { codEmpr, ano, mes, qna, fini, ffin });
+
+    if (ins.rowsAffected && ins.rowsAffected[0] > 0) creados++;
+    avanzar(state);
+  }
+
+  if (creados > 0) {
+    console.log(`[periodos] ✚ ${creados} período(s) generados automáticamente` +
+                ` (horizonte ${HORIZONTE_MESES} meses, hasta ${limiteAno}-${String(limiteMes).padStart(2,'0')})`);
+  }
+  return creados;
 }
 
 // ---------------------------------------------------------------------------
