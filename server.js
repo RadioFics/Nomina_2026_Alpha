@@ -49,8 +49,10 @@ async function _runBootstrapsOnce() {
   try { await require('./controllers/fijasController').ensureDbObjects();       } catch (_) {}
   try { await require('./controllers/ausentismosController').ensureDbObjects(); } catch (_) {}
   try { await require('./controllers/cambiosController').ensureDbObjects();     } catch (_) {}
-  try { await require('./controllers/formularioController').ensureDbObjects();  } catch (_) {}
-  try { await verificarYCerrarPeriodosVencidos();                               } catch (_) {}
+  try { await require('./controllers/formularioController').ensureDbObjects();   } catch (_) {}
+  try { await require('./controllers/solicitudesController').ensureDbObjects();  } catch (_) {}
+  try { await verificarYCerrarPeriodosVencidos();                                } catch (_) {}
+
   // Intervalo de 3h — solo en horario laboral (5 AM–10 PM UTC-5 / Colombia)
   setInterval(async () => {
     const colHour = ((new Date().getUTCHours() - 5) % 24 + 24) % 24;
@@ -59,7 +61,14 @@ async function _runBootstrapsOnce() {
       await vc().catch(() => {});
     }
   }, 3 * 60 * 60 * 1000);
-  console.log('[Bootstrap] Completado. Intervalo de 3h activo.');
+
+  // Intervalo de 1h — recordatorios y expiración de solicitudes pendientes de jefe
+  setInterval(async () => {
+    const { procesarRecordatoriosPendientes } = require('./controllers/solicitudesController');
+    await procesarRecordatoriosPendientes().catch(() => {});
+  }, 60 * 60 * 1000);
+
+  console.log('[Bootstrap] Completado. Intervalos de 3h y 1h activos.');
 }
 
 // Este middleware debe estar ANTES de todas las rutas /api
