@@ -52,6 +52,7 @@ async function _runBootstrapsOnce() {
   try { await require('./controllers/formularioController').ensureDbObjects();   } catch (_) {}
   try { await require('./controllers/solicitudesController').ensureDbObjects();  } catch (_) {}
   try { await verificarYCerrarPeriodosVencidos();                                } catch (_) {}
+  try { await require('./controllers/mantenimientoController').ejecutarMantenimiento(); } catch (_) {}
 
   // Intervalo de 3h — solo en horario laboral (5 AM–10 PM UTC-5 / Colombia)
   setInterval(async () => {
@@ -68,7 +69,13 @@ async function _runBootstrapsOnce() {
     await procesarRecordatoriosPendientes().catch(() => {});
   }, 60 * 60 * 1000);
 
-  console.log('[Bootstrap] Completado. Intervalos de 3h y 1h activos.');
+  // Intervalo de 24h — limpieza de logs y sesiones inactivas
+  setInterval(async () => {
+    const { ejecutarMantenimiento } = require('./controllers/mantenimientoController');
+    await ejecutarMantenimiento().catch(() => {});
+  }, 24 * 60 * 60 * 1000);
+
+  console.log('[Bootstrap] Completado. Intervalos de 3h, 1h y 24h activos.');
 }
 
 // Este middleware debe estar ANTES de todas las rutas /api
