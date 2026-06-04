@@ -4670,7 +4670,12 @@ function _grfRenderCentros(centros) {
   const ctxA = document.getElementById('grf_bar_aus_centros');
   if (!ctxN || !centros.length) return;
 
-  const labels = centros.map(c => c.codigo || c.nombre.substring(0, 12));
+  // Usar abreviatura como etiqueta en el eje X; tooltip muestra nombre completo del CC
+  const labels = centros.map(c => c.abrev || c.nombre.substring(0, 14));
+  const tooltipTitle = (items) => {
+    const cc = centros[items[0].dataIndex];
+    return cc.nombre || cc.abrev || String(cc.codigo);
+  };
 
   // Novedades por CC
   _grfCharts['barCentros'] = new Chart(ctxN, {
@@ -4686,7 +4691,10 @@ function _grfRenderCentros(centros) {
     },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: '#a0aec0', font: { size: 11 } } } },
+      plugins: {
+        legend: { labels: { color: '#a0aec0', font: { size: 11 } } },
+        tooltip: { callbacks: { title: tooltipTitle } }
+      },
       scales: {
         x:  { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0', font: { size: 11 } } },
         y:  { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0' } },
@@ -4710,7 +4718,10 @@ function _grfRenderCentros(centros) {
     },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: '#a0aec0', font: { size: 11 } } } },
+      plugins: {
+        legend: { labels: { color: '#a0aec0', font: { size: 11 } } },
+        tooltip: { callbacks: { title: tooltipTitle } }
+      },
       scales: {
         x:  { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0', font: { size: 11 } } },
         y:  { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0' } },

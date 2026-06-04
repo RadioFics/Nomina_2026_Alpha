@@ -209,10 +209,14 @@ async function centros(req, res) {
     const periodFilter = codPeriod ? 'AND n.COD_PERIOD = @codPeriod' : '';
     const params = codPeriod ? { codEmpr, codPeriod } : { codEmpr };
 
+    // ── NOTA: se resuelve el CC a través de GN_FUNCI (fuente autoritativa) porque
+    //   NO_NOVED.COD_CCOST se dejó NULL en el pipeline de import.
+    //   Un JOIN directo sobre n.COD_CCOST excluiría >95% de las novedades.
     const q = `
       SELECT
         cc.COD_CCOST AS codigo,
         cc.NOM_CCOST AS nombre,
+        cc.COD_ABREV AS abrev,
         COUNT(DISTINCT n.COD_FUNCI)  AS empleados,
         COUNT(*)                     AS novedades,
         SUM(CASE WHEN c.TIP_CONC='DEVENGO'   THEN ISNULL(oc.VALOR,0) ELSE 0 END) AS devengos,
@@ -220,12 +224,13 @@ async function centros(req, res) {
         COUNT(CASE WHEN c.TIP_NATU='AUSENTISMO' THEN 1 END) AS ausencias,
         SUM(CASE WHEN c.TIP_NATU='AUSENTISMO' THEN ISNULL(au.DIAS_TOTAL,0) ELSE 0 END) AS dias_ausencia
       FROM dbo.NO_NOVED n
-      JOIN  dbo.MAE_CCOST cc ON cc.COD_CCOST=n.COD_CCOST AND cc.COD_EMPR=n.COD_EMPR
-      JOIN  dbo.NO_CONCE c  ON c.COD_CONC=n.COD_CONC   AND c.COD_EMPR=n.COD_EMPR
+      JOIN  dbo.GN_FUNCI  f  ON f.COD_FUNCI=n.COD_FUNCI    AND f.COD_EMPR=n.COD_EMPR
+      JOIN  dbo.MAE_CCOST cc ON cc.COD_CCOST=f.COD_CCOST   AND cc.COD_EMPR=n.COD_EMPR
+      JOIN  dbo.NO_CONCE  c  ON c.COD_CONC=n.COD_CONC      AND c.COD_EMPR=n.COD_EMPR
       LEFT JOIN dbo.NO_OCASI oc ON oc.COD_NOVED=n.COD_NOVED AND oc.COD_EMPR=n.COD_EMPR AND oc.ACT_ESTA='A'
       LEFT JOIN dbo.NO_AUSEN au ON au.COD_NOVED=n.COD_NOVED AND au.COD_EMPR=n.COD_EMPR AND au.ACT_ESTA='A'
       WHERE n.COD_EMPR=@codEmpr AND n.ACT_ESTA='A' ${periodFilter}
-      GROUP BY cc.COD_CCOST, cc.NOM_CCOST
+      GROUP BY cc.COD_CCOST, cc.NOM_CCOST, cc.COD_ABREV
       ORDER BY novedades DESC
     `;
 
@@ -241,10 +246,14 @@ async function centros(req, res) {
 async function periodos(req, res) {
   try {
     const codEmpr = Number(req.query.codEmpr) || DEFAULT_COD_EMPR;
+    // Solo períodos que ya iniciaron (excluye futuros pre-creados y el sentinel 0)
     const r = await executeQuery(
       `SELECT COD_PERIOD, PER_ANO, PER_MES, PER_QNA, PER_FINI, PER_FFIN, PER_EST,
               CONCAT(PER_ANO,'-',RIGHT('0'+CAST(PER_MES AS VARCHAR),2),'-Q',PER_QNA) AS etiqueta
-       FROM dbo.NO_PERIOD WHERE COD_EMPR=@codEmpr ORDER BY COD_PERIOD DESC`,
+       FROM dbo.NO_PERIOD
+       WHERE COD_EMPR=@codEmpr AND ACT_ESTA='A' AND COD_PERIOD > 0
+         AND CONVERT(date, PER_FINI) <= CONVERT(date, GETDATE())
+       ORDER BY COD_PERIOD DESC`,
       { codEmpr }
     );
     res.json(r.recordset || []);
