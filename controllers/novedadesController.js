@@ -10,12 +10,19 @@ const sql = require('mssql');
 const DEFAULT_COD_EMPR = 1;
 
 // ---------------------------------------------------------------------------
-// Cierre automático de períodos vencidos
-// Se invoca al arrancar el servidor y cada hora via setInterval.
-// Un período está vencido cuando PER_FFIN < hoy y aún tiene PER_EST = 'A'.
+// Cierre automático de períodos vencidos + activación del siguiente.
+// Se invoca al arrancar el servidor y cada hora via setInterval en server.js.
+//
+// Ciclo de estados:
+//   'F' (Futuro)  → 'A' (Activo) cuando llega su PER_FINI
+//   'A' (Activo)  → 'I' (Inactivo/cerrado) cuando pasa su PER_FFIN
+//
+// Al cerrar un período 'A' se activa automáticamente el siguiente 'F'
+// (el de COD_PERIOD más bajo entre los futuros del mismo COD_EMPR).
 // ---------------------------------------------------------------------------
 async function verificarYCerrarPeriodosVencidos() {
   try {
+    // ── 1. Cerrar períodos 'A' vencidos ──────────────────────────────────────
     const res = await executeQuery(`
       SELECT COD_EMPR, COD_PERIOD, PER_ANO, PER_MES, PER_QNA, PER_FINI, PER_FFIN
       FROM dbo.NO_PERIOD
@@ -25,7 +32,6 @@ async function verificarYCerrarPeriodosVencidos() {
     `);
 
     const vencidos = res.recordset || [];
-    if (vencidos.length === 0) return;
 
     for (const p of vencidos) {
       await executeQuery(`
@@ -40,9 +46,49 @@ async function verificarYCerrarPeriodosVencidos() {
         `[periodos] ✓ Período ${p.COD_PERIOD} (${p.PER_ANO}-${String(p.PER_MES).padStart(2,'0')}-Q${p.PER_QNA}) ` +
         `cerrado automáticamente. Fin: ${p.PER_FFIN}`
       );
+
+      // ── 2. Activar el siguiente período 'F' (si su fecha ya llegó) ─────────
+      const sigRes = await executeQuery(`
+        UPDATE dbo.NO_PERIOD
+        SET PER_EST  = 'A',
+            ACT_HORA = GETDATE()
+        WHERE COD_EMPR  = @codEmpr
+          AND ACT_ESTA  = 'A'
+          AND PER_EST   = 'F'
+          AND COD_PERIOD = (
+            SELECT MIN(COD_PERIOD)
+            FROM   dbo.NO_PERIOD
+            WHERE  COD_EMPR  = @codEmpr
+              AND  ACT_ESTA  = 'A'
+              AND  PER_EST   = 'F'
+              AND  CONVERT(date, PER_FINI) <= CONVERT(date, GETDATE())
+          )
+      `, { codEmpr: p.COD_EMPR });
+
+      if (sigRes.rowsAffected && sigRes.rowsAffected[0] > 0) {
+        console.log(`[periodos] ▶ Siguiente período 'F' activado para empresa ${p.COD_EMPR}`);
+      }
     }
+
+    // ── 3. Activar períodos 'F' cuya fecha ya llegó (aunque no haya cierre hoy)
+    //       Cubre el arranque en frío si el servidor estuvo detenido varios días.
+    await executeQuery(`
+      UPDATE dbo.NO_PERIOD
+      SET PER_EST  = 'A',
+          ACT_HORA = GETDATE()
+      WHERE ACT_ESTA = 'A'
+        AND PER_EST  = 'F'
+        AND CONVERT(date, PER_FINI) <= CONVERT(date, GETDATE())
+        AND NOT EXISTS (
+          SELECT 1 FROM dbo.NO_PERIOD p2
+          WHERE p2.COD_EMPR  = dbo.NO_PERIOD.COD_EMPR
+            AND p2.ACT_ESTA  = 'A'
+            AND p2.PER_EST   = 'A'
+        )
+    `);
+
   } catch (err) {
-    console.error('[periodos] ✗ Error en cierre automático:', err.message);
+    console.error('[periodos] ✗ Error en cierre/activación automática:', err.message);
   }
 }
 
