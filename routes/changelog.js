@@ -33,21 +33,35 @@ function getCommits() {
 }
 
 // ─── Clasificar commits en versiones ─────────────────────────────────────────
-// Un commit es "cabecera de versión" si su mensaje contiene una etiqueta de
-// versión conocida: "Upload Payroll V*", "v0.*", "v1.*", "Initial commit", etc.
+// Un commit es "cabecera de versión" solo si su mensaje EMPIEZA con uno de los
+// patrones de versión reconocidos. Esto evita que commits con menciones
+// incidentales de números de versión (p.ej. "feat: changelog V0.14-V0.20.1...")
+// sean clasificados erróneamente como versiones.
 function esVersionPrincipal(subject) {
-  return /upload payroll/i.test(subject) ||
-         /\bv\d+\.\d+/i.test(subject);
-  // "Initial commit" se absorbe como commit interno de la primera versión
+  const s = (subject || '').trim();
+  // "Upload Payroll V0.X", "Update Payroll V0.X", "Payroll V0.X"
+  return /^(upload\s+|update\s+)?payroll\s+v\d+/i.test(s);
 }
 
 // Mapear mensaje de commit a etiqueta de versión legible
-function etiquetaVersion(subject, index, total) {
-  const matchV = subject.match(/V(\d+\.\d+(?:\.\d+)?)/i);
+function etiquetaVersion(subject) {
+  const matchV = (subject || '').match(/V(\d+\.\d+(?:\.\d+)?)/i);
   if (matchV) return `v${matchV[1]}`;
-  if (/initial commit/i.test(subject)) return 'v0.1';
-  // Asignar número secuencial si no hay versión explícita
-  return `v0.${total - index}`;
+  return null; // no debería llegar aquí con la nueva esVersionPrincipal
+}
+
+// Parsear "v0.20.1" → [0, 20, 1] para ordenar numéricamente
+function parseVerNum(vStr) {
+  if (!vStr || vStr === 'dev') return [-1, -1, -1];
+  return (vStr || '').replace(/^v/i, '').split('.').map(Number).concat([0, 0, 0]).slice(0, 3);
+}
+function cmpVersiones(a, b) {
+  const pa = parseVerNum(a.version);
+  const pb = parseVerNum(b.version);
+  for (let i = 0; i < 3; i++) {
+    if (pb[i] !== pa[i]) return pb[i] - pa[i]; // descendente: mayor primero
+  }
+  return 0;
 }
 
 // Convertir mensaje de commit en descripción legible para el changelog
@@ -830,31 +844,29 @@ router.get('/', (req, res) => {
   const commits  = getCommits();
   const versions = [];
   let buffer     = [];
-  const versionCount = commits.filter(c => esVersionPrincipal(c.subject)).length;
-  let vIdx = 0;
 
   for (let i = 0; i < commits.length; i++) {
     const c = commits[i];
     if (esVersionPrincipal(c.subject)) {
-      const etiqueta = etiquetaVersion(c.subject, vIdx, versionCount);
+      const etiqueta = etiquetaVersion(c.subject);
+      if (!etiqueta) { buffer.push(c); continue; } // sin etiqueta → tratar como no-versión
       const catalog  = CATALOG[etiqueta] || {};
       versions.push({
-        version:     etiqueta,
-        fecha:       c.date,
-        commit:      c.hash.substring(0, 7),
-        titulo:      catalog.titulo || descripcionCommit(c.subject),
-        resumen:     catalog.resumen || [],
-        detalle:     catalog.detalle || [],
-        commits:     [c, ...buffer],
+        version:  etiqueta,
+        fecha:    c.date,
+        commit:   c.hash.substring(0, 7),
+        titulo:   catalog.titulo || descripcionCommit(c.subject),
+        resumen:  catalog.resumen || [],
+        detalle:  catalog.detalle || [],
+        commits:  [c, ...buffer],
       });
       buffer = [];
-      vIdx++;
     } else {
       buffer.push(c);
     }
   }
 
-  // Commits antes del primer tag de versión → agruparlos en "En desarrollo"
+  // Commits anteriores al primer tag de versión → "En desarrollo"
   if (buffer.length > 0) {
     versions.push({
       version: 'dev',
@@ -867,38 +879,43 @@ router.get('/', (req, res) => {
     });
   }
 
-  // ── Inyectar v0.13 al tope si aún no está en el historial de git ─────────
-  const yaEnGit = versions.some(v => v.version === 'v0.13');
-  if (!yaEnGit && CATALOG['v0.13']) {
-    const c13 = CATALOG['v0.13'];
-    versions.unshift({
-      version: 'v0.13',
-      fecha:   '2026-05-04',
-      commit:  'pendiente',
-      titulo:  c13.titulo,
-      resumen: c13.resumen,
-      detalle: c13.detalle,
-      commits: [],
-      pending: true,
-    });
+  // ── Desduplicar: si dos commits producen la misma etiqueta (ej. dos "Upload
+  //    Payroll V0.12"), mantener solo la primera (más reciente) y fusionar commits
+  const versionMap = new Map();
+  const deduped    = [];
+  for (const v of versions) {
+    if (v.version === 'dev') { deduped.push(v); continue; }
+    if (versionMap.has(v.version)) {
+      // Fusionar commits del duplicado en la entrada existente
+      versionMap.get(v.version).commits.push(...v.commits);
+    } else {
+      versionMap.set(v.version, v);
+      deduped.push(v);
+    }
   }
 
+  // ── Ordenar por versión descendente (mayor primero); "dev" siempre al final
+  deduped.sort((a, b) => {
+    if (a.version === 'dev') return  1;
+    if (b.version === 'dev') return -1;
+    return cmpVersiones(a, b);
+  });
+
   // ── Extraer commits post-V0.20 como versión de parche v0.20.1 ─────────────
-  // Los commits realizados después del tag V0.20 (sin su propio tag de versión)
-  // se muestran como una entrada independiente en lugar de quedar enterrados
-  // dentro de los "commits incluidos" de V0.20.
-  const PATCH_V20_1 = ['734c2a2', '217147e', '0067b66'];
-  const v20idx = versions.findIndex(v => v.version === 'v0.20');
+  // Incluye tanto los bugfixes (734c2a2, 217147e, 0067b66) como la actualización
+  // del changelog (684ad03) — todos realizados en la misma sesión de trabajo.
+  const PATCH_V20_1 = ['684ad03', '734c2a2', '217147e', '0067b66'];
+  const v20idx = deduped.findIndex(v => v.version === 'v0.20');
   if (v20idx !== -1) {
-    const patches = versions[v20idx].commits.filter(
+    const patches = deduped[v20idx].commits.filter(
       c => PATCH_V20_1.includes(c.hash.substring(0, 7))
     );
     if (patches.length > 0) {
-      versions[v20idx].commits = versions[v20idx].commits.filter(
+      deduped[v20idx].commits = deduped[v20idx].commits.filter(
         c => !PATCH_V20_1.includes(c.hash.substring(0, 7))
       );
       const cat201 = CATALOG['v0.20.1'] || {};
-      versions.splice(v20idx, 0, {
+      deduped.splice(v20idx, 0, {
         version: 'v0.20.1',
         fecha:   patches[0]?.date || '',
         commit:  patches[0]?.hash.substring(0, 7) || '',
@@ -910,7 +927,7 @@ router.get('/', (req, res) => {
     }
   }
 
-  res.json({ ok: true, versiones: versions });
+  res.json({ ok: true, versiones: deduped });
 });
 
 // ─── GET /api/changelog/raw ───────────────────────────────────────────────────
