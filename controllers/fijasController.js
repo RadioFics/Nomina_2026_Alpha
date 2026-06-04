@@ -449,8 +449,8 @@ async function anularFijaBatch(req, res) {
   const ids = codNoveds.map(Number).filter(n => Number.isInteger(n) && n > 0);
   if (ids.length === 0)
     return res.status(400).json({ error: 'Los codNoveds deben ser enteros positivos.' });
-  if (ids.length > 500)
-    return res.status(400).json({ error: 'No se pueden anular más de 500 registros a la vez.' });
+  if (ids.length > 2000)
+    return res.status(400).json({ error: 'No se pueden anular más de 2000 registros a la vez.' });
 
   let transaction;
   try {
@@ -467,6 +467,9 @@ async function anularFijaBatch(req, res) {
     const resNov = await reqNov.query(`
       UPDATE dbo.NO_NOVED SET ACT_ESTA='I', ACT_USUA=@actUsua, ACT_HORA=GETDATE()
       WHERE COD_EMPR=@codEmpr AND COD_NOVED IN (${paramNames}) AND ACT_ESTA='A'
+        AND COD_PERIOD IN (
+          SELECT COD_PERIOD FROM dbo.NO_PERIOD WHERE COD_EMPR=@codEmpr AND PER_EST='A'
+        )
     `);
 
     const reqFj = new sql.Request(transaction);
@@ -474,13 +477,20 @@ async function anularFijaBatch(req, res) {
     reqFj.input('actUsua', sql.NVarChar(50), usuario);
     ids.forEach((id, i) => reqFj.input(`id${i}`, sql.Int, id));
     await reqFj.query(`
-      UPDATE dbo.NO_FIJAS SET ACT_ESTA='I', ACT_USUA=@actUsua, ACT_HORA=SYSDATETIME()
-      WHERE COD_EMPR=@codEmpr AND COD_NOVED IN (${paramNames}) AND ACT_ESTA='A'
+      UPDATE fj
+      SET fj.ACT_ESTA='I', fj.ACT_USUA=@actUsua, fj.ACT_HORA=SYSDATETIME()
+      FROM dbo.NO_FIJAS fj
+      JOIN dbo.NO_NOVED nv ON nv.COD_EMPR=fj.COD_EMPR AND nv.COD_NOVED=fj.COD_NOVED
+      WHERE fj.COD_EMPR=@codEmpr AND fj.COD_NOVED IN (${paramNames}) AND fj.ACT_ESTA='A'
+        AND nv.COD_PERIOD IN (
+          SELECT COD_PERIOD FROM dbo.NO_PERIOD WHERE COD_EMPR=@codEmpr AND PER_EST='A'
+        )
     `);
 
     await transaction.commit();
     const anulados = resNov.rowsAffected[0] || 0;
-    res.json({ success: true, anulados, solicitados: ids.length, message: `${anulados} fija(s) anulada(s).` });
+    const omitidos = ids.length - anulados;
+    res.json({ success: true, anulados, solicitados: ids.length, omitidos, message: `${anulados} fija(s) anulada(s).${omitidos > 0 ? ` ${omitidos} omitida(s) por período cerrado.` : ''}` });
   } catch (err) {
     if (transaction) { try { await transaction.rollback(); } catch (_) {} }
     console.error('[fijas] anularBatch error:', err);

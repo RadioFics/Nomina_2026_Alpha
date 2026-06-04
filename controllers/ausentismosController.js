@@ -462,8 +462,8 @@ async function anularAusentismoBatch(req, res) {
   if (!Array.isArray(codNoveds) || codNoveds.length === 0) {
     return res.status(400).json({ error: 'codNoveds debe ser un arreglo no vacío.' });
   }
-  if (codNoveds.length > 500) {
-    return res.status(400).json({ error: 'Máximo 500 registros por lote.' });
+  if (codNoveds.length > 2000) {
+    return res.status(400).json({ error: 'Máximo 2000 registros por lote.' });
   }
 
   const ids = codNoveds.map(Number).filter(n => Number.isInteger(n) && n > 0);
@@ -484,12 +484,18 @@ async function anularAusentismoBatch(req, res) {
     reqNov.input('actUsua', sql.NVarChar(50), usuario);
     ids.forEach((id, i) => reqNov.input(`id${i}`, sql.Int, id));
 
+    // Filtrar por período activo (PER_EST='A') para evitar que el trigger
+    // TR_NO_NOVED_PERIODO_CERRADO rechace la operación.
     const rNov = await reqNov.query(`
       UPDATE dbo.NO_NOVED
       SET ACT_ESTA = 'I', ACT_USUA = @actUsua, ACT_HORA = GETDATE()
       WHERE COD_EMPR = @codEmpr
         AND COD_NOVED IN (${paramNames})
         AND ACT_ESTA = 'A'
+        AND COD_PERIOD IN (
+          SELECT COD_PERIOD FROM dbo.NO_PERIOD
+          WHERE COD_EMPR = @codEmpr AND PER_EST = 'A'
+        )
     `);
 
     const reqAu = new sql.Request(transaction);
@@ -498,21 +504,29 @@ async function anularAusentismoBatch(req, res) {
     ids.forEach((id, i) => reqAu.input(`id${i}`, sql.Int, id));
 
     await reqAu.query(`
-      UPDATE dbo.NO_AUSEN
-      SET ACT_ESTA = 'I', ACT_USUA = @actUsua, ACT_HORA = SYSDATETIME()
-      WHERE COD_EMPR = @codEmpr
-        AND COD_NOVED IN (${paramNames})
-        AND ACT_ESTA = 'A'
+      UPDATE au
+      SET au.ACT_ESTA = 'I', au.ACT_USUA = @actUsua, au.ACT_HORA = SYSDATETIME()
+      FROM dbo.NO_AUSEN au
+      JOIN dbo.NO_NOVED nv ON nv.COD_EMPR = au.COD_EMPR AND nv.COD_NOVED = au.COD_NOVED
+      WHERE au.COD_EMPR = @codEmpr
+        AND au.COD_NOVED IN (${paramNames})
+        AND au.ACT_ESTA = 'A'
+        AND nv.COD_PERIOD IN (
+          SELECT COD_PERIOD FROM dbo.NO_PERIOD
+          WHERE COD_EMPR = @codEmpr AND PER_EST = 'A'
+        )
     `);
 
     await transaction.commit();
 
     const anulados = rNov.rowsAffected[0] || 0;
+    const omitidos = ids.length - anulados;
     res.json({
       success: true,
       anulados,
       solicitados: ids.length,
-      message: `${anulados} ausentismo(s) anulado(s) correctamente.`
+      omitidos,
+      message: `${anulados} ausentismo(s) anulado(s) correctamente.${omitidos > 0 ? ` ${omitidos} omitido(s) por período cerrado.` : ''}`
     });
   } catch (err) {
     if (transaction) { try { await transaction.rollback(); } catch (_) {} }

@@ -224,38 +224,46 @@ async function _registrarNoved({ codFunci, codCcost, periodo, codConc, fechaIni,
 function _emailConfirmacion(tipo, nombre, fechas) {
   const tipoLabel = tipo === 'permiso' ? 'Permiso' : 'Vacaciones';
   return `
-    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#0E0E0E;padding:32px;color:#F0EDE8;border-radius:10px;border:1px solid rgba(201,168,76,0.2)">
-      <h1 style="font-size:22px;color:#C9A84C;margin:0 0 8px">Collective Mining</h1>
-      <p style="color:#8A857A;margin:0 0 24px;font-size:13px">Sistema de Nómina</p>
-      <h2 style="color:#C9A84C;font-size:18px;margin:0 0 16px">Solicitud de ${tipoLabel} Recibida</h2>
-      <p style="margin:0 0 16px">Hola <strong>${nombre}</strong>,</p>
-      <p style="margin:0 0 16px">Tu solicitud de ${tipoLabel.toLowerCase()} ha sido registrada exitosamente. ${fechas}</p>
-      <p style="margin:0 0 16px">Se ha generado el formato oficial y ha sido enviado al área de Talento Humano para su revisión y aprobación.</p>
-      <p style="color:#8A857A;font-size:12px;margin:24px 0 0;border-top:1px solid rgba(201,168,76,0.15);padding-top:16px">
-        Este es un mensaje automático. No responda a este correo.<br>
-        © 2026 Collective Mining. Todos los derechos reservados.
-      </p>
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f0f4f8;padding:32px;">
+      <div style="background:#1565c0;padding:20px 28px;border-radius:8px 8px 0 0;">
+        <h1 style="font-size:20px;color:#ffffff;margin:0 0 4px;font-weight:700;">Collective Mining</h1>
+        <p style="color:rgba(255,255,255,0.75);margin:0;font-size:12px;">Sistema de Nómina — Talento Humano</p>
+      </div>
+      <div style="background:#ffffff;padding:28px;border-radius:0 0 8px 8px;border:1px solid #dde3ec;border-top:none;">
+        <h2 style="font-size:17px;color:#1565c0;margin:0 0 18px;">Solicitud de ${tipoLabel} Recibida</h2>
+        <p style="margin:0 0 14px;color:#1a202c;">Hola <strong>${nombre}</strong>,</p>
+        <p style="margin:0 0 14px;color:#374151;">Tu solicitud de ${tipoLabel.toLowerCase()} ha sido registrada exitosamente. ${fechas}</p>
+        <p style="margin:0 0 0;color:#374151;">Se ha generado el formato oficial y ha sido enviado al área de Talento Humano para su revisión y aprobación.</p>
+        <p style="color:#6b7280;font-size:11px;margin:24px 0 0;border-top:1px solid #e5e7eb;padding-top:14px;">
+          Este es un mensaje automático. No responda a este correo.<br>
+          © 2026 Collective Mining. Todos los derechos reservados.
+        </p>
+      </div>
     </div>`;
 }
 
 function _emailRRHH(tipo, nombre, cedula, fechas, emailSolicitante) {
   const tipoLabel = tipo === 'permiso' ? 'Permiso' : 'Vacaciones';
   return `
-    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#0E0E0E;padding:32px;color:#F0EDE8;border-radius:10px;border:1px solid rgba(201,168,76,0.2)">
-      <h1 style="font-size:22px;color:#C9A84C;margin:0 0 8px">Collective Mining</h1>
-      <p style="color:#8A857A;margin:0 0 24px;font-size:13px">Sistema de Nómina — Talento Humano</p>
-      <h2 style="color:#C9A84C;font-size:18px;margin:0 0 16px">Nueva Solicitud de ${tipoLabel}</h2>
-      <div style="background:#1E1E1E;border-left:4px solid #C9A84C;padding:16px;border-radius:6px;margin:0 0 20px">
-        <p style="margin:0 0 6px"><span style="color:#8A857A;font-size:12px">Empleado</span><br><strong>${nombre}</strong></p>
-        <p style="margin:6px 0 6px"><span style="color:#8A857A;font-size:12px">Cédula</span><br><strong>${cedula}</strong></p>
-        <p style="margin:6px 0 0"><span style="color:#8A857A;font-size:12px">Período</span><br><strong>${fechas}</strong></p>
-        ${emailSolicitante ? `<p style="margin:6px 0 0"><span style="color:#8A857A;font-size:12px">Correo</span><br><strong>${emailSolicitante}</strong></p>` : ''}
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f0f4f8;padding:32px;">
+      <div style="background:#1565c0;padding:20px 28px;border-radius:8px 8px 0 0;">
+        <h1 style="font-size:20px;color:#ffffff;margin:0 0 4px;font-weight:700;">Collective Mining</h1>
+        <p style="color:rgba(255,255,255,0.75);margin:0;font-size:12px;">Sistema de Nómina — Talento Humano</p>
       </div>
-      <p style="margin:0 0 16px">El formato oficial PDF se adjunta a este correo. El registro ya fue creado en el sistema MineDax (ACT_USUA = SELF_SVC).</p>
-      <p style="color:#8A857A;font-size:12px;margin:24px 0 0;border-top:1px solid rgba(201,168,76,0.15);padding-top:16px">
-        Este es un mensaje automático generado por MineDax.<br>
-        © 2026 Collective Mining. Todos los derechos reservados.
-      </p>
+      <div style="background:#ffffff;padding:28px;border-radius:0 0 8px 8px;border:1px solid #dde3ec;border-top:none;">
+        <h2 style="font-size:17px;color:#1565c0;margin:0 0 18px;">Nueva Solicitud de ${tipoLabel}</h2>
+        <div style="background:#f8fafc;border-left:3px solid #1565c0;padding:14px 16px;border-radius:0 6px 6px 0;margin:0 0 20px;">
+          <p style="margin:0 0 8px;"><span style="color:#6b7280;font-size:11px;text-transform:uppercase;letter-spacing:.05em;">Empleado</span><br><strong style="color:#1a202c;">${nombre}</strong></p>
+          <p style="margin:0 0 8px;"><span style="color:#6b7280;font-size:11px;text-transform:uppercase;letter-spacing:.05em;">Cédula</span><br><strong style="color:#1a202c;">${cedula}</strong></p>
+          <p style="margin:0 0 ${emailSolicitante ? '8px' : '0'};"><span style="color:#6b7280;font-size:11px;text-transform:uppercase;letter-spacing:.05em;">Período</span><br><strong style="color:#1a202c;">${fechas}</strong></p>
+          ${emailSolicitante ? `<p style="margin:0;"><span style="color:#6b7280;font-size:11px;text-transform:uppercase;letter-spacing:.05em;">Correo</span><br><strong style="color:#1a202c;">${emailSolicitante}</strong></p>` : ''}
+        </div>
+        <p style="margin:0 0 0;color:#374151;">El formato oficial PDF se adjunta a este correo. El registro ya fue creado en el sistema MineDax (ACT_USUA = SELF_SVC).</p>
+        <p style="color:#6b7280;font-size:11px;margin:24px 0 0;border-top:1px solid #e5e7eb;padding-top:14px;">
+          Este es un mensaje automático generado por MineDax.<br>
+          © 2026 Collective Mining. Todos los derechos reservados.
+        </p>
+      </div>
     </div>`;
 }
 

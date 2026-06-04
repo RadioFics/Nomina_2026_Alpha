@@ -272,11 +272,27 @@ async function reenviarVerificacion() {
   }
 }
 
+// Decodifica el payload JWT y verifica que no haya expirado
+function _tokenValido(token) {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return typeof payload.exp === 'number' && payload.exp * 1000 > Date.now();
+  } catch { return false; }
+}
+
 // ── INICIALIZACIÓN ────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
   // Limpiar cualquier contraseña guardada por versiones anteriores
   localStorage.removeItem('rememberPass');
 
+  // Si hay sesión activa y válida → redirigir directo a la app
+  const tokenGuardado = localStorage.getItem('authToken');
+  if (tokenGuardado && _tokenValido(tokenGuardado)) {
+    window.location.href = '/index_novedades.html';
+    return;
+  }
+
+  // Pre-rellenar email si "Recordar contraseña" estaba marcado
   const rememberEmail = localStorage.getItem('rememberEmail');
   if (rememberEmail) {
     document.getElementById('loginEmail').value   = rememberEmail;

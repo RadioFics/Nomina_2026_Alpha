@@ -309,32 +309,34 @@ async function notificarRRHH(datos, pdfBuffer, tipo, idSolicitud) {
     cc:      datos.correoEmpleado || undefined,
     subject: `Nueva Solicitud de ${tipoLabel} #${idSolicitud} — ${datos.nombre}`,
     html: `
-      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;
-                  background:#0E0E0E;padding:30px;color:#F0EDE8;
-                  border-radius:8px;border:1px solid rgba(201,168,76,0.3);">
-        <h2 style="color:#C9A84C;font-size:18px;margin-top:0;">
-          Nueva Solicitud de ${tipoLabel}
-        </h2>
-        <table style="width:100%;border-collapse:collapse;font-size:13px;">
-          <tr><td style="padding:6px 0;color:#8A857A;width:40%">N° Solicitud</td>
-              <td style="color:#F0EDE8;font-weight:bold;">#${idSolicitud}</td></tr>
-          <tr><td style="padding:6px 0;color:#8A857A;">Empleado</td>
-              <td style="color:#F0EDE8;">${datos.nombre}</td></tr>
-          <tr><td style="padding:6px 0;color:#8A857A;">Cédula</td>
-              <td style="color:#F0EDE8;">${datos.cedula}</td></tr>
-          <tr><td style="padding:6px 0;color:#8A857A;">Cargo</td>
-              <td style="color:#F0EDE8;">${datos.cargo || '—'}</td></tr>
-          <tr><td style="padding:6px 0;color:#8A857A;">Tipo</td>
-              <td style="color:#C9A84C;">${tipo === 'PERMISO' ? (datos.tipoPermiso || 'Permiso') : 'Vacaciones'}</td></tr>
-          <tr><td style="padding:6px 0;color:#8A857A;">Fecha inicio</td>
-              <td style="color:#F0EDE8;">${formatFecha(datos.fechaInicio)}</td></tr>
-          ${datos.fechaFin ? `<tr><td style="padding:6px 0;color:#8A857A;">Fecha fin</td>
-              <td style="color:#F0EDE8;">${formatFecha(datos.fechaFin)}</td></tr>` : ''}
-        </table>
-        <p style="color:#8A857A;font-size:12px;margin-top:24px;border-top:1px solid rgba(201,168,76,0.2);padding-top:14px;">
-          El PDF con la solicitud completa se adjunta a este correo.<br>
-          © ${new Date().getFullYear()} Collective Mining — Sistema de Nómina
-        </p>
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f0f4f8;padding:32px;">
+        <div style="background:#1565c0;padding:20px 28px;border-radius:8px 8px 0 0;">
+          <h1 style="font-size:20px;color:#ffffff;margin:0 0 4px;font-weight:700;">Collective Mining</h1>
+          <p style="color:rgba(255,255,255,0.75);margin:0;font-size:12px;">Sistema de Nómina — Talento Humano</p>
+        </div>
+        <div style="background:#ffffff;padding:28px;border-radius:0 0 8px 8px;border:1px solid #dde3ec;border-top:none;">
+          <h2 style="font-size:17px;color:#1565c0;margin:0 0 18px;">Nueva Solicitud de ${tipoLabel}</h2>
+          <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <tr><td style="padding:7px 0;color:#6b7280;width:40%;border-bottom:1px solid #f3f4f6;">N° Solicitud</td>
+                <td style="color:#1a202c;font-weight:700;border-bottom:1px solid #f3f4f6;">#${idSolicitud}</td></tr>
+            <tr><td style="padding:7px 0;color:#6b7280;border-bottom:1px solid #f3f4f6;">Empleado</td>
+                <td style="color:#1a202c;border-bottom:1px solid #f3f4f6;">${datos.nombre}</td></tr>
+            <tr><td style="padding:7px 0;color:#6b7280;border-bottom:1px solid #f3f4f6;">Cédula</td>
+                <td style="color:#1a202c;border-bottom:1px solid #f3f4f6;">${datos.cedula}</td></tr>
+            <tr><td style="padding:7px 0;color:#6b7280;border-bottom:1px solid #f3f4f6;">Cargo</td>
+                <td style="color:#1a202c;border-bottom:1px solid #f3f4f6;">${datos.cargo || '—'}</td></tr>
+            <tr><td style="padding:7px 0;color:#6b7280;border-bottom:1px solid #f3f4f6;">Tipo</td>
+                <td style="color:#1565c0;font-weight:600;border-bottom:1px solid #f3f4f6;">${tipo === 'PERMISO' ? (datos.tipoPermiso || 'Permiso') : 'Vacaciones'}</td></tr>
+            <tr><td style="padding:7px 0;color:#6b7280;border-bottom:1px solid #f3f4f6;">Fecha inicio</td>
+                <td style="color:#1a202c;border-bottom:1px solid #f3f4f6;">${formatFecha(datos.fechaInicio)}</td></tr>
+            ${datos.fechaFin ? `<tr><td style="padding:7px 0;color:#6b7280;">Fecha fin</td>
+                <td style="color:#1a202c;">${formatFecha(datos.fechaFin)}</td></tr>` : ''}
+          </table>
+          <p style="color:#6b7280;font-size:11px;margin-top:24px;border-top:1px solid #e5e7eb;padding-top:14px;">
+            El PDF con la solicitud completa se adjunta a este correo.<br>
+            © ${new Date().getFullYear()} Collective Mining — Sistema de Nómina
+          </p>
+        </div>
       </div>
     `,
     attachments: [{

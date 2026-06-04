@@ -76,6 +76,14 @@ function initFormulariosPage() {
   document.getElementById('qrVacaciones').appendChild(qrImg(urlV));
 }
 
+function cerrarSesion() {
+  localStorage.removeItem('authToken');
+  localStorage.removeItem('usuario');
+  localStorage.removeItem('rememberEmail');
+  sessionStorage.removeItem('authToken');
+  window.location.href = '/';
+}
+
 function copiarLink(elementId, btn) {
   const url = document.getElementById(elementId).textContent;
   navigator.clipboard.writeText(url).then(() => {
