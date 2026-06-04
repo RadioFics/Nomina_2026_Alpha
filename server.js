@@ -111,6 +111,7 @@ const novedadesRoutes      = require('./routes/novedades');
 const importarPDFRoutes      = require('./routes/importarPDF');
 const solicitudesRoutes      = require('./routes/solicitudesPublicas');
 const formulariosRoutes      = require('./routes/formularios');
+const graficosRoutes         = require('./routes/graficos');
 
 // Rutas públicas de autoservicio (sin verifyToken) — antes que cualquier middleware de auth
 app.get('/solicitud/permiso',     (req, res) => res.sendFile(path.join(__dirname, 'public', 'solicitud-permiso.html')));
@@ -139,6 +140,7 @@ app.use('/api/exportar-adecco', exportarAdeccoRoutes);
 app.use('/api/changelog',      changelogRoutes);
 app.use('/api/novedades',      novedadesRoutes);
 app.use('/api/pdf',            importarPDFRoutes);
+app.use('/api/graficos',       graficosRoutes);
 
 // Ruta de prueba
 app.get('/api/health', (req, res) => {

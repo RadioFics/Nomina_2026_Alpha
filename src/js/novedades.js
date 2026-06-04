@@ -38,6 +38,7 @@ function navigate(page) {
   if (page === 'cambios')      { cargarCambiosDelPeriodo(); }
   if (page === 'changelog')    { clCargar(); }
   if (page === 'formularios')  { initFormulariosPage(); }
+  if (page === 'graficos')     { graficosInit(); }
 }
 
 // ─── AUTOSERVICIO — FORMULARIOS ───────────────────────────────────────────────
@@ -1794,10 +1795,9 @@ async function cargarPeriodoActualOcas() {
 async function cargarOcasionalesDelPeriodo() {
   try {
     if (!_periodoActualOcas) await cargarPeriodoActualOcas();
-    const url = _periodoActualOcas && _periodoActualOcas.codPeriod
-      ? `/api/ocasionales?codPeriod=${_periodoActualOcas.codPeriod}`
-      : `/api/ocasionales`;
-    const r = await fetch(url);
+    // Sin filtro de período: muestra todos los registros activos de todos los períodos.
+    // El período vigente se sigue mostrando en el badge superior.
+    const r = await fetch('/api/ocasionales');
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const data = await r.json();
     // Adapta filas BD -> modelo interno
@@ -2207,10 +2207,7 @@ function actualizarTipoNovedadFija() {
 async function cargarFijasDelPeriodo() {
   try {
     if (!_periodoActualFijas) await cargarPeriodoActualFijas();
-    const url = _periodoActualFijas && _periodoActualFijas.codPeriod
-      ? `/api/fijas?codPeriod=${_periodoActualFijas.codPeriod}`
-      : `/api/fijas`;
-    const r = await fetch(url);
+    const r = await fetch('/api/fijas');
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const data = await r.json();
     state.fijas = (data.registros || []).map(row => ({
@@ -2427,10 +2424,7 @@ async function cargarConceptosAusentismos() {
 async function cargarAusentismosDelPeriodo() {
   try {
     if (!_periodoActualAus) await cargarPeriodoActualAus();
-    const url = _periodoActualAus && _periodoActualAus.codPeriod
-      ? `/api/ausentismos?codPeriod=${_periodoActualAus.codPeriod}`
-      : `/api/ausentismos`;
-    const r = await fetch(url);
+    const r = await fetch('/api/ausentismos');
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const data = await r.json();
     state.ausentismos = (data.registros || []).map(row => ({
@@ -2671,10 +2665,7 @@ async function cargarConceptosCambios() {
 async function cargarCambiosDelPeriodo() {
   try {
     if (!_periodoActualCam) await cargarPeriodoActualCam();
-    const url = _periodoActualCam && _periodoActualCam.codPeriod
-      ? `/api/cambios?codPeriod=${_periodoActualCam.codPeriod}`
-      : `/api/cambios`;
-    const r = await fetch(url);
+    const r = await fetch('/api/cambios');
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const data = await r.json();
     state.cambiosIngresos = (data.registros || []).map(row => ({
@@ -2954,7 +2945,8 @@ function guardarConexion() {
 
 // ─── IMPORTACIÓN MASIVA DESDE EXCEL ──────────────────────────────────────────
 
-let _importFiles = []; // array de archivos seleccionados para importar
+let _importFiles      = []; // EXCEL: archivos del panel izquierdo
+let _importFilesPDF   = []; // PDF: archivos del panel derecho
 
 // Mapeo codConc → nombre legible (para la tabla de detalle)
 const CONC_NOMBRES = {
@@ -3049,10 +3041,8 @@ function seleccionarArchivoImport(e) {
     _importFiles.length > 1
       ? `${_importFiles.length} archivos listos`
       : 'Archivo listo';
-  const hasPDFs = _importFiles.some(f => f.name.match(/\.pdf$/i));
-  document.getElementById('uploadSub').textContent = hasPDFs
-    ? 'Haz clic en "Revisar y confirmar PDFs" para continuar, o arrastra más archivos'
-    : 'Haz clic en "Importar a la BD" para proceder, o arrastra más archivos';
+  document.getElementById('uploadSub').textContent =
+    'Haz clic en "Importar a la BD" para proceder, o arrastra más archivos';
   _actualizarBtnImportar();
 
   // Renderizar lista y mostrar panel
@@ -3066,14 +3056,19 @@ function seleccionarArchivoImport(e) {
 }
 
 function cancelarImport() {
-  _importFiles = [];
-  document.getElementById('fileInput').value = '';
-  document.getElementById('uploadIcon').textContent = '📊';
-  document.getElementById('uploadLabel').textContent = 'Arrastra uno o varios archivos aquí, o haz clic';
-  document.getElementById('uploadSub').textContent = 'Formatos soportados: .xlsx, .xls, .pdf · Múltiples archivos permitidos · Máx 50 MB c/u';
-  document.getElementById('importFileInfo').style.display = 'none';
-  document.getElementById('importResult').style.display = 'none';
-  document.getElementById('importGuia').style.display = 'block';
+  // Compatibilidad: limpia ambos paneles
+  _importFiles    = [];
+  _importFilesPDF = [];
+  const fiE = document.getElementById('fileInputExcel');
+  const fiP = document.getElementById('fileInputPDF');
+  if (fiE) fiE.value = '';
+  if (fiP) fiP.value = '';
+  const res = document.getElementById('importResult');
+  const gui = document.getElementById('importGuia');
+  if (res) res.style.display = 'none';
+  if (gui) gui.style.display = 'block';
+  _resetPanelExcel();
+  _resetPanelPDF();
 }
 
 function resetearImport() {
@@ -3099,13 +3094,9 @@ function _fmtFecha(iso) {
 }
 
 function _actualizarBtnImportar() {
-  const hasPDFs = _importFiles.some(f => f.name.match(/\.pdf$/i));
   const btn = document.getElementById('btnImportar');
-  if (hasPDFs) {
-    btn.innerHTML = '🔍 Revisar y confirmar PDFs';
-  } else {
-    btn.innerHTML = '⬆ Importar a la BD';
-  }
+  // PDFs y Excel usan el mismo flujo directo: previsualizar + confirmar automático
+  btn.innerHTML = '⬆ Importar a la BD';
 }
 
 // ── Decisor: PDF → previsualizar primero; solo Excel → importar directo ───────
@@ -3123,9 +3114,10 @@ let _prevToken = null;
 
 // ── Paso 1: Extracción OCR sin escritura en BD ────────────────────────────────
 async function previzualizarPDFs() {
-  const pdfFiles = _importFiles.filter(f => f.name.match(/\.pdf$/i));
-  const btn = document.getElementById('btnImportar');
-  btn.disabled = true;
+  const pdfFiles = _importFilesPDF.length ? _importFilesPDF
+                  : _importFiles.filter(f => f.name.match(/\.pdf$/i));
+  const btn = document.getElementById('btnImportarPDF') || document.getElementById('btnImportar');
+  if (btn) btn.disabled = true;
   document.getElementById('importFileInfo').style.display  = 'none';
   document.getElementById('importProgress').style.display  = 'block';
   document.getElementById('importProgressText').textContent = `Analizando ${pdfFiles.length} PDF${pdfFiles.length > 1 ? 's' : ''}… esto puede tardar hasta 1 minuto`;
@@ -3161,18 +3153,18 @@ async function previzualizarPDFs() {
     const data = await resp.json();
     if (!data.success) throw new Error(data.error || 'Error al previsualizar');
 
+    // Auto-importar: con el token en mano se confirma inmediatamente sin paso intermedio.
+    // Si hay PDFs no reconocidos o con errores, quedarán reportados en el resultado final.
     _prevToken = data.token;
-    _mostrarRevision(data.preview);
+    await confirmarImportPDF();
 
   } catch (err) {
     clearInterval(timer);
     document.getElementById('importProgress').style.display = 'none';
-    document.getElementById('importFileInfo').style.display = 'block';
-    document.getElementById('importResult').style.display = 'block';
     mostrarResultadoImport(null, `No se pudo analizar los PDFs: ${err.message}`);
+    document.getElementById('importResult').style.display = 'block';
   } finally {
-    btn.disabled = false;
-    _actualizarBtnImportar();
+    if (btn) { btn.disabled = false; btn.textContent = '⬆ Importar PDFs'; }
   }
 }
 
@@ -3327,7 +3319,10 @@ async function confirmarImportPDF() {
 
     _prevToken = null;
     mostrarResultadoImport(resultadosFinales, null);
+    // Recargar todas las tablas que pueden recibir registros desde PDFs
     cargarOcasionalesDelPeriodo();
+    cargarAusentismosDelPeriodo();
+    cargarActividadReciente();
 
   } catch (err) {
     clearInterval(timer);
@@ -4207,3 +4202,486 @@ document.addEventListener('keydown', e => {
     if (m && m.classList.contains('open')) cerrarModalAnularBatch();
   }
 });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PANELES SPLIT IMPORT — Excel y PDF por separado
+// ══════════════════════════════════════════════════════════════════════════════
+
+function _resetPanelExcel() {
+  _importFiles = [];
+  const icon = document.getElementById('uploadIconExcel');
+  const lbl  = document.getElementById('uploadLabelExcel');
+  const sub  = document.getElementById('uploadSubExcel');
+  const lst  = document.getElementById('importFileListExcel');
+  const act  = document.getElementById('importExcelActions');
+  if (icon) icon.textContent = '📂';
+  if (lbl)  lbl.textContent  = 'Arrastra archivos .xlsx aquí, o haz clic';
+  if (sub)  sub.textContent  = 'Máx 50 MB · múltiples archivos';
+  if (lst)  { lst.innerHTML = ''; lst.style.display = 'none'; }
+  if (act)  act.style.display = 'none';
+  const adecco = document.getElementById('adeccoModoPanel');
+  if (adecco) adecco.style.display = 'none';
+}
+
+function _resetPanelPDF() {
+  _importFilesPDF = [];
+  const icon = document.getElementById('uploadIconPDF');
+  const lbl  = document.getElementById('uploadLabelPDF');
+  const sub  = document.getElementById('uploadSubPDF');
+  const lst  = document.getElementById('importFileListPDF');
+  const act  = document.getElementById('importPDFActions');
+  if (icon) icon.textContent = '📑';
+  if (lbl)  lbl.textContent  = 'Arrastra archivos .pdf aquí, o haz clic';
+  if (sub)  sub.textContent  = 'OCR automático · Máx 50 MB · múltiples PDFs';
+  if (lst)  { lst.innerHTML = ''; lst.style.display = 'none'; }
+  if (act)  act.style.display = 'none';
+}
+
+function _renderListaExcel() {
+  const lst = document.getElementById('importFileListExcel');
+  const act = document.getElementById('importExcelActions');
+  if (!lst) return;
+  if (_importFiles.length === 0) { _resetPanelExcel(); return; }
+  lst.style.display = 'block';
+  lst.innerHTML = _importFiles.map((f, i) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid rgba(255,255,255,0.05);">
+      <span style="font-size:18px;">${iconoPorArchivo(f.name)}</span>
+      <div style="flex:1;min-width:0;font-size:12px;">
+        <div style="font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.name}</div>
+        <div style="color:var(--muted);font-size:11px;">${formatoLegible(f.size)}${esArchivoAdecco(f.name) ? ' · <span style="color:var(--cm-blue-light)">ADECCO</span>' : ''}</div>
+      </div>
+      <button onclick="_quitarExcel(${i})" style="background:transparent;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:2px 6px;"
+              onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--muted)'">✕</button>
+    </div>
+  `).join('');
+  // Mostrar panel ADECCO si hay archivos ADECCO
+  const adecco = document.getElementById('adeccoModoPanel');
+  if (adecco) adecco.style.display = _importFiles.some(f => esArchivoAdecco(f.name)) ? 'block' : 'none';
+  if (act) act.style.display = 'flex';
+}
+
+function _renderListaPDF() {
+  const lst = document.getElementById('importFileListPDF');
+  const act = document.getElementById('importPDFActions');
+  if (!lst) return;
+  if (_importFilesPDF.length === 0) { _resetPanelPDF(); return; }
+  lst.style.display = 'block';
+  lst.innerHTML = _importFilesPDF.map((f, i) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid rgba(255,255,255,0.05);">
+      <span style="font-size:18px;">📄</span>
+      <div style="flex:1;min-width:0;font-size:12px;">
+        <div style="font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.name}</div>
+        <div style="color:var(--muted);font-size:11px;">${formatoLegible(f.size)}</div>
+      </div>
+      <button onclick="_quitarPDF(${i})" style="background:transparent;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:2px 6px;"
+              onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--muted)'">✕</button>
+    </div>
+  `).join('');
+  if (act) act.style.display = 'flex';
+}
+
+function _quitarExcel(idx) { _importFiles.splice(idx, 1); _renderListaExcel(); }
+function _quitarPDF(idx)   { _importFilesPDF.splice(idx, 1); _renderListaPDF(); }
+
+function seleccionarArchivoExcel(e) {
+  const nuevos = Array.from(e.target.files || []).filter(f => f.name.match(/\.(xlsx?|csv)$/i));
+  if (!nuevos.length) return;
+  for (const f of nuevos) {
+    if (!_importFiles.some(x => x.name === f.name && x.size === f.size)) _importFiles.push(f);
+  }
+  document.getElementById('uploadIconExcel').textContent  = _importFiles.length > 1 ? '📦' : '✅';
+  document.getElementById('uploadLabelExcel').textContent = `${_importFiles.length} archivo${_importFiles.length > 1 ? 's' : ''} listo${_importFiles.length > 1 ? 's' : ''}`;
+  document.getElementById('uploadSubExcel').textContent   = 'Haz clic en "Importar Excel" para proceder';
+  _renderListaExcel();
+  const res = document.getElementById('importResult');
+  if (res) res.style.display = 'none';
+  e.target.value = '';
+}
+
+function seleccionarArchivoPDF(e) {
+  const nuevos = Array.from(e.target.files || []).filter(f => f.name.match(/\.pdf$/i));
+  if (!nuevos.length) return;
+  for (const f of nuevos) {
+    if (!_importFilesPDF.some(x => x.name === f.name && x.size === f.size)) _importFilesPDF.push(f);
+  }
+  document.getElementById('uploadIconPDF').textContent  = _importFilesPDF.length > 1 ? '📦' : '✅';
+  document.getElementById('uploadLabelPDF').textContent = `${_importFilesPDF.length} PDF${_importFilesPDF.length > 1 ? 's' : ''} listo${_importFilesPDF.length > 1 ? 's' : ''}`;
+  document.getElementById('uploadSubPDF').textContent   = 'Haz clic en "Importar PDFs" para proceder';
+  _renderListaPDF();
+  const res = document.getElementById('importResult');
+  if (res) res.style.display = 'none';
+  e.target.value = '';
+}
+
+function cancelarImportExcel() { _resetPanelExcel(); }
+function cancelarImportPDF()   { _resetPanelPDF(); }
+
+function onDropExcel(e) {
+  e.preventDefault();
+  const f = { target: { files: e.dataTransfer.files, value: '' } };
+  seleccionarArchivoExcel(f);
+}
+function onDropPDF(e) {
+  e.preventDefault();
+  const f = { target: { files: e.dataTransfer.files, value: '' } };
+  seleccionarArchivoPDF(f);
+}
+
+async function ejecutarImportExcel() {
+  if (!_importFiles.length) { alert('Selecciona al menos un archivo Excel.'); return; }
+  await ejecutarImportMasiva();
+  _resetPanelExcel();
+}
+
+async function ejecutarImportPDF() {
+  if (!_importFilesPDF.length) { alert('Selecciona al menos un PDF.'); return; }
+  await previzualizarPDFs();
+  _resetPanelPDF();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GRÁFICOS — Analytics dashboard (Chart.js)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Paletas de colores (dark-theme aware)
+const _GRF_COLORS = {
+  azul:    'rgba(32,167,201,',
+  verde:   'rgba(76,175,130,',
+  rojo:    'rgba(224,85,85,',
+  morado:  'rgba(124,92,191,',
+  amarillo:'rgba(240,165,0,',
+  cyan:    'rgba(0,229,255,',
+  naranja: 'rgba(255,145,0,',
+  rosa:    'rgba(236,72,153,',
+  lima:    'rgba(132,204,22,',
+  gris:    'rgba(148,163,184,'
+};
+const _GRF_PAL = Object.values(_GRF_COLORS);
+
+function _grfColor(i, alpha = 0.8) {
+  const c = _GRF_PAL[i % _GRF_PAL.length];
+  return c + alpha + ')';
+}
+
+// Registro de instancias de Chart para poder destruirlas al recargar
+const _grfCharts = {};
+
+function _grfDestroy(id) {
+  if (_grfCharts[id]) { _grfCharts[id].destroy(); delete _grfCharts[id]; }
+}
+
+function _fmtMoney(v) {
+  if (!v && v !== 0) return '—';
+  const n = Number(v);
+  if (n >= 1_000_000) return '$' + (n / 1_000_000).toFixed(1) + 'M';
+  if (n >= 1_000)     return '$' + (n / 1_000).toFixed(0) + 'k';
+  return '$' + n.toLocaleString('es-CO');
+}
+
+let _grfIniciado = false;
+
+async function graficosInit() {
+  if (!_grfIniciado) {
+    // Cargar períodos para el selector
+    try {
+      const r = await fetch('/api/graficos/periodos');
+      if (r.ok) {
+        const periodos = await r.json();
+        const sel = document.getElementById('grf_periodo');
+        periodos.forEach(p => {
+          const opt = document.createElement('option');
+          opt.value = p.COD_PERIOD;
+          opt.textContent = p.etiqueta + (p.PER_EST === 'A' ? ' ●' : '');
+          sel.appendChild(opt);
+        });
+        // Pre-seleccionar el período activo
+        const activo = periodos.find(p => p.PER_EST === 'A');
+        if (activo) sel.value = activo.COD_PERIOD;
+      }
+    } catch(_) {}
+    _grfIniciado = true;
+  }
+  graficosCargar();
+}
+
+async function graficosCargar() {
+  const sel       = document.getElementById('grf_periodo');
+  const codPeriod = sel ? sel.value : '';
+  const loading   = document.getElementById('grf_loading');
+  if (loading) loading.style.display = 'inline';
+
+  const qp = codPeriod ? `?codPeriod=${codPeriod}` : '';
+
+  try {
+    const [resumen, historico, ausencias, centros] = await Promise.all([
+      fetch('/api/graficos/resumen' + qp).then(r => r.json()),
+      fetch('/api/graficos/historico').then(r => r.json()),
+      fetch('/api/graficos/ausentismos').then(r => r.json()),
+      fetch('/api/graficos/centros' + qp).then(r => r.json())
+    ]);
+
+    _grfRenderKPIs(resumen);
+    _grfRenderDonutTipo(resumen.distribucion || []);
+    _grfRenderTopPeriodo(resumen.topAusentes || []);
+    _grfRenderFinanzas(historico.financiero || []);
+    _grfRenderLineAusencias(historico.ausentismos || []);
+    _grfRenderTiposAus(ausencias.tipos || []);
+    _grfRenderTopHist(ausencias.topEmpleados || []);
+    _grfRenderCentros(centros.centros || []);
+
+    // Etiqueta del período seleccionado
+    const lblEl = document.getElementById('grf_periodo_label');
+    if (lblEl && sel && sel.selectedOptions[0]) {
+      lblEl.textContent = sel.selectedOptions[0].textContent;
+    }
+  } catch (err) {
+    console.error('[graficos] error cargando datos:', err);
+  } finally {
+    if (loading) loading.style.display = 'none';
+  }
+}
+
+// ── KPI cards ──────────────────────────────────────────────────────────────
+function _grfRenderKPIs(data) {
+  const k = data.kpis || {};
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('grf_kpi_empleados',   k.empleados_con_novedades ?? '—');
+  set('grf_kpi_novedades',   k.total_novedades ?? '—');
+  set('grf_kpi_devengos',    _fmtMoney(k.devengos));
+  set('grf_kpi_deducciones', _fmtMoney(k.deducciones));
+  set('grf_kpi_ausencias',   k.total_ausencias ?? '—');
+  const diasEl = document.getElementById('grf_kpi_dias');
+  if (diasEl) diasEl.textContent = (k.dias_ausencia ?? '—') + ' días de ausencia';
+}
+
+// ── Donut distribución por tipo ────────────────────────────────────────────
+function _grfRenderDonutTipo(dist) {
+  _grfDestroy('donutTipo');
+  const ctx = document.getElementById('grf_donut_tipo');
+  if (!ctx || !dist.length) return;
+  const labels = dist.map(d => d.tipo);
+  const vals   = dist.map(d => d.total);
+  _grfCharts['donutTipo'] = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{ data: vals, backgroundColor: labels.map((_,i) => _grfColor(i, 0.85)),
+                   borderWidth: 2, borderColor: '#1a1f2e' }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'right', labels: { color: '#a0aec0', font: { size: 11 }, padding: 10 } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed} novedades` } }
+      }
+    }
+  });
+}
+
+// ── Bar horizontal: top ausentes del período ───────────────────────────────
+function _grfRenderTopPeriodo(top) {
+  _grfDestroy('topPeriodo');
+  const ctx = document.getElementById('grf_bar_top_periodo');
+  if (!ctx) return;
+  if (!top.length) {
+    ctx.parentElement.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:13px;">Sin ausentismos en este período</div>';
+    return;
+  }
+  const labels = top.map(t => t.nombre ? t.nombre.split(' ').slice(0,2).join(' ') : t.cedula);
+  const dias   = top.map(t => t.dias || 0);
+  _grfCharts['topPeriodo'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ label: 'Días de ausencia', data: dias,
+                   backgroundColor: _grfColor(0, 0.75), borderRadius: 4 }]
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0' } },
+        y: { grid: { display: false }, ticks: { color: '#a0aec0', font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+// ── Bar doble: Devengos vs Deducciones por período ────────────────────────
+function _grfRenderFinanzas(fin) {
+  _grfDestroy('barFinanzas');
+  const ctx = document.getElementById('grf_bar_finanzas');
+  if (!ctx || !fin.length) return;
+  const labels = fin.map(f => f.label);
+  _grfCharts['barFinanzas'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Devengos', data: fin.map(f => f.devengos || 0),
+          backgroundColor: _grfColor(1, 0.75), borderRadius: 3 },
+        { label: 'Deducciones', data: fin.map(f => f.deducciones || 0),
+          backgroundColor: _grfColor(2, 0.75), borderRadius: 3 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#a0aec0', font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: $${Number(ctx.parsed.y).toLocaleString('es-CO', {minimumFractionDigits: 0})}`
+          }
+        }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0', font: { size: 11 } } },
+        y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0', callback: v => _fmtMoney(v) } }
+      }
+    }
+  });
+}
+
+// ── Line: días de ausentismo por período ──────────────────────────────────
+function _grfRenderLineAusencias(aus) {
+  _grfDestroy('lineAusencias');
+  const ctx = document.getElementById('grf_line_ausencias');
+  if (!ctx || !aus.length) return;
+  const labels = aus.map(a => a.label);
+  _grfCharts['lineAusencias'] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Días de ausencia', data: aus.map(a => a.dias_total || 0),
+          borderColor: _grfColor(4, 1), backgroundColor: _grfColor(4, 0.15),
+          tension: 0.4, fill: true, pointRadius: 4, pointBackgroundColor: _grfColor(4, 1) },
+        { label: 'Casos', data: aus.map(a => a.ausencias || 0),
+          borderColor: _grfColor(0, 1), backgroundColor: 'transparent',
+          tension: 0.4, pointRadius: 4, pointBackgroundColor: _grfColor(0, 1),
+          yAxisID: 'y2' }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#a0aec0', font: { size: 11 } } } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0', font: { size: 11 } } },
+        y:  { position: 'left',  grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0' } },
+        y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#a0aec0' } }
+      }
+    }
+  });
+}
+
+// ── Bar horizontal: tipos de ausentismo ──────────────────────────────────
+function _grfRenderTiposAus(tipos) {
+  _grfDestroy('tiposAus');
+  const ctx = document.getElementById('grf_bar_tipos_aus');
+  if (!ctx || !tipos.length) return;
+  const labels = tipos.map(t => t.tipo);
+  _grfCharts['tiposAus'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Días totales', data: tipos.map(t => t.dias_total || 0),
+          backgroundColor: tipos.map((_,i) => _grfColor(i, 0.8)), borderRadius: 4 }
+      ]
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0' } },
+        y: { grid: { display: false }, ticks: { color: '#a0aec0', font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+// ── Bar horizontal: top 10 histórico ────────────────────────────────────
+function _grfRenderTopHist(top) {
+  _grfDestroy('topHist');
+  const ctx = document.getElementById('grf_bar_top_hist');
+  if (!ctx || !top.length) return;
+  const labels = top.map(t => t.nombre ? t.nombre.split(' ').slice(0,2).join(' ') : t.cedula);
+  _grfCharts['topHist'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Días totales', data: top.map(t => t.dias_total || 0),
+          backgroundColor: _grfColor(3, 0.78), borderRadius: 4 },
+        { label: 'Casos', data: top.map(t => t.ausencias || 0),
+          backgroundColor: _grfColor(2, 0.6), borderRadius: 4, yAxisID: 'y2' }
+      ]
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#a0aec0', font: { size: 11 } } } },
+      scales: {
+        x:  { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0' } },
+        y:  { grid: { display: false }, ticks: { color: '#a0aec0', font: { size: 11 } } },
+        y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#a0aec0' } }
+      }
+    }
+  });
+}
+
+// ── Bar doble: centros de costo ───────────────────────────────────────────
+function _grfRenderCentros(centros) {
+  _grfDestroy('barCentros'); _grfDestroy('barAusCentros');
+  const ctxN = document.getElementById('grf_bar_centros');
+  const ctxA = document.getElementById('grf_bar_aus_centros');
+  if (!ctxN || !centros.length) return;
+
+  const labels = centros.map(c => c.codigo || c.nombre.substring(0, 12));
+
+  // Novedades por CC
+  _grfCharts['barCentros'] = new Chart(ctxN, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Novedades', data: centros.map(c => c.novedades || 0),
+          backgroundColor: _grfColor(0, 0.75), borderRadius: 4 },
+        { label: 'Empleados', data: centros.map(c => c.empleados || 0),
+          backgroundColor: _grfColor(1, 0.65), borderRadius: 4, yAxisID: 'y2' }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#a0aec0', font: { size: 11 } } } },
+      scales: {
+        x:  { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0', font: { size: 11 } } },
+        y:  { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0' } },
+        y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#a0aec0' } }
+      }
+    }
+  });
+
+  if (!ctxA) return;
+  // Ausentismos por CC
+  _grfCharts['barAusCentros'] = new Chart(ctxA, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Días ausencia', data: centros.map(c => c.dias_ausencia || 0),
+          backgroundColor: _grfColor(2, 0.75), borderRadius: 4 },
+        { label: 'Casos', data: centros.map(c => c.ausencias || 0),
+          backgroundColor: _grfColor(4, 0.65), borderRadius: 4, yAxisID: 'y2' }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#a0aec0', font: { size: 11 } } } },
+      scales: {
+        x:  { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0', font: { size: 11 } } },
+        y:  { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0' } },
+        y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#a0aec0' } }
+      }
+    }
+  });
+}

@@ -157,18 +157,15 @@ async function listarConceptos(req, res) {
 
 // ===========================================================================
 // GET /api/cambios?codPeriod=7
+// Sin ?codPeriod → devuelve TODOS los registros activos de todos los períodos.
+// Con ?codPeriod=N → filtra por ese período.
 // ===========================================================================
 async function listarCambios(req, res) {
   try {
-    const codEmpr = Number(req.query.codEmpr) || DEFAULT_COD_EMPR;
-    let codPeriod = req.query.codPeriod ? Number(req.query.codPeriod) : null;
+    const codEmpr   = Number(req.query.codEmpr) || DEFAULT_COD_EMPR;
+    const codPeriod = req.query.codPeriod ? Number(req.query.codPeriod) : null;
 
-    if (!codPeriod) {
-      const p = await resolverPeriodoActual(codEmpr);
-      if (!p) return res.json({ codPeriod: null, registros: [] });
-      codPeriod = p.COD_PERIOD;
-    }
-
+    const periodFilter = codPeriod ? 'AND COD_PERIOD = @codPeriod' : '';
     const q = `
       SELECT
         COD_EMPR, COD_NOVED, COD_FUNCI, COD_CONC, COD_PERIOD,
@@ -179,10 +176,11 @@ async function listarCambios(req, res) {
         PER_ANO, PER_MES, PER_QNA, PER_FINI, PER_FFIN
       FROM dbo.vw_NO_CAMBI_PERIODO
       WHERE COD_EMPR = @codEmpr
-        AND COD_PERIOD = @codPeriod
+        ${periodFilter}
       ORDER BY ACT_HORA DESC
     `;
-    const r = await executeQuery(q, { codEmpr, codPeriod });
+    const params = codPeriod ? { codEmpr, codPeriod } : { codEmpr };
+    const r = await executeQuery(q, params);
     res.json({ codEmpr, codPeriod, registros: r.recordset || [] });
   } catch (err) {
     console.error('[cambios] listar error:', err);

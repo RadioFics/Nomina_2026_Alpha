@@ -415,14 +415,10 @@ function editarAusencia(id) {
 }
 
 // Cargar datos al iniciar
-// NOTA: cargarActividad() y su setInterval fueron eliminados — la tabla
-// #tbActivity es manejada exclusivamente por cargarActividadReciente()
-// en src/js/novedades.js, que usa el esquema correcto de 9 columnas.
-document.addEventListener('DOMContentLoaded', () => {
-  setTimeout(() => {
-    cargarOcasionales();
-    cargarFijas();
-    cargarAusencias();
-    // cargarActividad()  ← DEPRECADO: ver src/js/novedades.js
-  }, 500);
-});
+// NOTA: las llamadas legacy (cargarOcasionales, cargarFijas, cargarAusencias) fueron
+// desactivadas porque:
+//   • cargarFijas() encontraba #tbFijas (que sí existe), lo vaciaba y luego lanzaba
+//     TypeError (la API devuelve { registros:[] }, no un array) → la tabla quedaba en blanco.
+//   • cargarOcasionales() y cargarAusencias() ya son no-op o usan IDs inexistentes.
+// Toda la carga de tablas es manejada por src/js/novedades.js.
+// document.addEventListener('DOMContentLoaded', () => { ... });
