@@ -85,6 +85,40 @@ async function ensureDbObjects(force = false) {
       ');
     `);
 
+    // Ajustar el trigger para permitir anulaciones lógicas (A→I) en períodos cerrados.
+    // Sólo bloquea ediciones de contenido e inserciones nuevas en períodos cerrados.
+    try {
+      await executeQuery(`
+        ALTER TRIGGER dbo.TR_NO_NOVED_PERIODO_CERRADO
+        ON dbo.NO_NOVED
+        AFTER INSERT, UPDATE, DELETE
+        AS
+        BEGIN
+          SET NOCOUNT ON;
+          IF EXISTS (SELECT 1 FROM inserted)
+            AND NOT EXISTS (SELECT 1 FROM inserted WHERE ACT_ESTA <> 'I')
+            AND NOT EXISTS (SELECT 1 FROM deleted  WHERE ACT_ESTA <> 'A')
+            RETURN;
+          IF EXISTS (
+            SELECT 1 FROM inserted i
+            JOIN dbo.NO_PERIOD p ON p.COD_EMPR=i.COD_EMPR AND p.COD_PERIOD=i.COD_PERIOD
+            WHERE p.PER_EST <> 'A'
+            UNION ALL
+            SELECT 1 FROM deleted d
+            JOIN dbo.NO_PERIOD p ON p.COD_EMPR=d.COD_EMPR AND p.COD_PERIOD=d.COD_PERIOD
+            WHERE p.PER_EST <> 'A'
+          ) BEGIN
+            RAISERROR('No se pueden modificar novedades de un periodo cuyo PER_EST <> ''A'' (cerrado/inactivo).', 16, 1);
+            ROLLBACK TRANSACTION;
+            RETURN;
+          END
+        END
+      `);
+      console.log('[ausentismos] ✓ Trigger TR_NO_NOVED_PERIODO_CERRADO actualizado.');
+    } catch (e) {
+      console.warn('[ausentismos] ⚠ Trigger no pudo actualizarse (requiere ALTER TABLE):', e.message);
+    }
+
     bootstrapped = true;
     console.log('[ausentismos] ✓ NO_AUSEN + vw_NO_AUSEN_PERIODO listas.');
   } catch (err) {
@@ -484,18 +518,12 @@ async function anularAusentismoBatch(req, res) {
     reqNov.input('actUsua', sql.NVarChar(50), usuario);
     ids.forEach((id, i) => reqNov.input(`id${i}`, sql.Int, id));
 
-    // Filtrar por período activo (PER_EST='A') para evitar que el trigger
-    // TR_NO_NOVED_PERIODO_CERRADO rechace la operación.
     const rNov = await reqNov.query(`
       UPDATE dbo.NO_NOVED
       SET ACT_ESTA = 'I', ACT_USUA = @actUsua, ACT_HORA = GETDATE()
       WHERE COD_EMPR = @codEmpr
         AND COD_NOVED IN (${paramNames})
         AND ACT_ESTA = 'A'
-        AND COD_PERIOD IN (
-          SELECT COD_PERIOD FROM dbo.NO_PERIOD
-          WHERE COD_EMPR = @codEmpr AND PER_EST = 'A'
-        )
     `);
 
     const reqAu = new sql.Request(transaction);
@@ -504,17 +532,11 @@ async function anularAusentismoBatch(req, res) {
     ids.forEach((id, i) => reqAu.input(`id${i}`, sql.Int, id));
 
     await reqAu.query(`
-      UPDATE au
-      SET au.ACT_ESTA = 'I', au.ACT_USUA = @actUsua, au.ACT_HORA = SYSDATETIME()
-      FROM dbo.NO_AUSEN au
-      JOIN dbo.NO_NOVED nv ON nv.COD_EMPR = au.COD_EMPR AND nv.COD_NOVED = au.COD_NOVED
-      WHERE au.COD_EMPR = @codEmpr
-        AND au.COD_NOVED IN (${paramNames})
-        AND au.ACT_ESTA = 'A'
-        AND nv.COD_PERIOD IN (
-          SELECT COD_PERIOD FROM dbo.NO_PERIOD
-          WHERE COD_EMPR = @codEmpr AND PER_EST = 'A'
-        )
+      UPDATE dbo.NO_AUSEN
+      SET ACT_ESTA = 'I', ACT_USUA = @actUsua, ACT_HORA = SYSDATETIME()
+      WHERE COD_EMPR = @codEmpr
+        AND COD_NOVED IN (${paramNames})
+        AND ACT_ESTA = 'A'
     `);
 
     await transaction.commit();

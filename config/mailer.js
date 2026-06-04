@@ -1,7 +1,31 @@
 const nodemailer = require('nodemailer');
 
-// Configuración de Nodemailer para Gmail
-// MAIL_PASS puede tener espacios (formato Google), se limpian automáticamente.
+// ═══════════════════════════════════════════════════════════════════════════
+//  CONFIGURACIÓN DE EMAILS — editar aquí textos, colores y firma
+// ═══════════════════════════════════════════════════════════════════════════
+const EMAIL_CFG = {
+  // Colores principales
+  accentBlue:   '#20A7C9',   // azul Collective Mining (botones, bordes, logo)
+  accentLight:  '#4DC4E0',   // azul claro (títulos, links, textos de acento)
+  bgOuter:      '#1E1E1E',   // fondo exterior del correo
+  bgCard:       '#2B2B2B',   // fondo de la tarjeta principal
+  bgBlock:      '#383838',   // fondo de bloques informativos
+  textPrimary:  '#FFFFFF',   // texto principal
+  textSecond:   '#CCCCCC',   // texto secundario
+  textMuted:    '#A0A0A0',   // texto atenuado (pie de página)
+  linkText:     '#FFFFFF',   // texto del link fallback (sobre fondo oscuro)
+  linkBg:       '#3A5A70',   // fondo del cuadro de link fallback (azul oscuro legible)
+  linkBorder:   '#20A7C9',   // borde del cuadro de link
+
+  // Textos reutilizables
+  brandName:    'Collective Mining',
+  brandSub:     '— Sistema de Nómina —',
+  footerAuto:   'Este es un correo automático — por favor no respondas a este mensaje.',
+  footerCopy:   '© 2026 Collective Mining · Todos los derechos reservados.',
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -16,41 +40,40 @@ const FROM_NAME = `"Collective Mining Nómina" <${process.env.MAIL_USER}>`;
 // ─── Fragmento de cabecera reutilizable (logo + marca) ──────────────────────
 const _emailHeader = `
   <div style="text-align:center; padding-bottom:28px; border-bottom:1px solid rgba(32,167,201,0.20); margin-bottom:28px;">
-    <!-- Logo mark hexagonal CM -->
     <div style="display:inline-block; margin-bottom:12px;">
       <svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-        <polygon points="24,2 44,13 44,35 24,46 4,35 4,13"
-                 fill="#20A7C9" stroke="none"/>
-        <text x="24" y="31" text-anchor="middle"
-              font-family="Arial,sans-serif" font-weight="800"
-              font-size="15" fill="#ffffff" letter-spacing="1">CM</text>
+        <polygon points="24,2 44,13 44,35 24,46 4,35 4,13" fill="${EMAIL_CFG.accentBlue}" stroke="none"/>
+        <text x="24" y="31" text-anchor="middle" font-family="Arial,sans-serif"
+              font-weight="800" font-size="15" fill="#ffffff" letter-spacing="1">CM</text>
       </svg>
     </div>
-    <div style="font-family:Arial,sans-serif; font-size:18px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:#ffffff; line-height:1.2;">
-      COLLECTIVE <span style="color:#20A7C9;">MINING</span>
+    <div style="font-family:Arial,sans-serif; font-size:18px; font-weight:700; letter-spacing:0.06em;
+                text-transform:uppercase; color:${EMAIL_CFG.textPrimary}; line-height:1.2;">
+      COLLECTIVE <span style="color:${EMAIL_CFG.accentBlue};">MINING</span>
     </div>
-    <div style="font-family:Arial,sans-serif; font-size:10px; color:#706F6F; letter-spacing:0.14em; text-transform:uppercase; margin-top:4px;">
-      — Sistema de Nómina —
+    <div style="font-family:Arial,sans-serif; font-size:10px; color:${EMAIL_CFG.textMuted};
+                letter-spacing:0.14em; text-transform:uppercase; margin-top:4px;">
+      ${EMAIL_CFG.brandSub}
     </div>
   </div>`;
 
 // ─── Fragmento de pie de página reutilizable ────────────────────────────────
 const _emailFooter = `
   <div style="margin-top:32px; padding-top:20px; border-top:1px solid rgba(32,167,201,0.15); text-align:center;">
-    <p style="color:#706F6F; font-size:11px; font-family:Arial,sans-serif; margin:4px 0;">
-      Este es un correo automático — por favor no respondas a este mensaje.
+    <p style="color:${EMAIL_CFG.textMuted}; font-size:11px; font-family:Arial,sans-serif; margin:4px 0;">
+      ${EMAIL_CFG.footerAuto}
     </p>
-    <p style="color:#706F6F; font-size:11px; font-family:Arial,sans-serif; margin:4px 0;">
-      © 2026 Collective Mining · Todos los derechos reservados.
+    <p style="color:${EMAIL_CFG.textMuted}; font-size:11px; font-family:Arial,sans-serif; margin:4px 0;">
+      ${EMAIL_CFG.footerCopy}
     </p>
   </div>`;
 
 // ─── Wrapper externo del email ───────────────────────────────────────────────
 const _wrap = (inner) => `
-  <div style="background:#1E1E1E; padding:0; margin:0;">
+  <div style="background:${EMAIL_CFG.bgOuter}; padding:0; margin:0;">
     <div style="font-family:Arial,sans-serif; max-width:600px; margin:0 auto;
-                background:#2B2B2B; padding:40px 44px; color:#FFFFFF;
-                border-radius:0; border-left:4px solid #20A7C9;">
+                background:${EMAIL_CFG.bgCard}; padding:40px 44px; color:${EMAIL_CFG.textPrimary};
+                border-radius:0; border-left:4px solid ${EMAIL_CFG.accentBlue};">
       ${_emailHeader}
       ${inner}
       ${_emailFooter}
@@ -128,11 +151,13 @@ const emailRecuperacion = (nombreUsuario, email, resetLink) => ({
       </a>
     </div>
 
-    <p style="line-height:1.6; color:#706F6F; font-size:12px; margin:24px 0 8px 0;">
+    <p style="line-height:1.6; color:${EMAIL_CFG.textMuted}; font-size:12px; margin:24px 0 8px 0;">
       Si el botón no funciona, copia y pega este enlace en tu navegador:
     </p>
-    <div style="background:#383838; padding:10px 14px; border-radius:6px; border-left:3px solid rgba(32,167,201,0.4);">
-      <p style="word-break:break-all; color:#4DC4E0; font-size:11px; margin:0; font-family:'Courier New',monospace;">
+    <div style="background:${EMAIL_CFG.linkBg}; padding:12px 16px; border-radius:6px;
+                border:1px solid ${EMAIL_CFG.linkBorder};">
+      <p style="word-break:break-all; color:${EMAIL_CFG.linkText}; font-size:11px; margin:0;
+                font-family:'Courier New',monospace; line-height:1.6;">
         ${resetLink}
       </p>
     </div>
@@ -212,11 +237,13 @@ const emailVerificacion = (nombreUsuario, email, verificationLink) => ({
       <p style="margin:0; color:#4DC4E0; font-weight:600; font-size:14px;">${email}</p>
     </div>
 
-    <p style="line-height:1.6; color:#706F6F; font-size:12px; margin:20px 0 8px 0;">
+    <p style="line-height:1.6; color:${EMAIL_CFG.textMuted}; font-size:12px; margin:20px 0 8px 0;">
       Si el botón no funciona, copia y pega este enlace en tu navegador:
     </p>
-    <div style="background:#383838; padding:10px 14px; border-radius:6px; border-left:3px solid rgba(32,167,201,0.4);">
-      <p style="word-break:break-all; color:#4DC4E0; font-size:11px; margin:0; font-family:'Courier New',monospace;">
+    <div style="background:${EMAIL_CFG.linkBg}; padding:12px 16px; border-radius:6px;
+                border:1px solid ${EMAIL_CFG.linkBorder};">
+      <p style="word-break:break-all; color:${EMAIL_CFG.linkText}; font-size:11px; margin:0;
+                font-family:'Courier New',monospace; line-height:1.6;">
         ${verificationLink}
       </p>
     </div>

@@ -437,10 +437,6 @@ async function anularCambioBatch(req, res) {
       WHERE COD_EMPR = @codEmpr
         AND COD_NOVED IN (${paramNames})
         AND ACT_ESTA = 'A'
-        AND COD_PERIOD IN (
-          SELECT COD_PERIOD FROM dbo.NO_PERIOD
-          WHERE COD_EMPR = @codEmpr AND PER_EST = 'A'
-        )
     `);
 
     const reqCb = new sql.Request(transaction);
@@ -449,29 +445,21 @@ async function anularCambioBatch(req, res) {
     ids.forEach((id, i) => reqCb.input(`id${i}`, sql.Int, id));
 
     await reqCb.query(`
-      UPDATE cb
-      SET cb.ACT_ESTA = 'I', cb.ACT_USUA = @actUsua, cb.ACT_HORA = SYSDATETIME()
-      FROM dbo.NO_CAMBI cb
-      JOIN dbo.NO_NOVED nv ON nv.COD_EMPR = cb.COD_EMPR AND nv.COD_NOVED = cb.COD_NOVED
-      WHERE cb.COD_EMPR = @codEmpr
-        AND cb.COD_NOVED IN (${paramNames})
-        AND cb.ACT_ESTA = 'A'
-        AND nv.COD_PERIOD IN (
-          SELECT COD_PERIOD FROM dbo.NO_PERIOD
-          WHERE COD_EMPR = @codEmpr AND PER_EST = 'A'
-        )
+      UPDATE dbo.NO_CAMBI
+      SET ACT_ESTA = 'I', ACT_USUA = @actUsua, ACT_HORA = SYSDATETIME()
+      WHERE COD_EMPR = @codEmpr
+        AND COD_NOVED IN (${paramNames})
+        AND ACT_ESTA = 'A'
     `);
 
     await transaction.commit();
 
     const anulados = rNov.rowsAffected[0] || 0;
-    const omitidos = ids.length - anulados;
     res.json({
       success: true,
       anulados,
       solicitados: ids.length,
-      omitidos,
-      message: `${anulados} cambio(s) anulado(s) correctamente.${omitidos > 0 ? ` ${omitidos} omitido(s) por período cerrado.` : ''}`
+      message: `${anulados} cambio(s) anulado(s) correctamente.`
     });
   } catch (err) {
     if (transaction) { try { await transaction.rollback(); } catch (_) {} }
