@@ -31,14 +31,16 @@ function navigate(page) {
     }
   });
 
-  if (page === 'dashboard')    { _initDashboardCC(); }
-  if (page === 'ocasionales')  { cargarOcasionalesDelPeriodo(); }
-  if (page === 'fijas')        { cargarFijasDelPeriodo(); }
-  if (page === 'ausentismos')  { cargarAusentismosDelPeriodo(); }
-  if (page === 'cambios')      { cargarCambiosDelPeriodo(); }
-  if (page === 'changelog')    { clCargar(); }
-  if (page === 'formularios')  { initFormulariosPage(); }
-  if (page === 'graficos')     { graficosInit(); }
+  if (page === 'dashboard')       { _initDashboardCC(); }
+  if (page === 'ocasionales')     { cargarOcasionalesDelPeriodo(); }
+  if (page === 'fijas')           { cargarFijasDelPeriodo(); }
+  if (page === 'ausentismos')     { cargarAusentismosDelPeriodo(); }
+  if (page === 'cambios')         { cargarCambiosDelPeriodo(); }
+  if (page === 'cambiosIngresos') { cargarCambiosDelPeriodo(); }
+  if (page === 'maestroOriginal') { cargarEmpleadosBD(); }
+  if (page === 'changelog')       { clCargar(); }
+  if (page === 'formularios')     { initFormulariosPage(); }
+  if (page === 'graficos')        { graficosInit(); }
 }
 
 // ─── AUTOSERVICIO — FORMULARIOS ───────────────────────────────────────────────
@@ -1126,31 +1128,21 @@ async function inicializarInterfaz() {
     try {
       const respPeriodo = await fetch('/api/ausentismos/periodo-actual');
       if (respPeriodo.ok) {
-        const periodoData = respPeriodo.json();
-        periodoData.then(data => {
-          // La API devuelve camelCase: data.anio, data.mes, data.quincena,
-          // data.fechaInicio, data.fechaFin, data.etiqueta (ej: "2026-05-Q1").
-          // Usamos data.etiqueta directamente para el badge y construimos el
-          // texto del dashboard con las fechas formateadas.
-          const fi = data.fechaInicio
-            ? new Date(data.fechaInicio).toLocaleDateString('es-CO') : '';
-          const ff = data.fechaFin
-            ? new Date(data.fechaFin).toLocaleDateString('es-CO')    : '';
-          const periodText = fi && ff
-            ? `${data.etiqueta}  (${fi} → ${ff})`
-            : (data.etiqueta || '');
-          document.getElementById('periodoBadge').textContent = `Período: ${data.etiqueta || '—'}`;
-          document.getElementById('cfgPeriodo').value = periodText;
-
-          // IMPORTANTE: Hacer el campo readonly para que no sea editable
-          document.getElementById('cfgPeriodo').setAttribute('readonly', 'readonly');
-          document.getElementById('cfgPeriodo').style.background = 'rgba(255,255,255,0.03)';
-
-          console.log('Período cargado desde BD - Badge:', data.etiqueta, '| Dashboard:', periodText);
-        }).catch(e => {
-          console.warn('Error parseando respuesta período:', e);
-          usarPeriodoLocal();
-        });
+        const data = await respPeriodo.json();
+        // La API devuelve camelCase: data.anio, data.mes, data.quincena,
+        // data.fechaInicio, data.fechaFin, data.etiqueta (ej: "2026-05-Q1").
+        const fi = data.fechaInicio
+          ? new Date(data.fechaInicio).toLocaleDateString('es-CO') : '';
+        const ff = data.fechaFin
+          ? new Date(data.fechaFin).toLocaleDateString('es-CO')    : '';
+        const periodText = fi && ff
+          ? `${data.etiqueta}  (${fi} → ${ff})`
+          : (data.etiqueta || '');
+        document.getElementById('periodoBadge').textContent = `Período: ${data.etiqueta || '—'}`;
+        document.getElementById('cfgPeriodo').value = periodText;
+        document.getElementById('cfgPeriodo').setAttribute('readonly', 'readonly');
+        document.getElementById('cfgPeriodo').style.background = 'rgba(255,255,255,0.03)';
+        console.log('Período cargado desde BD - Badge:', data.etiqueta, '| Dashboard:', periodText);
       } else {
         console.warn('No se pudo obtener período de la BD, usando cálculo local');
         usarPeriodoLocal();
@@ -1793,10 +1785,10 @@ async function cargarPeriodoActualOcas() {
 }
 
 async function cargarOcasionalesDelPeriodo() {
+  const tb = document.getElementById('tbOcasionales');
+  if (tb && !state.ocasionales.length) tb.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">Cargando registros…</td></tr>';
   try {
     if (!_periodoActualOcas) await cargarPeriodoActualOcas();
-    // Sin filtro de período: muestra todos los registros activos de todos los períodos.
-    // El período vigente se sigue mostrando en el badge superior.
     const r = await fetch('/api/ocasionales');
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const data = await r.json();
@@ -1818,6 +1810,8 @@ async function cargarOcasionalesDelPeriodo() {
     updateBadges();
   } catch (e) {
     console.error('cargarOcasionalesDelPeriodo:', e);
+    const tb = document.getElementById('tbOcasionales');
+    if (tb) tb.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--danger);padding:32px">Error al cargar registros: ${e.message} &nbsp;<button onclick="cargarOcasionalesDelPeriodo()" style="background:none;border:1px solid var(--danger);color:var(--danger);padding:4px 10px;cursor:pointer;border-radius:4px">↺ Reintentar</button></td></tr>`;
   }
 }
 
@@ -2205,6 +2199,8 @@ function actualizarTipoNovedadFija() {
 }
 
 async function cargarFijasDelPeriodo() {
+  const tb = document.getElementById('tbFijas');
+  if (tb && !state.fijas.length) tb.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">Cargando registros…</td></tr>';
   try {
     if (!_periodoActualFijas) await cargarPeriodoActualFijas();
     const r = await fetch('/api/fijas');
@@ -2229,7 +2225,11 @@ async function cargarFijasDelPeriodo() {
     }));
     renderFijas();
     updateBadges();
-  } catch (e) { console.error('cargarFijasDelPeriodo:', e); }
+  } catch (e) {
+    console.error('cargarFijasDelPeriodo:', e);
+    const tb = document.getElementById('tbFijas');
+    if (tb) tb.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--danger);padding:32px">Error al cargar registros: ${e.message} &nbsp;<button onclick="cargarFijasDelPeriodo()" style="background:none;border:1px solid var(--danger);color:var(--danger);padding:4px 10px;cursor:pointer;border-radius:4px">↺ Reintentar</button></td></tr>`;
+  }
 }
 
 async function guardarFija() {
@@ -2422,6 +2422,8 @@ async function cargarConceptosAusentismos() {
 }
 
 async function cargarAusentismosDelPeriodo() {
+  const tb = document.getElementById('tbAusentismos');
+  if (tb && !state.ausentismos.length) tb.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">Cargando registros…</td></tr>';
   try {
     if (!_periodoActualAus) await cargarPeriodoActualAus();
     const r = await fetch('/api/ausentismos');
@@ -2443,7 +2445,11 @@ async function cargarAusentismosDelPeriodo() {
     }));
     renderAusentismos();
     updateBadges();
-  } catch (e) { console.error('cargarAusentismosDelPeriodo:', e); }
+  } catch (e) {
+    console.error('cargarAusentismosDelPeriodo:', e);
+    const tb = document.getElementById('tbAusentismos');
+    if (tb) tb.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--danger);padding:32px">Error al cargar registros: ${e.message} &nbsp;<button onclick="cargarAusentismosDelPeriodo()" style="background:none;border:1px solid var(--danger);color:var(--danger);padding:4px 10px;cursor:pointer;border-radius:4px">↺ Reintentar</button></td></tr>`;
+  }
 }
 
 async function guardarAusentismo() {
@@ -2663,6 +2669,8 @@ async function cargarConceptosCambios() {
 }
 
 async function cargarCambiosDelPeriodo() {
+  const tb = document.getElementById('tbCIngresos');
+  if (tb && !state.cambiosIngresos.length) tb.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">Cargando registros…</td></tr>';
   try {
     if (!_periodoActualCam) await cargarPeriodoActualCam();
     const r = await fetch('/api/cambios');
@@ -2682,7 +2690,11 @@ async function cargarCambiosDelPeriodo() {
     }));
     renderCIngresos();
     updateBadges();
-  } catch (e) { console.error('cargarCambiosDelPeriodo:', e); }
+  } catch (e) {
+    console.error('cargarCambiosDelPeriodo:', e);
+    const tb = document.getElementById('tbCIngresos');
+    if (tb) tb.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--danger);padding:32px">Error al cargar registros: ${e.message} &nbsp;<button onclick="cargarCambiosDelPeriodo()" style="background:none;border:1px solid var(--danger);color:var(--danger);padding:4px 10px;cursor:pointer;border-radius:4px">↺ Reintentar</button></td></tr>`;
+  }
 }
 
 async function guardarCambioIngreso() {
@@ -3474,6 +3486,10 @@ async function ejecutarImportMasiva() {
     } else {
       mostrarResultadoImport(resultadosFinales, null);
       cargarOcasionalesDelPeriodo();
+      cargarFijasDelPeriodo();
+      cargarAusentismosDelPeriodo();
+      cargarCambiosDelPeriodo();
+      cargarActividadReciente();
     }
   } catch (err) {
     clearInterval(progTimer);
@@ -3704,25 +3720,29 @@ function filtrarDetalleImport() {
   renderDetalleImport(filtered);
 }
 
-// Drag & drop — soporta múltiples archivos
-const dropZone = document.getElementById('dropZone');
-dropZone.addEventListener('dragover', e => {
-  e.preventDefault();
-  dropZone.style.borderColor = 'var(--cm-blue)';
-  dropZone.style.background = 'rgba(32,167,201,0.08)';
-});
-dropZone.addEventListener('dragleave', () => {
-  dropZone.style.borderColor = '';
-  dropZone.style.background = '';
-});
-dropZone.addEventListener('drop', e => {
-  e.preventDefault();
-  dropZone.style.borderColor = '';
-  dropZone.style.background = '';
-  const files = e.dataTransfer && e.dataTransfer.files;
-  if (files && files.length > 0) {
-    seleccionarArchivoImport({ target: { files, value: '' } });
-  }
+// Drag & drop — registrado en DOMContentLoaded para evitar crash si el elemento
+// no existe aún (o fue renombrado a #dropZoneExcel / #dropZonePDF)
+document.addEventListener('DOMContentLoaded', () => {
+  const dropZone = document.getElementById('dropZone');
+  if (!dropZone) return;
+  dropZone.addEventListener('dragover', e => {
+    e.preventDefault();
+    dropZone.style.borderColor = 'var(--cm-blue)';
+    dropZone.style.background = 'rgba(32,167,201,0.08)';
+  });
+  dropZone.addEventListener('dragleave', () => {
+    dropZone.style.borderColor = '';
+    dropZone.style.background = '';
+  });
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.style.borderColor = '';
+    dropZone.style.background = '';
+    const files = e.dataTransfer && e.dataTransfer.files;
+    if (files && files.length > 0) {
+      seleccionarArchivoImport({ target: { files, value: '' } });
+    }
+  });
 });
 // Función de diagnóstico para verificar sesión
 function diagnosticarSesion() {
@@ -3893,9 +3913,16 @@ async function descargarAdecco() {
   }
 }
 
-// Cerrar modal al hacer clic fuera
-document.getElementById('modalExportarAdecco').addEventListener('click', function(e) {
-  if (e.target === this) cerrarModalExportarAdecco();
+// Cerrar modal al hacer clic fuera (guard: el modal está en HTML después del script)
+document.addEventListener('DOMContentLoaded', () => {
+  const _mAdecco = document.getElementById('modalExportarAdecco');
+  if (_mAdecco) _mAdecco.addEventListener('click', function(e) {
+    if (e.target === this) cerrarModalExportarAdecco();
+  });
+  const _mBatch = document.getElementById('modalAnularBatch');
+  if (_mBatch) _mBatch.addEventListener('click', function(e) {
+    if (e.target === this) cerrarModalAnularBatch();
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -4192,10 +4219,7 @@ async function confirmarAnularBatch() {
   }
 }
 
-// Cerrar modal batch al hacer clic fuera
-document.getElementById('modalAnularBatch').addEventListener('click', function(e) {
-  if (e.target === this) cerrarModalAnularBatch();
-});
+// (listener de cierre al hacer clic fuera registrado junto al de modalExportarAdecco)
 // Cerrar con Escape
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {

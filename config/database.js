@@ -94,6 +94,12 @@ function buildConfig(source) {
       connectionRetryInterval: 100,
       maxRetriesOnTransientErrors: 3,
       useUTC: true
+    },
+    pool: {
+      max: 20,
+      min: 2,
+      idleTimeoutMillis: 30000,
+      acquireTimeoutMillis: 15000
     }
   };
 }
