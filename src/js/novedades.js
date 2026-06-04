@@ -3045,11 +3045,14 @@ function seleccionarArchivoImport(e) {
     'Haz clic en "Importar a la BD" para proceder, o arrastra más archivos';
   _actualizarBtnImportar();
 
-  // Renderizar lista y mostrar panel
+  // Renderizar lista y mostrar panel (panel unificado legacy — solo si el elemento existe)
   renderListaArchivos();
-  document.getElementById('importFileInfo').style.display = 'block';
-  document.getElementById('importResult').style.display = 'none';
-  document.getElementById('importGuia').style.display = 'none';
+  const _fi = document.getElementById('importFileInfo');
+  if (_fi) _fi.style.display = 'block';
+  const _ir = document.getElementById('importResult');
+  if (_ir) _ir.style.display = 'none';
+  const _ig = document.getElementById('importGuia');
+  if (_ig) _ig.style.display = 'none';
 
   // Reset input para permitir reseleccionar los mismos archivos si quieren
   e.target.value = '';
@@ -3095,8 +3098,7 @@ function _fmtFecha(iso) {
 
 function _actualizarBtnImportar() {
   const btn = document.getElementById('btnImportar');
-  // PDFs y Excel usan el mismo flujo directo: previsualizar + confirmar automático
-  btn.innerHTML = '⬆ Importar a la BD';
+  if (btn) btn.innerHTML = '⬆ Importar a la BD'; // panel legacy — puede ser null en el nuevo layout
 }
 
 // ── Decisor: PDF → previsualizar primero; solo Excel → importar directo ───────
@@ -3118,7 +3120,6 @@ async function previzualizarPDFs() {
                   : _importFiles.filter(f => f.name.match(/\.pdf$/i));
   const btn = document.getElementById('btnImportarPDF') || document.getElementById('btnImportar');
   if (btn) btn.disabled = true;
-  document.getElementById('importFileInfo').style.display  = 'none';
   document.getElementById('importProgress').style.display  = 'block';
   document.getElementById('importProgressText').textContent = `Analizando ${pdfFiles.length} PDF${pdfFiles.length > 1 ? 's' : ''}… esto puede tardar hasta 1 minuto`;
   document.getElementById('importProgressBar').style.width  = '0%';
@@ -3230,9 +3231,12 @@ function _mostrarRevision(preview) {
     btnConf.textContent = `✓ Confirmar e importar (${okCount} registro${okCount > 1 ? 's' : ''})`;
   }
 
-  document.getElementById('importReview').style.display  = 'block';
-  document.getElementById('importResult').style.display  = 'none';
-  document.getElementById('importFileInfo').style.display = 'none';
+  const _rev = document.getElementById('importReview');
+  const _res = document.getElementById('importResult');
+  const _fii = document.getElementById('importFileInfo');
+  if (_rev) _rev.style.display = 'block';
+  if (_res) _res.style.display = 'none';
+  if (_fii) _fii.style.display = 'none';
 }
 
 // ── Cancelar revisión y volver a selección ────────────────────────────────────
@@ -3354,11 +3358,9 @@ async function ejecutarImportMasiva() {
   const excelFiles = _importFiles.filter(f => f.name.match(/\.(xlsx?|csv)$/i));
   const pdfFiles = _importFiles.filter(f => f.name.match(/\.pdf$/i));
 
-  // Deshabilitar botón y mostrar progreso
-  const btn = document.getElementById('btnImportar');
-  btn.disabled = true;
-  btn.textContent = '⏳ Procesando…';
-  document.getElementById('importFileInfo').style.display = 'none';
+  // Deshabilitar botón y mostrar progreso (panel split: usa btnImportarExcel)
+  const btn = document.getElementById('btnImportarExcel');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Procesando…'; }
   document.getElementById('importProgress').style.display = 'block';
   document.getElementById('importResult').style.display = 'none';
 
@@ -3478,8 +3480,7 @@ async function ejecutarImportMasiva() {
     document.getElementById('importProgress').style.display = 'none';
     mostrarResultadoImport(null, `Error de red: ${err.message}`);
   } finally {
-    btn.disabled = false;
-    btn.textContent = '⬆ Importar a la BD';
+    if (btn) { btn.disabled = false; btn.textContent = '⬆ Importar Excel'; }
   }
 }
 

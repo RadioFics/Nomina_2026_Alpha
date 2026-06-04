@@ -75,7 +75,7 @@ app.use('/api', (req, res, next) => {
 // sean accesibles directamente desde el navegador.
 app.use((req, res, next) => {
   // Directorios con código de servidor
-  const blockedDirs = /^\/(config|controllers|routes|middleware|python|scripts|database|sql|utils|node_modules|logs|assets\/ultimo_maestro|formularios_automatizacion|txtFiles)(\/|$)/i;
+  const blockedDirs = /^\/(config|controllers|routes|middleware|python|scripts|database|docs|sql|utils|node_modules|logs|assets\/ultimo_maestro|formularios_automatizacion|txtFiles)(\/|$)/i;
   // Extensiones de código/configuración del servidor
   const blockedExts = /\.(py|sql|env|md|txt|example|lock|log|pem|key|pfx|p12)$/i;
   // Archivos raíz sensibles por nombre exacto

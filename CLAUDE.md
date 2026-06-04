@@ -17,7 +17,8 @@ Kill a stuck server on Windows:
 ```powershell
 Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force
 # or
-node kill-server.js
+node kill-server.js        # shortcut at project root
+node scripts/kill-server.js  # same script if removed from root
 ```
 
 Health check: `GET http://localhost:3000/api/health`
@@ -119,6 +120,31 @@ Copy `.env.example` to `.env` for local development. Required variables:
 
 Deploy to Azure App Service. `NODE_ENV=production` + Azure SQL endpoint → Managed Identity auth is used automatically (no UID/PWD needed). PM2 config in `ecosystem.config.js` is for VPS deployments; Azure App Service runs `node server.js` directly via `npm start`.
 
+### Folder structure
+
+```
+server.js              ← entry point (keep at root)
+login.html             ← served from root by express.static
+index_novedades.html   ← served from root by express.static
+kill-server.js/.ps1    ← developer shortcuts (keep at root)
+
+src/css/               ← all CSS assets (login.css, novedades.css)
+src/js/                ← all frontend JS (login.js, novedades.js)
+js/                    ← shared browser JS (auth.js, api.js)
+public/                ← public self-service forms (no auth required)
+assets/                ← static resources
+
+config/                ← DB, logger, userHelper (blocked)
+controllers/           ← all Express controllers (blocked)
+routes/                ← all Express router files (blocked)
+middleware/            ← auth middleware (blocked)
+utils/                 ← import parsers, helpers (blocked)
+python/                ← PDF OCR scripts (blocked) — procesar_pdf.py, rellenar_pdf.py
+database/              ← SQL schema & migration scripts (blocked)
+docs/                  ← documentation, notebooks, legacy HTML tools (blocked)
+scripts/               ← one-off maintenance JS utilities (blocked)
+```
+
 ### Security model
 
-`server.js` has a blocklist middleware that returns 404 for direct browser requests to `config/`, `controllers/`, `routes/`, `python/`, `*.py`, `*.sql`, `*.env`, etc. This runs before `express.static`. Do not move sensitive files outside these directories without updating the blocklist regex.
+`server.js` has a blocklist middleware that returns 404 for direct browser requests to `config/`, `controllers/`, `routes/`, `middleware/`, `python/`, `scripts/`, `database/`, `docs/`, `*.py`, `*.sql`, `*.md`, `*.env`, etc. This runs before `express.static`. Do not move sensitive files outside these directories without updating the blocklist regex in `server.js` (around line 78).
