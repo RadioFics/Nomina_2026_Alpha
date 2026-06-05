@@ -1485,31 +1485,74 @@
          ══════════════════════════════════════════════════════════════════════ -->
     <div class="page" id="page-graficos">
       <div class="page-title">Gráficos <span>& Analítica</span></div>
-      <div class="page-desc">Métricas de producción, ausentismos y finanzas por centro de costo — trazabilidad histórica y período activo</div>
+      <div class="page-desc">Estadísticas segmentadas por tipo de novedad — ocasionales, fijas, ausentismos y cambios — con visión de nómina activa e histórico por período.</div>
 
-      <!-- Filtros superiores -->
+      <!-- ── Navegación por tipo ──────────────────────────────────────── -->
+      <div style="display:flex; gap:4px; flex-wrap:wrap; margin-bottom:22px; border-bottom:1px solid var(--border); padding-bottom:14px;">
+        <button data-grf-tab="resumen"     onclick="grfSwitchTab('resumen')"
+          style="display:flex;align-items:center;gap:8px;padding:9px 16px;border-radius:8px;border:1px solid rgba(32,167,201,0.25);cursor:pointer;transition:all .15s;background:rgba(32,167,201,0.12);color:var(--cm-blue);font-family:'Barlow',sans-serif;font-size:13px;font-weight:600;letter-spacing:0.03em;">
+          <span style="font-size:15px;line-height:1;">⬡</span> Resumen
+        </button>
+        <button data-grf-tab="ocasionales" onclick="grfSwitchTab('ocasionales')"
+          style="display:flex;align-items:center;gap:8px;padding:9px 16px;border-radius:8px;border:1px solid transparent;cursor:pointer;transition:all .15s;background:transparent;color:var(--muted);font-family:'Barlow',sans-serif;font-size:13px;font-weight:600;letter-spacing:0.03em;"
+          onmouseover="if(this.dataset.grfTab!==_grfTabActivo)this.style.background='rgba(255,255,255,0.04)'"
+          onmouseout="if(this.dataset.grfTab!==_grfTabActivo)this.style.background='transparent'">
+          <span style="font-size:15px;line-height:1;">◈</span> Ocasionales
+        </button>
+        <button data-grf-tab="fijas"       onclick="grfSwitchTab('fijas')"
+          style="display:flex;align-items:center;gap:8px;padding:9px 16px;border-radius:8px;border:1px solid transparent;cursor:pointer;transition:all .15s;background:transparent;color:var(--muted);font-family:'Barlow',sans-serif;font-size:13px;font-weight:600;letter-spacing:0.03em;"
+          onmouseover="if(this.dataset.grfTab!==_grfTabActivo)this.style.background='rgba(255,255,255,0.04)'"
+          onmouseout="if(this.dataset.grfTab!==_grfTabActivo)this.style.background='transparent'">
+          <span style="font-size:15px;line-height:1;">◉</span> Fijas
+        </button>
+        <button data-grf-tab="ausentismos" onclick="grfSwitchTab('ausentismos')"
+          style="display:flex;align-items:center;gap:8px;padding:9px 16px;border-radius:8px;border:1px solid transparent;cursor:pointer;transition:all .15s;background:transparent;color:var(--muted);font-family:'Barlow',sans-serif;font-size:13px;font-weight:600;letter-spacing:0.03em;"
+          onmouseover="if(this.dataset.grfTab!==_grfTabActivo)this.style.background='rgba(255,255,255,0.04)'"
+          onmouseout="if(this.dataset.grfTab!==_grfTabActivo)this.style.background='transparent'">
+          <span style="font-size:15px;line-height:1;">◷</span> Ausentismos
+        </button>
+        <button data-grf-tab="cambios"     onclick="grfSwitchTab('cambios')"
+          style="display:flex;align-items:center;gap:8px;padding:9px 16px;border-radius:8px;border:1px solid transparent;cursor:pointer;transition:all .15s;background:transparent;color:var(--muted);font-family:'Barlow',sans-serif;font-size:13px;font-weight:600;letter-spacing:0.03em;"
+          onmouseover="if(this.dataset.grfTab!==_grfTabActivo)this.style.background='rgba(255,255,255,0.04)'"
+          onmouseout="if(this.dataset.grfTab!==_grfTabActivo)this.style.background='transparent'">
+          <span style="font-size:15px;line-height:1;">◨</span> Cambios
+        </button>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════════════════
+           SUB-PÁGINA: RESUMEN GENERAL
+           ══════════════════════════════════════════════════════════════ -->
+      <div class="grf-subpage" id="grfp_resumen">
+
+      <!-- ══════════════════════════════════════════════════════════════
+           SECCIÓN A — NÓMINA ACTIVA
+           Instantánea del período seleccionado.
+           ══════════════════════════════════════════════════════════════ -->
+      <div class="section-divider" style="display:flex; align-items:center; gap:12px; margin:0 0 10px;">
+        <span style="font-size:11px; text-transform:uppercase; letter-spacing:0.1em; color:var(--cm-blue-light); font-weight:700; white-space:nowrap;">Nómina Activa</span>
+        <div style="flex:1; height:1px; background:var(--border);"></div>
+        <span id="grf_periodo_label" style="font-size:11px; color:var(--muted);"></span>
+      </div>
+      <div style="font-size:12px; color:var(--muted); margin-bottom:16px; line-height:1.5;">
+        Instantánea del período seleccionado: distribución de novedades, empleados con ausentismo e impacto financiero por centro de costo.
+      </div>
+
+      <!-- Filtros sección A -->
       <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:20px;">
         <div style="display:flex; flex-direction:column; gap:4px;">
           <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted);">Período</label>
-          <select id="grf_periodo" style="background:var(--surface2); border:1px solid rgba(255,255,255,0.1); border-radius:var(--radius); padding:7px 12px; color:var(--text); font-size:13px; min-width:180px;">
-            <option value="">Todos los períodos</option>
+          <select id="grf_periodo" style="background:var(--surface2); border:1px solid rgba(255,255,255,0.08); border-radius:7px; padding:8px 13px; color:var(--text); font-family:'Barlow',sans-serif; font-size:13px; min-width:180px;">
+            <option value="">Período activo</option>
           </select>
         </div>
         <div style="align-self:flex-end;">
-          <button class="btn btn-primary" onclick="graficosCargar()" style="padding:8px 20px; font-size:13px;">⟳ Actualizar</button>
+          <button class="btn btn-primary" onclick="graficosCargarActual()" style="padding:8px 20px; font-size:13px;">⟳ Actualizar</button>
         </div>
-        <div id="grf_loading" style="display:none; align-self:flex-end; font-size:12px; color:var(--muted);">Cargando datos…</div>
+        <div id="grf_loading_activo" style="display:none; align-self:flex-end; font-size:12px; color:var(--muted);">Cargando…</div>
       </div>
 
-      <!-- ─── SECCIÓN 1: PERÍODO ACTIVO ─── -->
-      <div class="section-divider" style="display:flex; align-items:center; gap:12px; margin:0 0 16px;">
-        <span style="font-size:11px; text-transform:uppercase; letter-spacing:0.1em; color:var(--cm-blue-light); font-weight:700; white-space:nowrap;">Período activo</span>
-        <div style="flex:1; height:1px; background:rgba(255,255,255,0.07);"></div>
-        <span id="grf_periodo_label" style="font-size:11px; color:var(--muted);"></span>
-      </div>
-
-      <!-- KPI cards -->
-      <div class="stats" style="grid-template-columns: repeat(5,1fr); margin-bottom:20px;" id="grf_kpi_grid">
+      <!-- 6 KPI cards -->
+      <div class="stats" style="grid-template-columns:repeat(6,1fr); margin-bottom:20px;" id="grf_kpi_grid">
         <div class="stat-card" style="--accent:#20A7C9;">
           <div class="stat-label">Empleados</div>
           <div class="stat-value" id="grf_kpi_empleados">—</div>
@@ -1522,61 +1565,111 @@
         </div>
         <div class="stat-card" style="--accent:#4CAF82;">
           <div class="stat-label">Devengos</div>
-          <div class="stat-value" id="grf_kpi_devengos" style="font-size:18px;">—</div>
+          <div class="stat-value" id="grf_kpi_devengos" style="font-size:16px;">—</div>
           <div class="stat-sub">a favor del empleado</div>
         </div>
         <div class="stat-card" style="--accent:#E05555;">
           <div class="stat-label">Deducciones</div>
-          <div class="stat-value" id="grf_kpi_deducciones" style="font-size:18px;">—</div>
+          <div class="stat-value" id="grf_kpi_deducciones" style="font-size:16px;">—</div>
           <div class="stat-sub">descontadas</div>
         </div>
         <div class="stat-card" style="--accent:#F0A500;">
+          <div class="stat-label">Impacto Neto</div>
+          <div class="stat-value" id="grf_kpi_impacto" style="font-size:16px;">—</div>
+          <div class="stat-sub">devengos − deducciones</div>
+        </div>
+        <div class="stat-card" style="--accent:#00E5FF;">
           <div class="stat-label">Ausentismos</div>
           <div class="stat-value" id="grf_kpi_ausencias">—</div>
           <div class="stat-sub" id="grf_kpi_dias">— días</div>
         </div>
       </div>
 
-      <!-- Fila: donut distribución + top empleados -->
+      <!-- Fila: donut distribución + top ausentes del período -->
       <div style="display:grid; grid-template-columns:1fr 1.6fr; gap:18px; margin-bottom:20px;">
         <div class="form-card" style="padding:18px 20px;">
-          <div class="form-card-title" style="margin-bottom:12px;">Distribución por tipo de novedad</div>
-          <div style="position:relative; height:220px;">
+          <div class="form-card-title" style="margin-bottom:16px;">Distribución por tipo de novedad <span class="grf-info-icon" tabindex="0">i<span class="grf-tooltip">Proporciones de cada tipo de novedad (Ocasionales, Fijas, Ausentismos, Cambios) en el período activo. Permite identificar qué categoría domina la carga de nómina. Un peso elevado en ausentismos señala posible riesgo operativo; muchas ocasionales indican alta variabilidad salarial; predominio de fijas refleja compromisos recurrentes estables.</span></span></div>
+          <div style="position:relative; height:210px;">
             <canvas id="grf_donut_tipo"></canvas>
           </div>
         </div>
         <div class="form-card" style="padding:18px 20px;">
-          <div class="form-card-title" style="margin-bottom:12px;">Top 10 — días de ausentismo (período)</div>
-          <div style="position:relative; height:220px;">
+          <div class="form-card-title" style="margin-bottom:16px;">Top 10 · Días de ausentismo en el período <span class="grf-info-icon" tabindex="0">i<span class="grf-tooltip">Ranking de los 10 empleados con mayor número de días ausentes en el período. Útil para priorizar casos de seguimiento de bienestar, detectar incapacidades de larga duración e identificar empleados que requieren gestión activa de retorno al trabajo.</span></span></div>
+          <div style="position:relative; height:210px;">
             <canvas id="grf_bar_top_periodo"></canvas>
           </div>
         </div>
       </div>
 
-      <!-- ─── SECCIÓN 2: TRAZABILIDAD HISTÓRICA ─── -->
-      <div class="section-divider" style="display:flex; align-items:center; gap:12px; margin:4px 0 16px;">
-        <span style="font-size:11px; text-transform:uppercase; letter-spacing:0.1em; color:var(--cm-blue-light); font-weight:700; white-space:nowrap;">Trazabilidad histórica</span>
-        <div style="flex:1; height:1px; background:rgba(255,255,255,0.07);"></div>
-      </div>
-
-      <!-- Devengos vs Deducciones por período -->
-      <div class="form-card" style="padding:18px 20px; margin-bottom:18px;">
-        <div class="form-card-title" style="margin-bottom:12px;">Devengos vs Deducciones por período</div>
-        <div style="position:relative; height:260px;">
-          <canvas id="grf_bar_finanzas"></canvas>
+      <!-- Fila: actividad por CC + impacto financiero por CC -->
+      <div style="display:grid; grid-template-columns:1.2fr 1fr; gap:18px; margin-bottom:32px;">
+        <div class="form-card" style="padding:18px 20px;">
+          <div class="form-card-title" style="margin-bottom:16px;">Actividad por centro de costo <span class="grf-info-icon" tabindex="0">i<span class="grf-tooltip">Comparativa de novedades activas y empleados involucrados por área organizacional en el período. Detecta qué centros de costo concentran mayor movimiento de nómina y cuáles presentan baja actividad — insumo para balancear carga operativa y priorizar revisiones de auditoría.</span></span></div>
+          <div style="position:relative; height:230px;">
+            <canvas id="grf_bar_centros"></canvas>
+          </div>
+        </div>
+        <div class="form-card" style="padding:18px 20px;">
+          <div class="form-card-title" style="margin-bottom:16px;">Impacto financiero por CC <span class="grf-info-icon" tabindex="0">i<span class="grf-tooltip">Barras agrupadas: devengos vs. deducciones por centro de costo en el período activo. Revela qué áreas generan mayor costo de nómina y dónde se concentran los descuentos. Insumo directo para análisis presupuestal y evaluación del costo por unidad organizacional.</span></span></div>
+          <div style="position:relative; height:230px;">
+            <canvas id="grf_bar_fin_centros"></canvas>
+          </div>
         </div>
       </div>
 
-      <!-- Fila: ausentismos histórico + tipos de ausentismo -->
+      <!-- ══════════════════════════════════════════════════════════════
+           SECCIÓN B — TRAZABILIDAD HISTÓRICA
+           Tendencias en un rango personalizable de períodos.
+           ══════════════════════════════════════════════════════════════ -->
+      <div class="section-divider" style="display:flex; align-items:center; gap:12px; margin:4px 0 10px;">
+        <span style="font-size:11px; text-transform:uppercase; letter-spacing:0.1em; color:var(--cm-blue-light); font-weight:700; white-space:nowrap;">Trazabilidad Histórica</span>
+        <div style="flex:1; height:1px; background:var(--border);"></div>
+      </div>
+      <div style="font-size:12px; color:var(--muted); margin-bottom:16px; line-height:1.5;">
+        Analiza la evolución de la nómina a lo largo del tiempo. Selecciona un rango de períodos para comparar tendencias de costos, ausentismo y comportamiento por centro de costo.
+      </div>
+
+      <!-- Filtros sección B -->
+      <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; margin-bottom:20px;">
+        <div style="display:flex; flex-direction:column; gap:4px;">
+          <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted);">Desde período</label>
+          <select id="grf_hist_desde" style="background:var(--surface2); border:1px solid rgba(255,255,255,0.08); border-radius:7px; padding:8px 13px; color:var(--text); font-family:'Barlow',sans-serif; font-size:13px; min-width:155px;">
+            <option value="">Inicio</option>
+          </select>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:4px;">
+          <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted);">Hasta período</label>
+          <select id="grf_hist_hasta" style="background:var(--surface2); border:1px solid rgba(255,255,255,0.08); border-radius:7px; padding:8px 13px; color:var(--text); font-family:'Barlow',sans-serif; font-size:13px; min-width:155px;">
+            <option value="">Fin</option>
+          </select>
+        </div>
+        <div style="display:flex; gap:6px;">
+          <button onclick="grfSetPreset(6)"  style="padding:5px 12px; font-size:11px; background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:7px; color:var(--muted); cursor:pointer; font-family:'Barlow',sans-serif; font-weight:600; letter-spacing:0.04em; transition:all .15s;">Últ. 6</button>
+          <button onclick="grfSetPreset(12)" style="padding:5px 12px; font-size:11px; background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:7px; color:var(--muted); cursor:pointer; font-family:'Barlow',sans-serif; font-weight:600; letter-spacing:0.04em; transition:all .15s;">Últ. 12</button>
+          <button onclick="grfSetPreset(24)" style="padding:5px 12px; font-size:11px; background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:7px; color:var(--muted); cursor:pointer; font-family:'Barlow',sans-serif; font-weight:600; letter-spacing:0.04em; transition:all .15s;">Últ. 24</button>
+        </div>
+        <button class="btn btn-primary" onclick="graficosCargarHistorico()" style="padding:8px 20px; font-size:13px;">⟳ Cargar</button>
+        <div id="grf_loading_hist" style="display:none; font-size:12px; color:var(--muted);">Cargando…</div>
+      </div>
+
+      <!-- Evolución financiera (line chart) -->
+      <div class="form-card" style="padding:18px 20px; margin-bottom:18px;">
+        <div class="form-card-title" style="margin-bottom:16px;">Evolución financiera · Devengos vs Deducciones <span class="grf-info-icon" tabindex="0">i<span class="grf-tooltip">Tendencia de los montos devengados y deducidos a lo largo del rango seleccionado. Una curva ascendente en devengos refleja crecimiento de nómina o incrementos salariales. Picos en deducciones señalan períodos con alta retención, préstamos activos o ajustes extraordinarios. Clave para planificación presupuestal de largo plazo.</span></span></div>
+        <div style="position:relative; height:260px;">
+          <canvas id="grf_line_finanzas"></canvas>
+        </div>
+      </div>
+
+      <!-- Fila: tendencia ausentismo + tipos de ausentismo -->
       <div style="display:grid; grid-template-columns:1.4fr 1fr; gap:18px; margin-bottom:20px;">
         <div class="form-card" style="padding:18px 20px;">
-          <div class="form-card-title" style="margin-bottom:12px;">Días de ausentismo por período</div>
+          <div class="form-card-title" style="margin-bottom:16px;">Tendencia de ausentismo por período <span class="grf-info-icon" tabindex="0">i<span class="grf-tooltip">Doble serie: el área muestra los días de ausencia acumulados y la línea el número de casos por período. Distingue alta frecuencia (muchos episodios, pocos días) de larga duración (pocos episodios, muchos días). Picos recurrentes sugieren factores estacionales o problemas de clima laboral.</span></span></div>
           <div style="position:relative; height:220px;">
             <canvas id="grf_line_ausencias"></canvas>
           </div>
         </div>
         <div class="form-card" style="padding:18px 20px;">
-          <div class="form-card-title" style="margin-bottom:12px;">Tipos de ausentismo más frecuentes</div>
+          <div class="form-card-title" style="margin-bottom:16px;">Tipos de ausentismo más frecuentes <span class="grf-info-icon" tabindex="0">i<span class="grf-tooltip">Ranking de causas de ausentismo (enfermedad general, accidente laboral, licencia de maternidad, permiso remunerado, etc.) en el rango analizado. El predominio de enfermedad general puede indicar condiciones laborales a revisar. Las licencias remuneradas revelan compromisos legales. Base para programas de bienestar y SST.</span></span></div>
           <div style="position:relative; height:220px;">
             <canvas id="grf_bar_tipos_aus"></canvas>
           </div>
@@ -1585,27 +1678,298 @@
 
       <!-- Top 10 empleados histórico -->
       <div class="form-card" style="padding:18px 20px; margin-bottom:20px;">
-        <div class="form-card-title" style="margin-bottom:12px;">Top 10 empleados — días de ausentismo (histórico)</div>
+        <div class="form-card-title" style="margin-bottom:16px;">Top 10 empleados · Ausentismo acumulado en el rango <span class="grf-info-icon" tabindex="0">i<span class="grf-tooltip">Barras agrupadas: días acumulados vs. episodios por empleado en el rango. Distingue ausentismo puntual (pocas ausencias, muchos días → incapacidades largas) de ausentismo recurrente (muchos episodios, pocos días → posible problema sistémico). Insumo clave para planes de bienestar individualizados.</span></span></div>
         <div style="position:relative; height:240px;">
           <canvas id="grf_bar_top_hist"></canvas>
         </div>
       </div>
 
-      <!-- Centros de costo -->
-      <div style="display:grid; grid-template-columns:1.4fr 1fr; gap:18px; margin-bottom:20px;">
-        <div class="form-card" style="padding:18px 20px;">
-          <div class="form-card-title" style="margin-bottom:12px;">Novedades por centro de costo</div>
-          <div style="position:relative; height:240px;">
-            <canvas id="grf_bar_centros"></canvas>
-          </div>
-        </div>
-        <div class="form-card" style="padding:18px 20px;">
-          <div class="form-card-title" style="margin-bottom:12px;">Ausentismos por centro de costo</div>
-          <div style="position:relative; height:240px;">
-            <canvas id="grf_bar_aus_centros"></canvas>
-          </div>
+      <!-- Ausentismo por CC en el rango -->
+      <div class="form-card" style="padding:18px 20px; margin-bottom:20px;">
+        <div class="form-card-title" style="margin-bottom:16px;">Ausentismo por centro de costo en el rango <span class="grf-info-icon" tabindex="0">i<span class="grf-tooltip">Días de ausencia acumulados y número de casos por área en el rango. Permite identificar qué centros de costo sufren mayor impacto operativo y priorizar intervenciones de Seguridad y Salud en el Trabajo (SST) donde la afectación es más alta.</span></span></div>
+        <div style="position:relative; height:240px;">
+          <canvas id="grf_bar_aus_centros"></canvas>
         </div>
       </div>
+
+      </div><!-- /grfp_resumen -->
+
+      <!-- ══════════════════════════════════════════════════════════════
+           SUB-PÁGINA: OCASIONALES
+           ══════════════════════════════════════════════════════════════ -->
+      <div class="grf-subpage" id="grfp_ocasionales" style="display:none;">
+
+        <!-- Filtros unificados -->
+        <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-bottom:20px;">
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);">Período</label>
+            <select id="grf_oc_periodo" style="background:var(--surface2); border:1px solid rgba(255,255,255,0.08); border-radius:7px; padding:8px 13px; color:var(--text); font-family:'Barlow',sans-serif; font-size:13px; min-width:165px;"><option value="">Período activo</option></select>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);">Histórico desde</label>
+            <select id="grf_oc_desde" style="background:var(--surface2); border:1px solid rgba(255,255,255,0.08); border-radius:7px; padding:8px 13px; color:var(--text); font-family:'Barlow',sans-serif; font-size:13px; min-width:155px;"><option value="">Inicio</option></select>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);">Hasta</label>
+            <select id="grf_oc_hasta" style="background:var(--surface2); border:1px solid rgba(255,255,255,0.08); border-radius:7px; padding:8px 13px; color:var(--text); font-family:'Barlow',sans-serif; font-size:13px; min-width:155px;"><option value="">Fin</option></select>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button onclick="grfSetPresetOc(6)"  style="padding:5px 12px; font-size:11px; background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:7px; color:var(--muted); cursor:pointer; font-family:'Barlow',sans-serif; font-weight:600; letter-spacing:0.04em; transition:all .15s;">6</button>
+            <button onclick="grfSetPresetOc(12)" style="padding:5px 12px; font-size:11px; background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:7px; color:var(--muted); cursor:pointer; font-family:'Barlow',sans-serif; font-weight:600; letter-spacing:0.04em; transition:all .15s;">12</button>
+            <button onclick="grfSetPresetOc(24)" style="padding:5px 12px; font-size:11px; background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:7px; color:var(--muted); cursor:pointer; font-family:'Barlow',sans-serif; font-weight:600; letter-spacing:0.04em; transition:all .15s;">24</button>
+          </div>
+          <button class="btn btn-primary" onclick="graficosCargarOcasionales()" style="padding:8px 20px; font-size:13px;">⟳ Cargar</button>
+          <div id="grf_oc_loading" style="display:none; font-size:12px; color:var(--muted);">Cargando…</div>
+        </div>
+
+        <!-- KPIs -->
+        <div class="stats" style="grid-template-columns:repeat(5,1fr); margin-bottom:20px;">
+          <div class="stat-card" style="--accent:#7C5CBF;"><div class="stat-label">Ocasionales</div><div class="stat-value" id="grf_oc_kpi_total">—</div><div class="stat-sub">en el período</div></div>
+          <div class="stat-card" style="--accent:#20A7C9;"><div class="stat-label">Empleados</div><div class="stat-value" id="grf_oc_kpi_empleados">—</div><div class="stat-sub">con ocasionales</div></div>
+          <div class="stat-card" style="--accent:#4CAF82;"><div class="stat-label">Devengos</div><div class="stat-value" id="grf_oc_kpi_devengos" style="font-size:16px;">—</div><div class="stat-sub">a favor</div></div>
+          <div class="stat-card" style="--accent:#E05555;"><div class="stat-label">Deducciones</div><div class="stat-value" id="grf_oc_kpi_deducciones" style="font-size:16px;">—</div><div class="stat-sub">descontadas</div></div>
+          <div class="stat-card" style="--accent:#F0A500;"><div class="stat-label">Neto</div><div class="stat-value" id="grf_oc_kpi_neto" style="font-size:16px;">—</div><div class="stat-sub">devengos − deducciones</div></div>
+        </div>
+
+        <!-- Sección actual: top conceptos + top empleados -->
+        <div class="section-divider" style="display:flex; align-items:center; gap:12px; margin:0 0 14px;">
+          <span style="font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:var(--cm-blue-light); font-weight:700; white-space:nowrap;">Nómina Activa</span>
+          <div style="flex:1; height:1px; background:var(--border);"></div>
+          <span style="font-size:11px; color:var(--muted);">período seleccionado</span>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:20px;">
+          <div class="form-card" style="padding:18px 20px;">
+            <div class="form-card-title" style="margin-bottom:16px;">Top conceptos por valor <span class="grf-info-icon" tabindex="0">i<span class="grf-tooltip">Ranking de los conceptos ocasionales con mayor valor monetario acumulado en el período. Permite detectar ítems que se repiten sistemáticamente y deberían migrar a novedades fijas, o conceptos inusuales que justifican revisión de autorización. El color indica devengo vs. deducción.</span></span></div>
+            <div style="position:relative; height:260px;"><canvas id="grf_oc_conceptos"></canvas></div>
+          </div>
+          <div class="form-card" style="padding:18px 20px;">
+            <div class="form-card-title" style="margin-bottom:16px;">Top 10 empleados por monto <span class="grf-info-icon" tabindex="0">i<span class="grf-tooltip">Los 10 empleados con mayor monto acumulado en novedades ocasionales del período. Una concentración alta en pocos empleados puede indicar pagos especiales (comisiones, bonificaciones) o descuentos extraordinarios que justifican revisión de autorización.</span></span></div>
+            <div style="position:relative; height:260px;"><canvas id="grf_oc_empleados"></canvas></div>
+          </div>
+        </div>
+
+        <!-- Sección histórica -->
+        <div class="section-divider" style="display:flex; align-items:center; gap:12px; margin:4px 0 14px;">
+          <span style="font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:var(--cm-blue-light); font-weight:700; white-space:nowrap;">Trazabilidad Histórica</span>
+          <div style="flex:1; height:1px; background:var(--border);"></div>
+        </div>
+        <div style="display:grid; grid-template-columns:1.6fr 1fr; gap:18px; margin-bottom:20px;">
+          <div class="form-card" style="padding:18px 20px;">
+            <div class="form-card-title" style="margin-bottom:16px;">Evolución de ocasionales por período <span class="grf-info-icon" tabindex="0">i<span class="grf-tooltip">Tendencia de devengos y deducciones ocasionales en el rango configurado. Los picos coinciden habitualmente con bonificaciones, incrementos masivos, pagos de prima o retenciones extraordinarias. Útil para detectar irregularidades y planificar el flujo de caja de nómina.</span></span></div>
+            <div style="position:relative; height:240px;"><canvas id="grf_oc_tendencia"></canvas></div>
+          </div>
+          <div class="form-card" style="padding:18px 20px;">
+            <div class="form-card-title" style="margin-bottom:16px;">Distribución devengo vs deducción <span class="grf-info-icon" tabindex="0">i<span class="grf-tooltip">Proporción del valor total de ocasionales que corresponde a devengos (ingresos para el empleado) vs. deducciones (descuentos) en el rango. Un dominio alto en deducciones puede señalar préstamos activos, embargos judiciales o ajustes negativos que merecen seguimiento.</span></span></div>
+            <div style="position:relative; height:240px;"><canvas id="grf_oc_split"></canvas></div>
+          </div>
+        </div>
+
+      </div><!-- /grfp_ocasionales -->
+
+      <!-- ══════════════════════════════════════════════════════════════
+           SUB-PÁGINA: FIJAS
+           ══════════════════════════════════════════════════════════════ -->
+      <div class="grf-subpage" id="grfp_fijas" style="display:none;">
+
+        <!-- Filtros unificados -->
+        <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-bottom:20px;">
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);">Período</label>
+            <select id="grf_fj_periodo" style="background:var(--surface2); border:1px solid rgba(255,255,255,0.08); border-radius:7px; padding:8px 13px; color:var(--text); font-family:'Barlow',sans-serif; font-size:13px; min-width:165px;"><option value="">Período activo</option></select>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);">Histórico desde</label>
+            <select id="grf_fj_desde" style="background:var(--surface2); border:1px solid rgba(255,255,255,0.08); border-radius:7px; padding:8px 13px; color:var(--text); font-family:'Barlow',sans-serif; font-size:13px; min-width:155px;"><option value="">Inicio</option></select>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);">Hasta</label>
+            <select id="grf_fj_hasta" style="background:var(--surface2); border:1px solid rgba(255,255,255,0.08); border-radius:7px; padding:8px 13px; color:var(--text); font-family:'Barlow',sans-serif; font-size:13px; min-width:155px;"><option value="">Fin</option></select>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button onclick="grfSetPresetFj(6)"  style="padding:5px 12px; font-size:11px; background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:7px; color:var(--muted); cursor:pointer; font-family:'Barlow',sans-serif; font-weight:600; letter-spacing:0.04em; transition:all .15s;">6</button>
+            <button onclick="grfSetPresetFj(12)" style="padding:5px 12px; font-size:11px; background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:7px; color:var(--muted); cursor:pointer; font-family:'Barlow',sans-serif; font-weight:600; letter-spacing:0.04em; transition:all .15s;">12</button>
+            <button onclick="grfSetPresetFj(24)" style="padding:5px 12px; font-size:11px; background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:7px; color:var(--muted); cursor:pointer; font-family:'Barlow',sans-serif; font-weight:600; letter-spacing:0.04em; transition:all .15s;">24</button>
+          </div>
+          <button class="btn btn-primary" onclick="graficosCargarFijas()" style="padding:8px 20px; font-size:13px;">⟳ Cargar</button>
+          <div id="grf_fj_loading" style="display:none; font-size:12px; color:var(--muted);">Cargando…</div>
+        </div>
+
+        <!-- KPIs -->
+        <div class="stats" style="grid-template-columns:repeat(4,1fr); margin-bottom:20px;">
+          <div class="stat-card" style="--accent:#7C5CBF;"><div class="stat-label">Fijas activas</div><div class="stat-value" id="grf_fj_kpi_total">—</div><div class="stat-sub">en el período</div></div>
+          <div class="stat-card" style="--accent:#20A7C9;"><div class="stat-label">Empleados</div><div class="stat-value" id="grf_fj_kpi_empleados">—</div><div class="stat-sub">con novedades fijas</div></div>
+          <div class="stat-card" style="--accent:#4CAF82;"><div class="stat-label">Compromiso devengos</div><div class="stat-value" id="grf_fj_kpi_devengos" style="font-size:16px;">—</div><div class="stat-sub">recurrente por período</div></div>
+          <div class="stat-card" style="--accent:#E05555;"><div class="stat-label">Compromiso deducciones</div><div class="stat-value" id="grf_fj_kpi_deducciones" style="font-size:16px;">—</div><div class="stat-sub">descuentos recurrentes</div></div>
+        </div>
+
+        <!-- Sección actual -->
+        <div class="section-divider" style="display:flex; align-items:center; gap:12px; margin:0 0 14px;">
+          <span style="font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:var(--cm-blue-light); font-weight:700; white-space:nowrap;">Nómina Activa</span>
+          <div style="flex:1; height:1px; background:var(--border);"></div>
+          <span style="font-size:11px; color:var(--muted);">período seleccionado</span>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:20px;">
+          <div class="form-card" style="padding:18px 20px;">
+            <div class="form-card-title" style="margin-bottom:16px;">Conceptos fijos por monto comprometido <span class="grf-info-icon" tabindex="0">i<span class="grf-tooltip">Monto total comprometido por cada concepto de novedad fija en el período. Revela cuáles compromisos recurrentes (préstamos, seguros, auxilios, subsidios) dominan la nómina. Útil para prever el impacto presupuestal de compromisos de largo plazo y detectar conceptos con monto inusualmente alto.</span></span></div>
+            <div style="position:relative; height:260px;"><canvas id="grf_fj_monto"></canvas></div>
+          </div>
+          <div class="form-card" style="padding:18px 20px;">
+            <div class="form-card-title" style="margin-bottom:16px;">Cobertura por concepto · Nº empleados <span class="grf-info-icon" tabindex="0">i<span class="grf-tooltip">Número de empleados que tienen activo cada concepto fijo en el período. Una cobertura muy alta en deducciones puede señalar un convenio de préstamo masivo o beneficio colectivo. Contrasta con el gráfico de monto para evaluar si el costo es por alta frecuencia o por alto valor unitario por empleado.</span></span></div>
+            <div style="position:relative; height:260px;"><canvas id="grf_fj_cobertura"></canvas></div>
+          </div>
+        </div>
+
+        <!-- Sección histórica -->
+        <div class="section-divider" style="display:flex; align-items:center; gap:12px; margin:4px 0 14px;">
+          <span style="font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:var(--cm-blue-light); font-weight:700; white-space:nowrap;">Trazabilidad Histórica</span>
+          <div style="flex:1; height:1px; background:var(--border);"></div>
+        </div>
+        <div class="form-card" style="padding:18px 20px; margin-bottom:20px;">
+          <div class="form-card-title" style="margin-bottom:16px;">Evolución del compromiso fijo por período <span class="grf-info-icon" tabindex="0">i<span class="grf-tooltip">Tendencia del compromiso económico recurrente (devengos y deducciones fijas) en el rango seleccionado. Una curva estable refleja buena gestión de compromisos; un salto brusco señala incorporación masiva de nuevos contratos fijos (préstamos, beneficios) que elevan el pasivo recurrente de nómina.</span></span></div>
+          <div style="position:relative; height:250px;"><canvas id="grf_fj_tendencia"></canvas></div>
+        </div>
+
+      </div><!-- /grfp_fijas -->
+
+      <!-- ══════════════════════════════════════════════════════════════
+           SUB-PÁGINA: AUSENTISMOS
+           ══════════════════════════════════════════════════════════════ -->
+      <div class="grf-subpage" id="grfp_ausentismos" style="display:none;">
+
+        <!-- Filtros unificados -->
+        <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-bottom:20px;">
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);">Período</label>
+            <select id="grf_au_periodo" style="background:var(--surface2); border:1px solid rgba(255,255,255,0.08); border-radius:7px; padding:8px 13px; color:var(--text); font-family:'Barlow',sans-serif; font-size:13px; min-width:165px;"><option value="">Período activo</option></select>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);">Histórico desde</label>
+            <select id="grf_au_desde" style="background:var(--surface2); border:1px solid rgba(255,255,255,0.08); border-radius:7px; padding:8px 13px; color:var(--text); font-family:'Barlow',sans-serif; font-size:13px; min-width:155px;"><option value="">Inicio</option></select>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);">Hasta</label>
+            <select id="grf_au_hasta" style="background:var(--surface2); border:1px solid rgba(255,255,255,0.08); border-radius:7px; padding:8px 13px; color:var(--text); font-family:'Barlow',sans-serif; font-size:13px; min-width:155px;"><option value="">Fin</option></select>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button onclick="grfSetPresetAu(6)"  style="padding:5px 12px; font-size:11px; background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:7px; color:var(--muted); cursor:pointer; font-family:'Barlow',sans-serif; font-weight:600; letter-spacing:0.04em; transition:all .15s;">6</button>
+            <button onclick="grfSetPresetAu(12)" style="padding:5px 12px; font-size:11px; background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:7px; color:var(--muted); cursor:pointer; font-family:'Barlow',sans-serif; font-weight:600; letter-spacing:0.04em; transition:all .15s;">12</button>
+            <button onclick="grfSetPresetAu(24)" style="padding:5px 12px; font-size:11px; background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:7px; color:var(--muted); cursor:pointer; font-family:'Barlow',sans-serif; font-weight:600; letter-spacing:0.04em; transition:all .15s;">24</button>
+          </div>
+          <button class="btn btn-primary" onclick="graficosCargarAusentismos()" style="padding:8px 20px; font-size:13px;">⟳ Cargar</button>
+          <div id="grf_au_loading" style="display:none; font-size:12px; color:var(--muted);">Cargando…</div>
+        </div>
+
+        <!-- KPIs -->
+        <div class="stats" style="grid-template-columns:repeat(4,1fr); margin-bottom:20px;">
+          <div class="stat-card" style="--accent:#00E5FF;"><div class="stat-label">Casos</div><div class="stat-value" id="grf_au_kpi_casos">—</div><div class="stat-sub">ausentismos registrados</div></div>
+          <div class="stat-card" style="--accent:#20A7C9;"><div class="stat-label">Empleados ausentes</div><div class="stat-value" id="grf_au_kpi_empleados">—</div><div class="stat-sub">afectados en el período</div></div>
+          <div class="stat-card" style="--accent:#E05555;"><div class="stat-label">Días perdidos</div><div class="stat-value" id="grf_au_kpi_dias">—</div><div class="stat-sub">total de días de ausencia</div></div>
+          <div class="stat-card" style="--accent:#F0A500;"><div class="stat-label">Promedio por caso</div><div class="stat-value" id="grf_au_kpi_prom">—</div><div class="stat-sub">días promedio por ausentismo</div></div>
+        </div>
+
+        <!-- Sección actual -->
+        <div class="section-divider" style="display:flex; align-items:center; gap:12px; margin:0 0 14px;">
+          <span style="font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:var(--cm-blue-light); font-weight:700; white-space:nowrap;">Nómina Activa</span>
+          <div style="flex:1; height:1px; background:var(--border);"></div>
+          <span style="font-size:11px; color:var(--muted);">período seleccionado</span>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1.6fr; gap:18px; margin-bottom:20px;">
+          <div class="form-card" style="padding:18px 20px;">
+            <div class="form-card-title" style="margin-bottom:16px;">Tipos de ausentismo · período actual <span class="grf-info-icon" tabindex="0">i<span class="grf-tooltip">Distribución porcentual de causas de ausentismo (enfermedad general, accidente laboral, licencia de maternidad, permiso, etc.) en el período seleccionado. Permite identificar la causa más prevalente y orientar acciones preventivas de SST o compromisos legales de Bienestar.</span></span></div>
+            <div style="position:relative; height:230px;"><canvas id="grf_au_donut"></canvas></div>
+          </div>
+          <div class="form-card" style="padding:18px 20px;">
+            <div class="form-card-title" style="margin-bottom:16px;">Top 10 · Días de ausencia en el período <span class="grf-info-icon" tabindex="0">i<span class="grf-tooltip">Ranking de empleados con mayor número de días ausentes en el período activo. Alto conteo de días con pocos episodios indica incapacidades de larga duración; múltiples episodios con pocos días señalan ausentismo recurrente — dos patrones que requieren intervenciones distintas de Bienestar y SST.</span></span></div>
+            <div style="position:relative; height:230px;"><canvas id="grf_au_top_actual"></canvas></div>
+          </div>
+        </div>
+
+        <!-- Sección histórica -->
+        <div class="section-divider" style="display:flex; align-items:center; gap:12px; margin:4px 0 14px;">
+          <span style="font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:var(--cm-blue-light); font-weight:700; white-space:nowrap;">Trazabilidad Histórica</span>
+          <div style="flex:1; height:1px; background:var(--border);"></div>
+        </div>
+        <div class="form-card" style="padding:18px 20px; margin-bottom:18px;">
+          <div class="form-card-title" style="margin-bottom:16px;">Tendencia de ausentismo por período <span class="grf-info-icon" tabindex="0">i<span class="grf-tooltip">Superposición de área (días totales) y línea (número de episodios) por período en el rango configurado. Permite identificar tendencias estacionales, detectar períodos de alta actividad y evaluar si las intervenciones implementadas han reducido la incidencia a lo largo del tiempo.</span></span></div>
+          <div style="position:relative; height:250px;"><canvas id="grf_au_tendencia"></canvas></div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:20px;">
+          <div class="form-card" style="padding:18px 20px;">
+            <div class="form-card-title" style="margin-bottom:16px;">Tipos de ausentismo acumulados <span class="grf-info-icon" tabindex="0">i<span class="grf-tooltip">Ranking acumulado de causas de ausentismo en el rango histórico. A diferencia del donut del período actual, muestra la evolución agregada. Permite determinar qué tipo genera más costo operativo en el tiempo y priorizar programas de prevención de SST o Bienestar.</span></span></div>
+            <div style="position:relative; height:230px;"><canvas id="grf_au_tipos_hist"></canvas></div>
+          </div>
+          <div class="form-card" style="padding:18px 20px;">
+            <div class="form-card-title" style="margin-bottom:16px;">Top 10 empleados · Ausentismo acumulado <span class="grf-info-icon" tabindex="0">i<span class="grf-tooltip">Acumulado histórico de días de ausencia y episodios por empleado en el rango. Identifica ausentismo estructural (muchos períodos afectados) vs. incidental (un episodio largo). Insumo para planes de reintegro, bienestar individualizado y análisis de carga operativa por persona.</span></span></div>
+            <div style="position:relative; height:230px;"><canvas id="grf_au_top_hist"></canvas></div>
+          </div>
+        </div>
+
+      </div><!-- /grfp_ausentismos -->
+
+      <!-- ══════════════════════════════════════════════════════════════
+           SUB-PÁGINA: CAMBIOS
+           ══════════════════════════════════════════════════════════════ -->
+      <div class="grf-subpage" id="grfp_cambios" style="display:none;">
+
+        <!-- Filtros unificados -->
+        <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-bottom:20px;">
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);">Período</label>
+            <select id="grf_ca_periodo" style="background:var(--surface2); border:1px solid rgba(255,255,255,0.08); border-radius:7px; padding:8px 13px; color:var(--text); font-family:'Barlow',sans-serif; font-size:13px; min-width:165px;"><option value="">Período activo</option></select>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);">Histórico desde</label>
+            <select id="grf_ca_desde" style="background:var(--surface2); border:1px solid rgba(255,255,255,0.08); border-radius:7px; padding:8px 13px; color:var(--text); font-family:'Barlow',sans-serif; font-size:13px; min-width:155px;"><option value="">Inicio</option></select>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);">Hasta</label>
+            <select id="grf_ca_hasta" style="background:var(--surface2); border:1px solid rgba(255,255,255,0.08); border-radius:7px; padding:8px 13px; color:var(--text); font-family:'Barlow',sans-serif; font-size:13px; min-width:155px;"><option value="">Fin</option></select>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button onclick="grfSetPresetCa(6)"  style="padding:5px 12px; font-size:11px; background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:7px; color:var(--muted); cursor:pointer; font-family:'Barlow',sans-serif; font-weight:600; letter-spacing:0.04em; transition:all .15s;">6</button>
+            <button onclick="grfSetPresetCa(12)" style="padding:5px 12px; font-size:11px; background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:7px; color:var(--muted); cursor:pointer; font-family:'Barlow',sans-serif; font-weight:600; letter-spacing:0.04em; transition:all .15s;">12</button>
+            <button onclick="grfSetPresetCa(24)" style="padding:5px 12px; font-size:11px; background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:7px; color:var(--muted); cursor:pointer; font-family:'Barlow',sans-serif; font-weight:600; letter-spacing:0.04em; transition:all .15s;">24</button>
+          </div>
+          <button class="btn btn-primary" onclick="graficosCargarCambios()" style="padding:8px 20px; font-size:13px;">⟳ Cargar</button>
+          <div id="grf_ca_loading" style="display:none; font-size:12px; color:var(--muted);">Cargando…</div>
+        </div>
+
+        <!-- KPIs -->
+        <div class="stats" style="grid-template-columns:repeat(3,1fr); margin-bottom:20px;">
+          <div class="stat-card" style="--accent:#7C5CBF;"><div class="stat-label">Cambios</div><div class="stat-value" id="grf_ca_kpi_total">—</div><div class="stat-sub">registros de cambio</div></div>
+          <div class="stat-card" style="--accent:#20A7C9;"><div class="stat-label">Empleados afectados</div><div class="stat-value" id="grf_ca_kpi_empleados">—</div><div class="stat-sub">con al menos un cambio</div></div>
+          <div class="stat-card" style="--accent:#F0A500;"><div class="stat-label">Tipos distintos</div><div class="stat-value" id="grf_ca_kpi_tipos">—</div><div class="stat-sub">campos modificados</div></div>
+        </div>
+
+        <!-- Sección actual -->
+        <div class="section-divider" style="display:flex; align-items:center; gap:12px; margin:0 0 14px;">
+          <span style="font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:var(--cm-blue-light); font-weight:700; white-space:nowrap;">Nómina Activa</span>
+          <div style="flex:1; height:1px; background:var(--border);"></div>
+          <span style="font-size:11px; color:var(--muted);">período seleccionado</span>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:20px;">
+          <div class="form-card" style="padding:18px 20px;">
+            <div class="form-card-title" style="margin-bottom:16px;">Tipos de cambio más frecuentes <span class="grf-info-icon" tabindex="0">i<span class="grf-tooltip">Ranking de los campos de nómina más modificados (salario, cargo, centro de costo, banco, etc.) en el período. Alta frecuencia en cambios salariales indica ajustes masivos o negociaciones colectivas; muchos cambios de cargo señalan rotación o reestructuración interna.</span></span></div>
+            <div style="position:relative; height:250px;"><canvas id="grf_ca_tipos"></canvas></div>
+          </div>
+          <div class="form-card" style="padding:18px 20px;">
+            <div class="form-card-title" style="margin-bottom:16px;">Empleados con más cambios <span class="grf-info-icon" tabindex="0">i<span class="grf-tooltip">Empleados con mayor número de novedades de cambio registradas en el período. Una alta concentración puede indicar un proceso de vinculación complejo, correcciones sucesivas en datos de nómina, o un cargo que implica múltiples ajustes. Útil para auditoría y control de calidad de datos.</span></span></div>
+            <div style="position:relative; height:250px;"><canvas id="grf_ca_empleados"></canvas></div>
+          </div>
+        </div>
+
+        <!-- Sección histórica -->
+        <div class="section-divider" style="display:flex; align-items:center; gap:12px; margin:4px 0 14px;">
+          <span style="font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:var(--cm-blue-light); font-weight:700; white-space:nowrap;">Trazabilidad Histórica</span>
+          <div style="flex:1; height:1px; background:var(--border);"></div>
+        </div>
+        <div class="form-card" style="padding:18px 20px; margin-bottom:20px;">
+          <div class="form-card-title" style="margin-bottom:16px;">Evolución de cambios por período <span class="grf-info-icon" tabindex="0">i<span class="grf-tooltip">Tendencia del volumen de cambios de nómina y empleados afectados a lo largo del tiempo. Los picos coinciden con renegociaciones salariales colectivas, reestructuraciones organizacionales o renovación de contratos. Un nivel bajo sostenido indica estabilidad en la estructura de nómina.</span></span></div>
+          <div style="position:relative; height:250px;"><canvas id="grf_ca_tendencia"></canvas></div>
+        </div>
+
+      </div><!-- /grfp_cambios -->
+
     </div><!-- /page-graficos -->
 
   </main>

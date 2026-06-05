@@ -4412,101 +4412,220 @@ function _fmtMoney(v) {
   return '$' + n.toLocaleString('es-CO');
 }
 
-let _grfIniciado = false;
+let _grfIniciado  = false;
+let _grfPeriodos  = [];
+let _grfTabActivo = 'resumen';
+let _grfCargado   = {};
+
+// Rellena un selector con los períodos disponibles
+function _grfFillSel(id, periodos) {
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  periodos.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value       = p.COD_PERIOD;
+    opt.textContent = p.etiqueta + (p.PER_EST === 'A' ? ' ●' : '');
+    sel.appendChild(opt);
+  });
+}
+
+// Aplica preset de últimos n períodos a un par de selectores específico
+function _grfSetPresetFor(desdeId, hastaId, n) {
+  const selD = document.getElementById(desdeId);
+  const selH = document.getElementById(hastaId);
+  if (!selD || !selH || !_grfPeriodos.length) return;
+  const ids = _grfPeriodos.map(p => String(p.COD_PERIOD));
+  selH.value = ids[0];
+  selD.value = ids[Math.min(n - 1, ids.length - 1)];
+}
 
 async function graficosInit() {
   if (!_grfIniciado) {
-    // Cargar períodos para el selector
     try {
       const r = await fetch('/api/graficos/periodos');
       if (r.ok) {
-        const periodos = await r.json();
-        const sel = document.getElementById('grf_periodo');
-        periodos.forEach(p => {
-          const opt = document.createElement('option');
-          opt.value = p.COD_PERIOD;
-          opt.textContent = p.etiqueta + (p.PER_EST === 'A' ? ' ●' : '');
-          sel.appendChild(opt);
-        });
-        // Pre-seleccionar el período activo
-        const activo = periodos.find(p => p.PER_EST === 'A');
-        if (activo) sel.value = activo.COD_PERIOD;
+        _grfPeriodos = await r.json();
+        // Rellenar todos los selectores de todas las sub-páginas
+        const todosLosSels = [
+          'grf_periodo', 'grf_hist_desde', 'grf_hist_hasta',
+          'grf_oc_periodo', 'grf_oc_desde', 'grf_oc_hasta',
+          'grf_fj_periodo', 'grf_fj_desde', 'grf_fj_hasta',
+          'grf_au_periodo', 'grf_au_desde', 'grf_au_hasta',
+          'grf_ca_periodo', 'grf_ca_desde', 'grf_ca_hasta'
+        ];
+        todosLosSels.forEach(id => _grfFillSel(id, _grfPeriodos));
+
+        // Preseleccionar período activo en todos los "period" selectors
+        const activo = _grfPeriodos.find(p => p.PER_EST === 'A');
+        if (activo) {
+          ['grf_periodo','grf_oc_periodo','grf_fj_periodo','grf_au_periodo','grf_ca_periodo']
+            .forEach(id => { const s = document.getElementById(id); if (s) s.value = activo.COD_PERIOD; });
+        }
+        // Presets históricos (últimos 6 por defecto)
+        [
+          ['grf_hist_desde','grf_hist_hasta'],
+          ['grf_oc_desde','grf_oc_hasta'],
+          ['grf_fj_desde','grf_fj_hasta'],
+          ['grf_au_desde','grf_au_hasta'],
+          ['grf_ca_desde','grf_ca_hasta']
+        ].forEach(([d,h]) => _grfSetPresetFor(d, h, 6));
       }
-    } catch(_) {}
+    } catch (_) {}
     _grfIniciado = true;
   }
-  graficosCargar();
+  grfSwitchTab('resumen');
 }
 
-async function graficosCargar() {
+// ── Sección A: nómina activa ───────────────────────────────────────────────
+async function graficosCargarActual() {
   const sel       = document.getElementById('grf_periodo');
   const codPeriod = sel ? sel.value : '';
-  const loading   = document.getElementById('grf_loading');
+  const loading   = document.getElementById('grf_loading_activo');
   if (loading) loading.style.display = 'inline';
-
   const qp = codPeriod ? `?codPeriod=${codPeriod}` : '';
-
   try {
-    const [resumen, historico, ausencias, centros] = await Promise.all([
+    const [resumen, centros] = await Promise.all([
       fetch('/api/graficos/resumen' + qp).then(r => r.json()),
-      fetch('/api/graficos/historico').then(r => r.json()),
-      fetch('/api/graficos/ausentismos').then(r => r.json()),
-      fetch('/api/graficos/centros' + qp).then(r => r.json())
+      fetch('/api/graficos/centros'  + qp).then(r => r.json())
     ]);
-
     _grfRenderKPIs(resumen);
     _grfRenderDonutTipo(resumen.distribucion || []);
     _grfRenderTopPeriodo(resumen.topAusentes || []);
-    _grfRenderFinanzas(historico.financiero || []);
-    _grfRenderLineAusencias(historico.ausentismos || []);
-    _grfRenderTiposAus(ausencias.tipos || []);
-    _grfRenderTopHist(ausencias.topEmpleados || []);
     _grfRenderCentros(centros.centros || []);
-
-    // Etiqueta del período seleccionado
+    _grfRenderFinCentros(centros.centros || []);
     const lblEl = document.getElementById('grf_periodo_label');
     if (lblEl && sel && sel.selectedOptions[0]) {
       lblEl.textContent = sel.selectedOptions[0].textContent;
     }
   } catch (err) {
-    console.error('[graficos] error cargando datos:', err);
+    console.error('[graficos] error sección activa:', err);
   } finally {
     if (loading) loading.style.display = 'none';
   }
 }
 
+// ── Sección B: trazabilidad histórica ─────────────────────────────────────
+async function graficosCargarHistorico() {
+  const selD  = document.getElementById('grf_hist_desde');
+  const selH  = document.getElementById('grf_hist_hasta');
+  const desde = selD ? selD.value : '';
+  const hasta = selH ? selH.value : '';
+  const loading = document.getElementById('grf_loading_hist');
+  if (loading) loading.style.display = 'inline';
+  const parts = [desde ? `desde=${desde}` : '', hasta ? `hasta=${hasta}` : ''].filter(Boolean);
+  const qs = parts.length ? `?${parts.join('&')}` : '';
+  try {
+    const [historico, ausencias, centros] = await Promise.all([
+      fetch('/api/graficos/historico'   + qs).then(r => r.json()),
+      fetch('/api/graficos/ausentismos' + qs).then(r => r.json()),
+      fetch('/api/graficos/centros'     + qs).then(r => r.json())
+    ]);
+    _grfRenderEvolucionFinanciera(historico.financiero || []);
+    _grfRenderLineAusencias(historico.ausentismos || []);
+    _grfRenderTiposAus(ausencias.tipos || []);
+    _grfRenderTopHist(ausencias.topEmpleados || []);
+    _grfRenderAusCentros(centros.centros || []);
+  } catch (err) {
+    console.error('[graficos] error sección histórica:', err);
+  } finally {
+    if (loading) loading.style.display = 'none';
+  }
+}
+
+// Presets para cada sub-página
+function grfSetPreset(n)   { _grfSetPresetFor('grf_hist_desde','grf_hist_hasta', n); }
+function grfSetPresetOc(n) { _grfSetPresetFor('grf_oc_desde',  'grf_oc_hasta',   n); }
+function grfSetPresetFj(n) { _grfSetPresetFor('grf_fj_desde',  'grf_fj_hasta',   n); }
+function grfSetPresetAu(n) { _grfSetPresetFor('grf_au_desde',  'grf_au_hasta',   n); }
+function grfSetPresetCa(n) { _grfSetPresetFor('grf_ca_desde',  'grf_ca_hasta',   n); }
+
+// ── Navegación entre sub-páginas ───────────────────────────────────────────
+function grfSwitchTab(tab) {
+  // Visual: actualizar botones — mismo patrón que .nav-item.active del sidebar
+  document.querySelectorAll('[data-grf-tab]').forEach(btn => {
+    const active = btn.dataset.grfTab === tab;
+    btn.style.background  = active ? 'rgba(32,167,201,0.12)' : 'transparent';
+    btn.style.borderColor = active ? 'rgba(32,167,201,0.25)' : 'transparent';
+    btn.style.color       = active ? 'var(--cm-blue)'        : 'var(--muted)';
+  });
+  // Mostrar sub-página correcta
+  document.querySelectorAll('.grf-subpage').forEach(p => p.style.display = 'none');
+  const page = document.getElementById('grfp_' + tab);
+  if (page) page.style.display = '';
+  _grfTabActivo = tab;
+  // Carga lazy: solo la primera vez que se entra a cada tab
+  if (!_grfCargado[tab]) {
+    _grfCargado[tab] = true;
+    _grfCargarTab(tab);
+  }
+}
+
+function _grfCargarTab(tab) {
+  if      (tab === 'resumen')     { graficosCargarActual(); graficosCargarHistorico(); }
+  else if (tab === 'ocasionales') graficosCargarOcasionales();
+  else if (tab === 'fijas')       graficosCargarFijas();
+  else if (tab === 'ausentismos') graficosCargarAusentismos();
+  else if (tab === 'cambios')     graficosCargarCambios();
+}
+
 // ── KPI cards ──────────────────────────────────────────────────────────────
 function _grfRenderKPIs(data) {
-  const k = data.kpis || {};
+  const k   = data.kpis || {};
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   set('grf_kpi_empleados',   k.empleados_con_novedades ?? '—');
   set('grf_kpi_novedades',   k.total_novedades ?? '—');
   set('grf_kpi_devengos',    _fmtMoney(k.devengos));
   set('grf_kpi_deducciones', _fmtMoney(k.deducciones));
+  set('grf_kpi_impacto',     _fmtMoney(k.impacto_neto));
   set('grf_kpi_ausencias',   k.total_ausencias ?? '—');
   const diasEl = document.getElementById('grf_kpi_dias');
   if (diasEl) diasEl.textContent = (k.dias_ausencia ?? '—') + ' días de ausencia';
+}
+
+// ── Helper: estado vacío sin destruir el canvas ───────────────────────────
+function _grfEmpty(ctx, msg) {
+  ctx.style.display = 'none';
+  let ov = ctx.parentElement.querySelector('.grf-empty');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.className  = 'grf-empty';
+    ov.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px;text-align:center;padding:16px;';
+    ctx.parentElement.appendChild(ov);
+  }
+  ov.textContent    = msg;
+  ov.style.display  = 'flex';
+}
+
+function _grfShowCanvas(ctx) {
+  ctx.style.display = '';
+  const ov = ctx.parentElement.querySelector('.grf-empty');
+  if (ov) ov.style.display = 'none';
 }
 
 // ── Donut distribución por tipo ────────────────────────────────────────────
 function _grfRenderDonutTipo(dist) {
   _grfDestroy('donutTipo');
   const ctx = document.getElementById('grf_donut_tipo');
-  if (!ctx || !dist.length) return;
+  if (!ctx) return;
+  if (!dist.length) { _grfEmpty(ctx, 'Sin novedades en el período seleccionado'); return; }
+  _grfShowCanvas(ctx);
   const labels = dist.map(d => d.tipo);
   const vals   = dist.map(d => d.total);
+  const total  = vals.reduce((a, b) => a + b, 0);
   _grfCharts['donutTipo'] = new Chart(ctx, {
     type: 'doughnut',
     data: {
       labels,
-      datasets: [{ data: vals, backgroundColor: labels.map((_,i) => _grfColor(i, 0.85)),
+      datasets: [{ data: vals, backgroundColor: labels.map((_, i) => _grfColor(i, 0.85)),
                    borderWidth: 2, borderColor: '#1a1f2e' }]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: { position: 'right', labels: { color: '#a0aec0', font: { size: 11 }, padding: 10 } },
-        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed} novedades` } }
+        tooltip: { callbacks: {
+          label: c => ` ${c.label}: ${c.parsed} (${((c.parsed / total) * 100).toFixed(1)}%)`
+        }}
       }
     }
   });
@@ -4517,22 +4636,20 @@ function _grfRenderTopPeriodo(top) {
   _grfDestroy('topPeriodo');
   const ctx = document.getElementById('grf_bar_top_periodo');
   if (!ctx) return;
-  if (!top.length) {
-    ctx.parentElement.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:13px;">Sin ausentismos en este período</div>';
-    return;
-  }
-  const labels = top.map(t => t.nombre ? t.nombre.split(' ').slice(0,2).join(' ') : t.cedula);
+  if (!top.length) { _grfEmpty(ctx, 'Sin ausentismos registrados en este período'); return; }
+  _grfShowCanvas(ctx);
+  const labels = top.map(t => t.nombre ? t.nombre.split(' ').slice(0, 2).join(' ') : t.cedula);
   const dias   = top.map(t => t.dias || 0);
   _grfCharts['topPeriodo'] = new Chart(ctx, {
     type: 'bar',
-    data: {
-      labels,
-      datasets: [{ label: 'Días de ausencia', data: dias,
-                   backgroundColor: _grfColor(0, 0.75), borderRadius: 4 }]
-    },
+    data: { labels, datasets: [{ label: 'Días de ausencia', data: dias,
+              backgroundColor: _grfColor(0, 0.75), borderRadius: 4 }] },
     options: {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => ` ${c.parsed.x} días` } }
+      },
       scales: {
         x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0' } },
         y: { grid: { display: false }, ticks: { color: '#a0aec0', font: { size: 11 } } }
@@ -4541,32 +4658,32 @@ function _grfRenderTopPeriodo(top) {
   });
 }
 
-// ── Bar doble: Devengos vs Deducciones por período ────────────────────────
-function _grfRenderFinanzas(fin) {
-  _grfDestroy('barFinanzas');
-  const ctx = document.getElementById('grf_bar_finanzas');
-  if (!ctx || !fin.length) return;
+// ── Line: evolución financiera histórica ──────────────────────────────────
+function _grfRenderEvolucionFinanciera(fin) {
+  _grfDestroy('lineFinanzas');
+  const ctx = document.getElementById('grf_line_finanzas');
+  if (!ctx) return;
+  if (!fin.length) { _grfEmpty(ctx, 'Sin datos en el rango seleccionado. Ajusta los filtros de período y presiona Cargar.'); return; }
+  _grfShowCanvas(ctx);
   const labels = fin.map(f => f.label);
-  _grfCharts['barFinanzas'] = new Chart(ctx, {
-    type: 'bar',
+  _grfCharts['lineFinanzas'] = new Chart(ctx, {
+    type: 'line',
     data: {
       labels,
       datasets: [
         { label: 'Devengos', data: fin.map(f => f.devengos || 0),
-          backgroundColor: _grfColor(1, 0.75), borderRadius: 3 },
+          borderColor: _grfColor(1, 1), backgroundColor: _grfColor(1, 0.12),
+          tension: 0.35, fill: true, pointRadius: 3, pointBackgroundColor: _grfColor(1, 1) },
         { label: 'Deducciones', data: fin.map(f => f.deducciones || 0),
-          backgroundColor: _grfColor(2, 0.75), borderRadius: 3 }
+          borderColor: _grfColor(2, 1), backgroundColor: _grfColor(2, 0.1),
+          tension: 0.35, fill: true, pointRadius: 3, pointBackgroundColor: _grfColor(2, 1) }
       ]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: { labels: { color: '#a0aec0', font: { size: 11 } } },
-        tooltip: {
-          callbacks: {
-            label: ctx => ` ${ctx.dataset.label}: $${Number(ctx.parsed.y).toLocaleString('es-CO', {minimumFractionDigits: 0})}`
-          }
-        }
+        tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${_fmtMoney(c.parsed.y)}` } }
       },
       scales: {
         x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0', font: { size: 11 } } },
@@ -4576,11 +4693,13 @@ function _grfRenderFinanzas(fin) {
   });
 }
 
-// ── Line: días de ausentismo por período ──────────────────────────────────
+// ── Line: tendencia de ausentismo por período ─────────────────────────────
 function _grfRenderLineAusencias(aus) {
   _grfDestroy('lineAusencias');
   const ctx = document.getElementById('grf_line_ausencias');
-  if (!ctx || !aus.length) return;
+  if (!ctx) return;
+  if (!aus.length) { _grfEmpty(ctx, 'Sin ausentismos en el rango seleccionado'); return; }
+  _grfShowCanvas(ctx);
   const labels = aus.map(a => a.label);
   _grfCharts['lineAusencias'] = new Chart(ctx, {
     type: 'line',
@@ -4592,17 +4711,18 @@ function _grfRenderLineAusencias(aus) {
           tension: 0.4, fill: true, pointRadius: 4, pointBackgroundColor: _grfColor(4, 1) },
         { label: 'Casos', data: aus.map(a => a.ausencias || 0),
           borderColor: _grfColor(0, 1), backgroundColor: 'transparent',
-          tension: 0.4, pointRadius: 4, pointBackgroundColor: _grfColor(0, 1),
-          yAxisID: 'y2' }
+          tension: 0.4, pointRadius: 4, pointBackgroundColor: _grfColor(0, 1), yAxisID: 'y2' }
       ]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { labels: { color: '#a0aec0', font: { size: 11 } } } },
       scales: {
-        x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0', font: { size: 11 } } },
-        y:  { position: 'left',  grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0' } },
-        y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#a0aec0' } }
+        x:  { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0', font: { size: 11 } } },
+        y:  { position: 'left',  grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0' },
+              title: { display: true, text: 'Días', color: '#a0aec0', font: { size: 10 } } },
+        y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#a0aec0' },
+              title: { display: true, text: 'Casos', color: '#a0aec0', font: { size: 10 } } }
       }
     }
   });
@@ -4612,20 +4732,20 @@ function _grfRenderLineAusencias(aus) {
 function _grfRenderTiposAus(tipos) {
   _grfDestroy('tiposAus');
   const ctx = document.getElementById('grf_bar_tipos_aus');
-  if (!ctx || !tipos.length) return;
+  if (!ctx) return;
+  if (!tipos.length) { _grfEmpty(ctx, 'Sin ausentismos en el rango seleccionado'); return; }
+  _grfShowCanvas(ctx);
   const labels = tipos.map(t => t.tipo);
   _grfCharts['tiposAus'] = new Chart(ctx, {
     type: 'bar',
-    data: {
-      labels,
-      datasets: [
-        { label: 'Días totales', data: tipos.map(t => t.dias_total || 0),
-          backgroundColor: tipos.map((_,i) => _grfColor(i, 0.8)), borderRadius: 4 }
-      ]
-    },
+    data: { labels, datasets: [{ label: 'Días totales', data: tipos.map(t => t.dias_total || 0),
+              backgroundColor: tipos.map((_, i) => _grfColor(i, 0.8)), borderRadius: 4 }] },
     options: {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => ` ${c.parsed.x} días (${tipos[c.dataIndex]?.casos || 0} casos)` } }
+      },
       scales: {
         x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0' } },
         y: { grid: { display: false }, ticks: { color: '#a0aec0', font: { size: 11 } } }
@@ -4634,12 +4754,14 @@ function _grfRenderTiposAus(tipos) {
   });
 }
 
-// ── Bar horizontal: top 10 histórico ────────────────────────────────────
+// ── Bar horizontal: top 10 histórico ─────────────────────────────────────
 function _grfRenderTopHist(top) {
   _grfDestroy('topHist');
   const ctx = document.getElementById('grf_bar_top_hist');
-  if (!ctx || !top.length) return;
-  const labels = top.map(t => t.nombre ? t.nombre.split(' ').slice(0,2).join(' ') : t.cedula);
+  if (!ctx) return;
+  if (!top.length) { _grfEmpty(ctx, 'Sin ausentismos en el rango seleccionado'); return; }
+  _grfShowCanvas(ctx);
+  const labels = top.map(t => t.nombre ? t.nombre.split(' ').slice(0, 2).join(' ') : t.cedula);
   _grfCharts['topHist'] = new Chart(ctx, {
     type: 'bar',
     data: {
@@ -4663,22 +4785,16 @@ function _grfRenderTopHist(top) {
   });
 }
 
-// ── Bar doble: centros de costo ───────────────────────────────────────────
+// ── Bar: novedades + empleados por CC (período activo) ────────────────────
 function _grfRenderCentros(centros) {
-  _grfDestroy('barCentros'); _grfDestroy('barAusCentros');
-  const ctxN = document.getElementById('grf_bar_centros');
-  const ctxA = document.getElementById('grf_bar_aus_centros');
-  if (!ctxN || !centros.length) return;
-
-  // Usar abreviatura como etiqueta en el eje X; tooltip muestra nombre completo del CC
-  const labels = centros.map(c => c.abrev || c.nombre.substring(0, 14));
-  const tooltipTitle = (items) => {
-    const cc = centros[items[0].dataIndex];
-    return cc.nombre || cc.abrev || String(cc.codigo);
-  };
-
-  // Novedades por CC
-  _grfCharts['barCentros'] = new Chart(ctxN, {
+  _grfDestroy('barCentros');
+  const ctx = document.getElementById('grf_bar_centros');
+  if (!ctx) return;
+  if (!centros.length) { _grfEmpty(ctx, 'Sin centros de costo en el período'); return; }
+  _grfShowCanvas(ctx);
+  const labels       = centros.map(c => c.abrev || c.nombre.substring(0, 14));
+  const tooltipTitle = items => centros[items[0].dataIndex]?.nombre || labels[items[0].dataIndex];
+  _grfCharts['barCentros'] = new Chart(ctx, {
     type: 'bar',
     data: {
       labels,
@@ -4702,10 +4818,622 @@ function _grfRenderCentros(centros) {
       }
     }
   });
+}
 
-  if (!ctxA) return;
-  // Ausentismos por CC
-  _grfCharts['barAusCentros'] = new Chart(ctxA, {
+// ── Bar: devengos vs deducciones por CC (período activo) ──────────────────
+function _grfRenderFinCentros(centros) {
+  _grfDestroy('barFinCentros');
+  const ctx = document.getElementById('grf_bar_fin_centros');
+  if (!ctx) return;
+  if (!centros.length) { _grfEmpty(ctx, 'Sin datos financieros por CC en el período'); return; }
+  _grfShowCanvas(ctx);
+  const labels       = centros.map(c => c.abrev || c.nombre.substring(0, 14));
+  const tooltipTitle = items => centros[items[0].dataIndex]?.nombre || labels[items[0].dataIndex];
+  _grfCharts['barFinCentros'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Devengos',    data: centros.map(c => c.devengos    || 0),
+          backgroundColor: _grfColor(1, 0.75), borderRadius: 4 },
+        { label: 'Deducciones', data: centros.map(c => c.deducciones || 0),
+          backgroundColor: _grfColor(2, 0.7),  borderRadius: 4 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#a0aec0', font: { size: 11 } } },
+        tooltip: { callbacks: {
+          title: tooltipTitle,
+          label: c => ` ${c.dataset.label}: ${_fmtMoney(c.parsed.y)}`
+        }}
+      },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0', font: { size: 11 } } },
+        y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0', callback: v => _fmtMoney(v) } }
+      }
+    }
+  });
+}
+
+// ── ══════════════════════════════════════════════════════════════════════
+//    OCASIONALES
+// ══════════════════════════════════════════════════════════════════════ ──
+
+async function graficosCargarOcasionales() {
+  const cp  = document.getElementById('grf_oc_periodo')?.value || '';
+  const d   = document.getElementById('grf_oc_desde')?.value  || '';
+  const h   = document.getElementById('grf_oc_hasta')?.value  || '';
+  const ld  = document.getElementById('grf_oc_loading');
+  if (ld) ld.style.display = 'inline';
+  const qp  = cp ? `?codPeriod=${cp}` : (d||h ? `?desde=${d}&hasta=${h}` : '');
+  const qh  = d||h ? `?desde=${d}&hasta=${h}` : (cp ? `?desde=${cp}&hasta=${cp}` : '');
+  try {
+    const [curr, hist] = await Promise.all([
+      fetch('/api/graficos/ocasionales' + qp).then(r => r.json()),
+      fetch('/api/graficos/ocasionales' + qh).then(r => r.json())
+    ]);
+    _grfRenderOcasKPIs(curr);
+    _grfRenderOcasConceptos(curr.topConceptos || []);
+    _grfRenderOcasEmpleados(curr.topEmpleados || []);
+    _grfRenderOcasTendencia(hist.tendencia    || []);
+    _grfRenderOcasSplit(hist.tendencia        || []);
+  } catch(e) { console.error('[graficos] ocasionales:', e); }
+  finally    { if (ld) ld.style.display = 'none'; }
+}
+
+function _grfRenderOcasKPIs(data) {
+  const k = data.kpis || {};
+  const s = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  s('grf_oc_kpi_total',      k.total_ocas   ?? '—');
+  s('grf_oc_kpi_empleados',  k.empleados    ?? '—');
+  s('grf_oc_kpi_devengos',   _fmtMoney(k.devengos));
+  s('grf_oc_kpi_deducciones',_fmtMoney(k.deducciones));
+  s('grf_oc_kpi_neto',       _fmtMoney(k.neto));
+}
+
+function _grfRenderOcasConceptos(items) {
+  _grfDestroy('ocConceptos');
+  const ctx = document.getElementById('grf_oc_conceptos');
+  if (!ctx) return;
+  if (!items.length) { _grfEmpty(ctx, 'Sin ocasionales en el período seleccionado'); return; }
+  _grfShowCanvas(ctx);
+  const labels = items.map(i => i.nombre);
+  const devs   = items.map(i => i.tipo_conc === 'DEVENGO'   ? (i.valor_total || 0) : 0);
+  const deds   = items.map(i => i.tipo_conc === 'DEDUCCION' ? (i.valor_total || 0) : 0);
+  _grfCharts['ocConceptos'] = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [
+      { label: 'Devengo',    data: devs, backgroundColor: _grfColor(1, 0.78), borderRadius: 4 },
+      { label: 'Deducción',  data: deds, backgroundColor: _grfColor(2, 0.72), borderRadius: 4 }
+    ]},
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#a0aec0', font: { size: 11 } } },
+        tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${_fmtMoney(c.parsed.x)}` } }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0', callback: v => _fmtMoney(v) } },
+        y: { grid: { display: false }, ticks: { color: '#a0aec0', font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+function _grfRenderOcasEmpleados(items) {
+  _grfDestroy('ocEmpleados');
+  const ctx = document.getElementById('grf_oc_empleados');
+  if (!ctx) return;
+  if (!items.length) { _grfEmpty(ctx, 'Sin empleados con ocasionales en el período'); return; }
+  _grfShowCanvas(ctx);
+  const labels = items.map(i => i.nombre ? i.nombre.split(' ').slice(0,2).join(' ') : i.cedula);
+  _grfCharts['ocEmpleados'] = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [
+      { label: 'Monto total', data: items.map(i => i.valor_total || 0),
+        backgroundColor: _grfColor(0, 0.78), borderRadius: 4 },
+      { label: 'Cantidad',    data: items.map(i => i.cantidad   || 0),
+        backgroundColor: _grfColor(4, 0.65), borderRadius: 4, yAxisID: 'y2' }
+    ]},
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#a0aec0', font: { size: 11 } } },
+        tooltip: { callbacks: { label: c => c.datasetIndex === 0 ? ` ${_fmtMoney(c.parsed.x)}` : ` ${c.parsed.x} novedades` } }
+      },
+      scales: {
+        x:  { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0', callback: v => _fmtMoney(v) } },
+        y:  { grid: { display: false }, ticks: { color: '#a0aec0', font: { size: 11 } } },
+        y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#a0aec0' } }
+      }
+    }
+  });
+}
+
+function _grfRenderOcasTendencia(tend) {
+  _grfDestroy('ocTendencia');
+  const ctx = document.getElementById('grf_oc_tendencia');
+  if (!ctx) return;
+  if (!tend.length) { _grfEmpty(ctx, 'Sin datos históricos en el rango seleccionado'); return; }
+  _grfShowCanvas(ctx);
+  const labels = tend.map(t => t.label);
+  _grfCharts['ocTendencia'] = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets: [
+      { label: 'Devengos',    data: tend.map(t => t.devengos    || 0),
+        borderColor: _grfColor(1,1), backgroundColor: _grfColor(1,0.12),
+        tension: 0.35, fill: true, pointRadius: 3 },
+      { label: 'Deducciones', data: tend.map(t => t.deducciones || 0),
+        borderColor: _grfColor(2,1), backgroundColor: _grfColor(2,0.1),
+        tension: 0.35, fill: true, pointRadius: 3 }
+    ]},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#a0aec0', font: { size: 11 } } },
+        tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${_fmtMoney(c.parsed.y)}` } }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0', font: { size: 11 } } },
+        y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0', callback: v => _fmtMoney(v) } }
+      }
+    }
+  });
+}
+
+function _grfRenderOcasSplit(tend) {
+  _grfDestroy('ocSplit');
+  const ctx = document.getElementById('grf_oc_split');
+  if (!ctx) return;
+  if (!tend.length) { _grfEmpty(ctx, 'Sin datos en el rango seleccionado'); return; }
+  _grfShowCanvas(ctx);
+  const totalDev = tend.reduce((s, t) => s + (t.devengos    || 0), 0);
+  const totalDed = tend.reduce((s, t) => s + (t.deducciones || 0), 0);
+  if (!totalDev && !totalDed) { _grfEmpty(ctx, 'Sin valores en el rango'); return; }
+  _grfCharts['ocSplit'] = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels: ['Devengos', 'Deducciones'],
+      datasets: [{ data: [totalDev, totalDed],
+        backgroundColor: [_grfColor(1,0.85), _grfColor(2,0.85)],
+        borderWidth: 2, borderColor: '#1a1f2e' }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'right', labels: { color: '#a0aec0', font: { size: 11 } } },
+        tooltip: { callbacks: { label: c => ` ${c.label}: ${_fmtMoney(c.parsed)}` } }
+      }
+    }
+  });
+}
+
+// ── ══════════════════════════════════════════════════════════════════════
+//    FIJAS
+// ══════════════════════════════════════════════════════════════════════ ──
+
+async function graficosCargarFijas() {
+  const cp = document.getElementById('grf_fj_periodo')?.value || '';
+  const d  = document.getElementById('grf_fj_desde')?.value  || '';
+  const h  = document.getElementById('grf_fj_hasta')?.value  || '';
+  const ld = document.getElementById('grf_fj_loading');
+  if (ld) ld.style.display = 'inline';
+  const qp = cp ? `?codPeriod=${cp}` : (d||h ? `?desde=${d}&hasta=${h}` : '');
+  const qh = d||h ? `?desde=${d}&hasta=${h}` : (cp ? `?desde=${cp}&hasta=${cp}` : '');
+  try {
+    const [curr, hist] = await Promise.all([
+      fetch('/api/graficos/fijas' + qp).then(r => r.json()),
+      fetch('/api/graficos/fijas' + qh).then(r => r.json())
+    ]);
+    _grfRenderFijasKPIs(curr);
+    _grfRenderFijasMonto(curr.porConcepto    || []);
+    _grfRenderFijasCobertura(curr.porConcepto || []);
+    _grfRenderFijasTendencia(hist.tendencia  || []);
+  } catch(e) { console.error('[graficos] fijas:', e); }
+  finally    { if (ld) ld.style.display = 'none'; }
+}
+
+function _grfRenderFijasKPIs(data) {
+  const k = data.kpis || {};
+  const s = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  s('grf_fj_kpi_total',       k.total_fijas  ?? '—');
+  s('grf_fj_kpi_empleados',   k.empleados    ?? '—');
+  s('grf_fj_kpi_devengos',    _fmtMoney(k.devengos));
+  s('grf_fj_kpi_deducciones', _fmtMoney(k.deducciones));
+}
+
+function _grfRenderFijasMonto(items) {
+  _grfDestroy('fjMonto');
+  const ctx = document.getElementById('grf_fj_monto');
+  if (!ctx) return;
+  if (!items.length) { _grfEmpty(ctx, 'Sin novedades fijas en el período seleccionado'); return; }
+  _grfShowCanvas(ctx);
+  const labels = items.map(i => i.nombre);
+  const devs   = items.map(i => i.tipo_conc === 'DEVENGO'   ? (i.valor_total || 0) : 0);
+  const deds   = items.map(i => i.tipo_conc === 'DEDUCCION' ? (i.valor_total || 0) : 0);
+  _grfCharts['fjMonto'] = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [
+      { label: 'Devengo',   data: devs, backgroundColor: _grfColor(1, 0.8),  borderRadius: 4 },
+      { label: 'Deducción', data: deds, backgroundColor: _grfColor(2, 0.72), borderRadius: 4 }
+    ]},
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#a0aec0', font: { size: 11 } } },
+        tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${_fmtMoney(c.parsed.x)}` } }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0', callback: v => _fmtMoney(v) } },
+        y: { grid: { display: false }, ticks: { color: '#a0aec0', font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+function _grfRenderFijasCobertura(items) {
+  _grfDestroy('fjCobertura');
+  const ctx = document.getElementById('grf_fj_cobertura');
+  if (!ctx) return;
+  if (!items.length) { _grfEmpty(ctx, 'Sin novedades fijas en el período seleccionado'); return; }
+  _grfShowCanvas(ctx);
+  const labels = items.map(i => i.nombre);
+  _grfCharts['fjCobertura'] = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [
+      { label: 'Empleados', data: items.map(i => i.empleados || 0),
+        backgroundColor: items.map((i,idx) => _grfColor(idx, 0.78)), borderRadius: 4 }
+    ]},
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false },
+        tooltip: { callbacks: { label: c => ` ${c.parsed.x} empleados` } }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0' } },
+        y: { grid: { display: false }, ticks: { color: '#a0aec0', font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+function _grfRenderFijasTendencia(tend) {
+  _grfDestroy('fjTendencia');
+  const ctx = document.getElementById('grf_fj_tendencia');
+  if (!ctx) return;
+  if (!tend.length) { _grfEmpty(ctx, 'Sin datos históricos en el rango seleccionado'); return; }
+  _grfShowCanvas(ctx);
+  _grfCharts['fjTendencia'] = new Chart(ctx, {
+    type: 'line',
+    data: { labels: tend.map(t => t.label), datasets: [
+      { label: 'Devengos fijos',    data: tend.map(t => t.devengos    || 0),
+        borderColor: _grfColor(1,1), backgroundColor: _grfColor(1,0.12),
+        tension: 0.3, fill: true, pointRadius: 3 },
+      { label: 'Deducciones fijas', data: tend.map(t => t.deducciones || 0),
+        borderColor: _grfColor(2,1), backgroundColor: _grfColor(2,0.1),
+        tension: 0.3, fill: true, pointRadius: 3 },
+      { label: 'Total registros',   data: tend.map(t => t.total       || 0),
+        borderColor: _grfColor(4,1), backgroundColor: 'transparent',
+        tension: 0.3, pointRadius: 3, yAxisID: 'y2' }
+    ]},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#a0aec0', font: { size: 11 } } },
+        tooltip: { callbacks: { label: c => c.datasetIndex < 2 ? ` ${c.dataset.label}: ${_fmtMoney(c.parsed.y)}` : ` ${c.parsed.y} registros` } }
+      },
+      scales: {
+        x:  { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0', font: { size: 11 } } },
+        y:  { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0', callback: v => _fmtMoney(v) } },
+        y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#a0aec0' } }
+      }
+    }
+  });
+}
+
+// ── ══════════════════════════════════════════════════════════════════════
+//    AUSENTISMOS (sub-página dedicada)
+// ══════════════════════════════════════════════════════════════════════ ──
+
+async function graficosCargarAusentismos() {
+  const cp = document.getElementById('grf_au_periodo')?.value || '';
+  const d  = document.getElementById('grf_au_desde')?.value  || '';
+  const h  = document.getElementById('grf_au_hasta')?.value  || '';
+  const ld = document.getElementById('grf_au_loading');
+  if (ld) ld.style.display = 'inline';
+  const qp = cp ? `?codPeriod=${cp}` : (d||h ? `?desde=${d}&hasta=${h}` : '');
+  const qh = d||h ? `?desde=${d}&hasta=${h}` : (cp ? `?desde=${cp}&hasta=${cp}` : '');
+  try {
+    // curr: tipos + topEmpleados del período puntual
+    // histAus: tipos + topEmpleados del rango histórico
+    // histLine: tendencia por período (viene de /historico)
+    // res: KPIs + topAusentes del período (viene de /resumen)
+    const [curr, histAus, histLine, res] = await Promise.all([
+      fetch('/api/graficos/ausentismos' + qp).then(r => r.json()),
+      fetch('/api/graficos/ausentismos' + qh).then(r => r.json()),
+      fetch('/api/graficos/historico'   + qh).then(r => r.json()),
+      fetch('/api/graficos/resumen'     + qp).then(r => r.json())
+    ]);
+    _grfRenderAusKPIs(res.kpis                  || {});
+    _grfRenderAusDonut(curr.tipos               || []);
+    _grfRenderAusTopActual(res.topAusentes       || []);
+    _grfRenderAusTendenciaHist(histLine.ausentismos || []);
+    _grfRenderAusTiposHist(histAus.tipos         || []);
+    _grfRenderAusTopHist(histAus.topEmpleados    || []);
+  } catch(e) { console.error('[graficos] ausentismos tab:', e); }
+  finally    { if (ld) ld.style.display = 'none'; }
+}
+
+function _grfRenderAusKPIs(k) {
+  const s = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  const casos = k.total_ausencias ?? '—';
+  const empl  = k.empleados_con_novedades ?? '—'; // proxy; ausentismo % will vary
+  const dias  = k.dias_ausencia   ?? '—';
+  const prom  = (k.total_ausencias && k.dias_ausencia)
+    ? (k.dias_ausencia / k.total_ausencias).toFixed(1) : '—';
+  s('grf_au_kpi_casos',     casos);
+  s('grf_au_kpi_empleados', empl);
+  s('grf_au_kpi_dias',      dias === '—' ? '—' : dias + ' días');
+  s('grf_au_kpi_prom',      prom === '—' ? '—' : prom + ' días/caso');
+}
+
+function _grfRenderAusDonut(tipos) {
+  _grfDestroy('auDonut');
+  const ctx = document.getElementById('grf_au_donut');
+  if (!ctx) return;
+  if (!tipos.length) { _grfEmpty(ctx, 'Sin ausentismos en el período seleccionado'); return; }
+  _grfShowCanvas(ctx);
+  _grfCharts['auDonut'] = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels: tipos.map(t => t.tipo),
+      datasets: [{ data: tipos.map(t => t.casos || 0),
+        backgroundColor: tipos.map((_,i) => _grfColor(i, 0.85)),
+        borderWidth: 2, borderColor: '#1a1f2e' }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'right', labels: { color: '#a0aec0', font: { size: 11 } } },
+        tooltip: { callbacks: {
+          label: c => ` ${c.label}: ${c.parsed} casos (${tipos[c.dataIndex]?.dias_total || 0} días)`
+        }}
+      }
+    }
+  });
+}
+
+function _grfRenderAusTopActual(top) {
+  _grfDestroy('auTopActual');
+  const ctx = document.getElementById('grf_au_top_actual');
+  if (!ctx) return;
+  if (!top.length) { _grfEmpty(ctx, 'Sin ausentismos registrados en este período'); return; }
+  _grfShowCanvas(ctx);
+  const labels = top.map(t => t.nombre ? t.nombre.split(' ').slice(0,2).join(' ') : t.cedula);
+  _grfCharts['auTopActual'] = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [
+      { label: 'Días', data: top.map(t => t.dias || 0),
+        backgroundColor: _grfColor(0,0.78), borderRadius: 4 },
+      { label: 'Casos', data: top.map(t => t.ausencias || 0),
+        backgroundColor: _grfColor(4,0.65), borderRadius: 4, yAxisID: 'y2' }
+    ]},
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#a0aec0', font: { size: 11 } } } },
+      scales: {
+        x:  { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0' } },
+        y:  { grid: { display: false }, ticks: { color: '#a0aec0', font: { size: 11 } } },
+        y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#a0aec0' } }
+      }
+    }
+  });
+}
+
+// aus: array [ { label, ausencias, dias_total } ] del endpoint /historico → .ausentismos
+function _grfRenderAusTendenciaHist(aus) {
+  _grfDestroy('auTendencia');
+  const ctx = document.getElementById('grf_au_tendencia');
+  if (!ctx) return;
+  if (!aus.length) { _grfEmpty(ctx, 'Sin ausentismos en el rango seleccionado'); return; }
+  _grfShowCanvas(ctx);
+  _grfCharts['auTendencia'] = new Chart(ctx, {
+    type: 'line',
+    data: { labels: aus.map(a => a.label), datasets: [
+      { label: 'Días de ausencia', data: aus.map(a => a.dias_total || 0),
+        borderColor: _grfColor(4,1), backgroundColor: _grfColor(4,0.15),
+        tension: 0.4, fill: true, pointRadius: 4 },
+      { label: 'Casos', data: aus.map(a => a.ausencias || 0),
+        borderColor: _grfColor(0,1), backgroundColor: 'transparent',
+        tension: 0.4, pointRadius: 4, yAxisID: 'y2' }
+    ]},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#a0aec0', font: { size: 11 } } } },
+      scales: {
+        x:  { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0', font: { size: 11 } } },
+        y:  { position: 'left',  grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0' },
+              title: { display: true, text: 'Días', color: '#a0aec0', font: { size: 10 } } },
+        y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#a0aec0' },
+              title: { display: true, text: 'Casos', color: '#a0aec0', font: { size: 10 } } }
+      }
+    }
+  });
+}
+
+function _grfRenderAusTiposHist(tipos) {
+  _grfDestroy('auTiposHist');
+  const ctx = document.getElementById('grf_au_tipos_hist');
+  if (!ctx) return;
+  if (!tipos.length) { _grfEmpty(ctx, 'Sin ausentismos en el rango seleccionado'); return; }
+  _grfShowCanvas(ctx);
+  _grfCharts['auTiposHist'] = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: tipos.map(t => t.tipo), datasets: [
+      { label: 'Días totales', data: tipos.map(t => t.dias_total || 0),
+        backgroundColor: tipos.map((_,i) => _grfColor(i, 0.8)), borderRadius: 4 }
+    ]},
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false },
+        tooltip: { callbacks: { label: c => ` ${c.parsed.x} días (${tipos[c.dataIndex]?.casos || 0} casos)` } }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0' } },
+        y: { grid: { display: false }, ticks: { color: '#a0aec0', font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+function _grfRenderAusTopHist(top) {
+  _grfDestroy('auTopHist');
+  const ctx = document.getElementById('grf_au_top_hist');
+  if (!ctx) return;
+  if (!top.length) { _grfEmpty(ctx, 'Sin ausentismos en el rango seleccionado'); return; }
+  _grfShowCanvas(ctx);
+  const labels = top.map(t => t.nombre ? t.nombre.split(' ').slice(0,2).join(' ') : t.cedula);
+  _grfCharts['auTopHist'] = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [
+      { label: 'Días totales', data: top.map(t => t.dias_total || 0),
+        backgroundColor: _grfColor(3,0.78), borderRadius: 4 },
+      { label: 'Casos', data: top.map(t => t.ausencias || 0),
+        backgroundColor: _grfColor(2,0.65), borderRadius: 4, yAxisID: 'y2' }
+    ]},
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#a0aec0', font: { size: 11 } } } },
+      scales: {
+        x:  { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0' } },
+        y:  { grid: { display: false }, ticks: { color: '#a0aec0', font: { size: 11 } } },
+        y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#a0aec0' } }
+      }
+    }
+  });
+}
+
+// ── ══════════════════════════════════════════════════════════════════════
+//    CAMBIOS
+// ══════════════════════════════════════════════════════════════════════ ──
+
+async function graficosCargarCambios() {
+  const cp = document.getElementById('grf_ca_periodo')?.value || '';
+  const d  = document.getElementById('grf_ca_desde')?.value  || '';
+  const h  = document.getElementById('grf_ca_hasta')?.value  || '';
+  const ld = document.getElementById('grf_ca_loading');
+  if (ld) ld.style.display = 'inline';
+  const qp = cp ? `?codPeriod=${cp}` : (d||h ? `?desde=${d}&hasta=${h}` : '');
+  const qh = d||h ? `?desde=${d}&hasta=${h}` : (cp ? `?desde=${cp}&hasta=${cp}` : '');
+  try {
+    const [curr, hist] = await Promise.all([
+      fetch('/api/graficos/cambios' + qp).then(r => r.json()),
+      fetch('/api/graficos/cambios' + qh).then(r => r.json())
+    ]);
+    _grfRenderCambKPIs(curr);
+    _grfRenderCambTipos(curr.porTipo      || []);
+    _grfRenderCambEmpleados(curr.topEmpleados || []);
+    _grfRenderCambTendencia(hist.tendencia    || []);
+  } catch(e) { console.error('[graficos] cambios:', e); }
+  finally    { if (ld) ld.style.display = 'none'; }
+}
+
+function _grfRenderCambKPIs(data) {
+  const k = data.kpis || {};
+  const s = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  s('grf_ca_kpi_total',     k.total_cambios  ?? '—');
+  s('grf_ca_kpi_empleados', k.empleados      ?? '—');
+  s('grf_ca_kpi_tipos',     k.tipos_distintos ?? '—');
+}
+
+function _grfRenderCambTipos(items) {
+  _grfDestroy('caTipos');
+  const ctx = document.getElementById('grf_ca_tipos');
+  if (!ctx) return;
+  if (!items.length) { _grfEmpty(ctx, 'Sin cambios registrados en el período seleccionado'); return; }
+  _grfShowCanvas(ctx);
+  _grfCharts['caTipos'] = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: items.map(i => i.nombre), datasets: [
+      { label: 'Cambios',   data: items.map(i => i.cantidad  || 0),
+        backgroundColor: items.map((_,idx) => _grfColor(idx, 0.8)), borderRadius: 4 },
+      { label: 'Empleados', data: items.map(i => i.empleados || 0),
+        backgroundColor: _grfColor(0, 0.5), borderRadius: 4, yAxisID: 'y2' }
+    ]},
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#a0aec0', font: { size: 11 } } } },
+      scales: {
+        x:  { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0' } },
+        y:  { grid: { display: false }, ticks: { color: '#a0aec0', font: { size: 11 } } },
+        y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#a0aec0' } }
+      }
+    }
+  });
+}
+
+function _grfRenderCambEmpleados(top) {
+  _grfDestroy('caEmpleados');
+  const ctx = document.getElementById('grf_ca_empleados');
+  if (!ctx) return;
+  if (!top.length) { _grfEmpty(ctx, 'Sin cambios registrados en el período seleccionado'); return; }
+  _grfShowCanvas(ctx);
+  const labels = top.map(t => t.nombre ? t.nombre.split(' ').slice(0,2).join(' ') : t.cedula);
+  _grfCharts['caEmpleados'] = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [
+      { label: 'Cambios', data: top.map(t => t.cantidad || 0),
+        backgroundColor: _grfColor(5,0.8), borderRadius: 4 }
+    ]},
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false },
+        tooltip: { callbacks: { label: c => ` ${c.parsed.x} cambios` } }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0' } },
+        y: { grid: { display: false }, ticks: { color: '#a0aec0', font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+function _grfRenderCambTendencia(tend) {
+  _grfDestroy('caTendencia');
+  const ctx = document.getElementById('grf_ca_tendencia');
+  if (!ctx) return;
+  if (!tend.length) { _grfEmpty(ctx, 'Sin datos históricos en el rango seleccionado'); return; }
+  _grfShowCanvas(ctx);
+  _grfCharts['caTendencia'] = new Chart(ctx, {
+    type: 'line',
+    data: { labels: tend.map(t => t.label), datasets: [
+      { label: 'Cambios',   data: tend.map(t => t.total     || 0),
+        borderColor: _grfColor(5,1), backgroundColor: _grfColor(5,0.12),
+        tension: 0.35, fill: true, pointRadius: 3 },
+      { label: 'Empleados', data: tend.map(t => t.empleados || 0),
+        borderColor: _grfColor(0,1), backgroundColor: 'transparent',
+        tension: 0.35, pointRadius: 3, yAxisID: 'y2' }
+    ]},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#a0aec0', font: { size: 11 } } } },
+      scales: {
+        x:  { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0', font: { size: 11 } } },
+        y:  { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#a0aec0' },
+              title: { display: true, text: 'Cambios', color: '#a0aec0', font: { size: 10 } } },
+        y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#a0aec0' },
+              title: { display: true, text: 'Empleados', color: '#a0aec0', font: { size: 10 } } }
+      }
+    }
+  });
+}
+
+// ── Bar: ausentismo por CC (sección histórica) ────────────────────────────
+function _grfRenderAusCentros(centros) {
+  _grfDestroy('barAusCentros');
+  const ctx = document.getElementById('grf_bar_aus_centros');
+  if (!ctx) return;
+  if (!centros.length) { _grfEmpty(ctx, 'Sin ausentismos por CC en el rango seleccionado. Ajusta los filtros y presiona Cargar.'); return; }
+  _grfShowCanvas(ctx);
+  const labels       = centros.map(c => c.abrev || c.nombre.substring(0, 14));
+  const tooltipTitle = items => centros[items[0].dataIndex]?.nombre || labels[items[0].dataIndex];
+  _grfCharts['barAusCentros'] = new Chart(ctx, {
     type: 'bar',
     data: {
       labels,

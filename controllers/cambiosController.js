@@ -374,7 +374,7 @@ async function anularCambio(req, res) {
     reqNov.input('actUsua',  sql.NVarChar(50), usuario);
     await reqNov.query(`
       UPDATE dbo.NO_NOVED
-      SET ACT_ESTA = 'I', ACT_USUA = @actUsua, ACT_HORA = GETDATE()
+      SET ACT_ESTA = 'E', ACT_USUA = @actUsua, ACT_HORA = GETDATE()
       WHERE COD_EMPR = @codEmpr AND COD_NOVED = @codNoved
     `);
 
@@ -384,7 +384,7 @@ async function anularCambio(req, res) {
     reqCb.input('actUsua',  sql.NVarChar(50), usuario);
     await reqCb.query(`
       UPDATE dbo.NO_CAMBI
-      SET ACT_ESTA = 'I', ACT_USUA = @actUsua, ACT_HORA = SYSDATETIME()
+      SET ACT_ESTA = 'E', ACT_USUA = @actUsua, ACT_HORA = SYSDATETIME()
       WHERE COD_EMPR = @codEmpr AND COD_NOVED = @codNoved
     `);
 
@@ -433,7 +433,7 @@ async function anularCambioBatch(req, res) {
 
     const rNov = await reqNov.query(`
       UPDATE dbo.NO_NOVED
-      SET ACT_ESTA = 'I', ACT_USUA = @actUsua, ACT_HORA = GETDATE()
+      SET ACT_ESTA = 'E', ACT_USUA = @actUsua, ACT_HORA = GETDATE()
       WHERE COD_EMPR = @codEmpr
         AND COD_NOVED IN (${paramNames})
         AND ACT_ESTA = 'A'
@@ -446,7 +446,7 @@ async function anularCambioBatch(req, res) {
 
     await reqCb.query(`
       UPDATE dbo.NO_CAMBI
-      SET ACT_ESTA = 'I', ACT_USUA = @actUsua, ACT_HORA = SYSDATETIME()
+      SET ACT_ESTA = 'E', ACT_USUA = @actUsua, ACT_HORA = SYSDATETIME()
       WHERE COD_EMPR = @codEmpr
         AND COD_NOVED IN (${paramNames})
         AND ACT_ESTA = 'A'

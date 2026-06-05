@@ -71,6 +71,34 @@ async function ensureDbObjects() {
       END
     `);
 
+    // Migrar CK_NO_OCASI_ESTADO para aceptar el estado 'E' (exento/cancelado).
+    // Si la constraint ya tiene 'E' en su definición se omite silenciosamente.
+    try {
+      await executeQuery(`
+        IF EXISTS (
+          SELECT 1 FROM sys.check_constraints
+          WHERE name = 'CK_NO_OCASI_ESTADO'
+            AND parent_object_id = OBJECT_ID('dbo.NO_OCASI')
+            AND definition NOT LIKE N'%''E''%'
+        )
+        BEGIN
+          ALTER TABLE dbo.NO_OCASI DROP CONSTRAINT CK_NO_OCASI_ESTADO;
+          ALTER TABLE dbo.NO_OCASI ADD CONSTRAINT CK_NO_OCASI_ESTADO
+            CHECK (ACT_ESTA IN ('A','I','E'));
+        END
+        ELSE IF NOT EXISTS (
+          SELECT 1 FROM sys.check_constraints WHERE name = 'CK_NO_OCASI_ESTADO'
+        )
+        BEGIN
+          ALTER TABLE dbo.NO_OCASI ADD CONSTRAINT CK_NO_OCASI_ESTADO
+            CHECK (ACT_ESTA IN ('A','I','E'));
+        END
+      `);
+      console.log('[ocasionales] ✓ CK_NO_OCASI_ESTADO migrado a A/I/E.');
+    } catch (e) {
+      console.warn('[ocasionales] ⚠ No se pudo migrar CK_NO_OCASI_ESTADO:', e.message);
+    }
+
     bootstrapped = true;
     console.log('[ocasionales] ✓ vw_NO_OCASI_PERIODO lista. (COD_NOVED = IDENTITY)');
   } catch (err) {
@@ -409,7 +437,7 @@ async function anularOcasionalBatch(req, res) {
     ids.forEach((id, i) => reqNov.input(`id${i}`, sql.Int, id));
     const resNov = await reqNov.query(`
       UPDATE dbo.NO_NOVED
-      SET ACT_ESTA = 'I', ACT_USUA = @actUsua, ACT_HORA = GETDATE()
+      SET ACT_ESTA = 'E', ACT_USUA = @actUsua, ACT_HORA = GETDATE()
       WHERE COD_EMPR = @codEmpr
         AND COD_NOVED IN (${paramNames})
         AND ACT_ESTA  = 'A'
@@ -421,7 +449,7 @@ async function anularOcasionalBatch(req, res) {
     ids.forEach((id, i) => reqOc.input(`id${i}`, sql.Int, id));
     await reqOc.query(`
       UPDATE dbo.NO_OCASI
-      SET ACT_ESTA = 'I', ACT_USUA = @actUsua, ACT_HORA = SYSDATETIME()
+      SET ACT_ESTA = 'E', ACT_USUA = @actUsua, ACT_HORA = SYSDATETIME()
       WHERE COD_EMPR = @codEmpr
         AND COD_NOVED IN (${paramNames})
         AND ACT_ESTA  = 'A'
@@ -466,7 +494,7 @@ async function anularOcasional(req, res) {
     reqNov.input('actUsua',  sql.NVarChar(50), usuario);
     await reqNov.query(`
       UPDATE dbo.NO_NOVED
-      SET ACT_ESTA = 'I', ACT_USUA = @actUsua, ACT_HORA = GETDATE()
+      SET ACT_ESTA = 'E', ACT_USUA = @actUsua, ACT_HORA = GETDATE()
       WHERE COD_EMPR = @codEmpr AND COD_NOVED = @codNoved
     `);
 
@@ -476,7 +504,7 @@ async function anularOcasional(req, res) {
     reqOc.input('actUsua',  sql.NVarChar(50), usuario);
     await reqOc.query(`
       UPDATE dbo.NO_OCASI
-      SET ACT_ESTA = 'I', ACT_USUA = @actUsua, ACT_HORA = SYSDATETIME()
+      SET ACT_ESTA = 'E', ACT_USUA = @actUsua, ACT_HORA = SYSDATETIME()
       WHERE COD_EMPR = @codEmpr AND COD_NOVED = @codNoved
     `);
 

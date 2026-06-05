@@ -465,7 +465,7 @@ async function anularFijaBatch(req, res) {
     reqNov.input('actUsua', sql.NVarChar(50), usuario);
     ids.forEach((id, i) => reqNov.input(`id${i}`, sql.Int, id));
     const resNov = await reqNov.query(`
-      UPDATE dbo.NO_NOVED SET ACT_ESTA='I', ACT_USUA=@actUsua, ACT_HORA=GETDATE()
+      UPDATE dbo.NO_NOVED SET ACT_ESTA='E', ACT_USUA=@actUsua, ACT_HORA=GETDATE()
       WHERE COD_EMPR=@codEmpr AND COD_NOVED IN (${paramNames}) AND ACT_ESTA='A'
     `);
 
@@ -474,7 +474,7 @@ async function anularFijaBatch(req, res) {
     reqFj.input('actUsua', sql.NVarChar(50), usuario);
     ids.forEach((id, i) => reqFj.input(`id${i}`, sql.Int, id));
     await reqFj.query(`
-      UPDATE dbo.NO_FIJAS SET ACT_ESTA='I', ACT_USUA=@actUsua, ACT_HORA=SYSDATETIME()
+      UPDATE dbo.NO_FIJAS SET ACT_ESTA='E', ACT_USUA=@actUsua, ACT_HORA=SYSDATETIME()
       WHERE COD_EMPR=@codEmpr AND COD_NOVED IN (${paramNames}) AND ACT_ESTA='A'
     `);
 

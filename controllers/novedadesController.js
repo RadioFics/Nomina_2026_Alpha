@@ -42,9 +42,45 @@ async function verificarYCerrarPeriodosVencidos() {
           AND COD_PERIOD = @codPeriod
       `, { codEmpr: p.COD_EMPR, codPeriod: p.COD_PERIOD });
 
+      // Archivar novedades del período cerrado: A → I (históricas, válidas para trazabilidad)
+      // El trigger TR_NO_NOVED_PERIODO_CERRADO permite A→I aunque el período ya sea 'I'.
+      await executeQuery(
+        `UPDATE dbo.NO_NOVED SET ACT_ESTA='I', ACT_HORA=GETDATE()
+         WHERE COD_EMPR=@codEmpr AND COD_PERIOD=@codPeriod AND ACT_ESTA='A'`,
+        { codEmpr: p.COD_EMPR, codPeriod: p.COD_PERIOD }
+      );
+      await executeQuery(
+        `UPDATE o SET o.ACT_ESTA='I', o.ACT_HORA=SYSDATETIME()
+         FROM dbo.NO_OCASI o JOIN dbo.NO_NOVED n
+           ON n.COD_EMPR=o.COD_EMPR AND n.COD_NOVED=o.COD_NOVED
+         WHERE n.COD_PERIOD=@codPeriod AND n.COD_EMPR=@codEmpr AND o.ACT_ESTA='A'`,
+        { codEmpr: p.COD_EMPR, codPeriod: p.COD_PERIOD }
+      );
+      await executeQuery(
+        `UPDATE f SET f.ACT_ESTA='I', f.ACT_HORA=SYSDATETIME()
+         FROM dbo.NO_FIJAS f JOIN dbo.NO_NOVED n
+           ON n.COD_EMPR=f.COD_EMPR AND n.COD_NOVED=f.COD_NOVED
+         WHERE n.COD_PERIOD=@codPeriod AND n.COD_EMPR=@codEmpr AND f.ACT_ESTA='A'`,
+        { codEmpr: p.COD_EMPR, codPeriod: p.COD_PERIOD }
+      );
+      await executeQuery(
+        `UPDATE a SET a.ACT_ESTA='I', a.ACT_HORA=SYSDATETIME()
+         FROM dbo.NO_AUSEN a JOIN dbo.NO_NOVED n
+           ON n.COD_EMPR=a.COD_EMPR AND n.COD_NOVED=a.COD_NOVED
+         WHERE n.COD_PERIOD=@codPeriod AND n.COD_EMPR=@codEmpr AND a.ACT_ESTA='A'`,
+        { codEmpr: p.COD_EMPR, codPeriod: p.COD_PERIOD }
+      );
+      await executeQuery(
+        `UPDATE c SET c.ACT_ESTA='I', c.ACT_HORA=SYSDATETIME()
+         FROM dbo.NO_CAMBI c JOIN dbo.NO_NOVED n
+           ON n.COD_EMPR=c.COD_EMPR AND n.COD_NOVED=c.COD_NOVED
+         WHERE n.COD_PERIOD=@codPeriod AND n.COD_EMPR=@codEmpr AND c.ACT_ESTA='A'`,
+        { codEmpr: p.COD_EMPR, codPeriod: p.COD_PERIOD }
+      );
+
       console.log(
         `[periodos] ✓ Período ${p.COD_PERIOD} (${p.PER_ANO}-${String(p.PER_MES).padStart(2,'0')}-Q${p.PER_QNA}) ` +
-        `cerrado automáticamente. Fin: ${p.PER_FFIN}`
+        `cerrado y novedades archivadas (A→I). Fin: ${p.PER_FFIN}`
       );
 
       // ── 2. Activar el siguiente período 'F' (si su fecha ya llegó) ─────────
@@ -211,7 +247,24 @@ async function cerrarPeriodo(req, res) {
       WHERE COD_EMPR = @codEmpr AND COD_PERIOD = @codPeriod
     `, { codEmpr, codPeriod });
 
-    res.json({ ok: true, mensaje: `Período ${codPeriod} cerrado correctamente` });
+    // Archivar novedades del período cerrado: A → I
+    await executeQuery(
+      `UPDATE dbo.NO_NOVED SET ACT_ESTA='I', ACT_HORA=GETDATE()
+       WHERE COD_EMPR=@codEmpr AND COD_PERIOD=@codPeriod AND ACT_ESTA='A'`,
+      { codEmpr, codPeriod }
+    );
+    for (const tabla of ['NO_OCASI', 'NO_FIJAS', 'NO_AUSEN', 'NO_CAMBI']) {
+      const alias = tabla.replace('NO_', '').toLowerCase().substring(0, 1);
+      await executeQuery(
+        `UPDATE x SET x.ACT_ESTA='I', x.ACT_HORA=SYSDATETIME()
+         FROM dbo.${tabla} x JOIN dbo.NO_NOVED n
+           ON n.COD_EMPR=x.COD_EMPR AND n.COD_NOVED=x.COD_NOVED
+         WHERE n.COD_PERIOD=@codPeriod AND n.COD_EMPR=@codEmpr AND x.ACT_ESTA='A'`,
+        { codEmpr, codPeriod }
+      );
+    }
+
+    res.json({ ok: true, mensaje: `Período ${codPeriod} cerrado y novedades archivadas correctamente` });
   } catch (err) {
     console.error('[novedades] cerrarPeriodo error:', err);
     res.status(500).json({ error: 'Error cerrando período', details: err.message });
@@ -249,8 +302,12 @@ async function buscarHistorial(req, res) {
 
     if (codPeriod) conditions.push(`n.COD_PERIOD = @codPeriod`);
     if (codCcost)  conditions.push(`f.COD_CCOST = @codCcost`);
-    if (estado === 'A') conditions.push(`n.ACT_ESTA = 'A'`);
-    else if (estado === 'I') conditions.push(`n.ACT_ESTA = 'I'`);
+    // A=activo, I=histórico (período cerrado), E=exento (cancelado explícitamente)
+    if      (estado === 'A')    conditions.push(`n.ACT_ESTA = 'A'`);
+    else if (estado === 'I')    conditions.push(`n.ACT_ESTA = 'I'`);
+    else if (estado === 'E')    conditions.push(`n.ACT_ESTA = 'E'`);
+    else if (estado === 'TODOS') {/* sin filtro: muestra A+I+E */}
+    else                        conditions.push(`n.ACT_ESTA IN ('A','I')`); // default: excluir exentos
 
     if (desde) conditions.push(`CONVERT(date, n.FEC_REGI) >= @desde`);
     if (hasta) conditions.push(`CONVERT(date, n.FEC_REGI) <= @hasta`);

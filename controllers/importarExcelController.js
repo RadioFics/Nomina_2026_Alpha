@@ -93,14 +93,20 @@ async function resolverCodCcost(nomCcost, codEmpr) {
   return r.recordset && r.recordset[0] ? r.recordset[0].COD_CCOST : null;
 }
 
+// ─── helpers de búsqueda de novedad existente ────────────────────────────────
+// Modelo triestado ACT_ESTA: A=activo, I=histórico (período cerrado), E=exento (anulado)
+//   ES_ACTIVA=1  → registro A: acumular sobre él
+//   ES_ACTIVA=0 + ES_EXENTA=0 → registro I: reactivar a A (re-import del mismo período)
+//   ES_ACTIVA=0 + ES_EXENTA=1 → registro E: no reactivar, insertar nuevo
+// En todos los lookups se excluye E para priorizar A e I,
+// y solo se devuelve E si no hay ningún otro registro (para saber que existe).
+
 async function buscarNovedadExistente(codEmpr, codFunci, codConc, codPeriod) {
-  // Busca activos E inactivos: preferimos activos (ORDER BY activo DESC, más reciente DESC).
-  // ES_ACTIVA=true  → acumular sobre el registro vigente (comportamiento previo).
-  // ES_ACTIVA=false → fue anulado; reactivar en lugar de crear un duplicado nuevo.
   const r = await executeQuery(`
     SELECT TOP 1
       n.COD_NOVED, o.CANTIDAD,
-      CAST(CASE WHEN n.ACT_ESTA='A' AND o.ACT_ESTA='A' THEN 1 ELSE 0 END AS BIT) AS ES_ACTIVA
+      CAST(CASE WHEN n.ACT_ESTA='A' AND o.ACT_ESTA='A' THEN 1 ELSE 0 END AS BIT) AS ES_ACTIVA,
+      CAST(CASE WHEN n.ACT_ESTA='E' OR  o.ACT_ESTA='E' THEN 1 ELSE 0 END AS BIT) AS ES_EXENTA
     FROM dbo.NO_NOVED n
     INNER JOIN dbo.NO_OCASI o ON o.COD_EMPR = n.COD_EMPR AND o.COD_NOVED = n.COD_NOVED
     WHERE n.COD_EMPR   = @codEmpr
@@ -108,7 +114,7 @@ async function buscarNovedadExistente(codEmpr, codFunci, codConc, codPeriod) {
       AND n.COD_CONC   = @codConc
       AND n.COD_PERIOD = @codPeriod
     ORDER BY
-      CASE WHEN n.ACT_ESTA='A' AND o.ACT_ESTA='A' THEN 0 ELSE 1 END,
+      CASE n.ACT_ESTA WHEN 'A' THEN 0 WHEN 'I' THEN 1 ELSE 2 END,
       n.COD_NOVED DESC
   `, { codEmpr, codFunci, codConc, codPeriod });
   return r.recordset && r.recordset[0] ? r.recordset[0] : null;
@@ -118,7 +124,8 @@ async function buscarNovedadFijaExistente(codEmpr, codFunci, codConc, codPeriod)
   const r = await executeQuery(`
     SELECT TOP 1
       n.COD_NOVED, f.VALOR,
-      CAST(CASE WHEN n.ACT_ESTA='A' AND f.ACT_ESTA='A' THEN 1 ELSE 0 END AS BIT) AS ES_ACTIVA
+      CAST(CASE WHEN n.ACT_ESTA='A' AND f.ACT_ESTA='A' THEN 1 ELSE 0 END AS BIT) AS ES_ACTIVA,
+      CAST(CASE WHEN n.ACT_ESTA='E' OR  f.ACT_ESTA='E' THEN 1 ELSE 0 END AS BIT) AS ES_EXENTA
     FROM dbo.NO_NOVED n
     INNER JOIN dbo.NO_FIJAS f ON f.COD_EMPR = n.COD_EMPR AND f.COD_NOVED = n.COD_NOVED
     WHERE n.COD_EMPR   = @codEmpr
@@ -126,7 +133,7 @@ async function buscarNovedadFijaExistente(codEmpr, codFunci, codConc, codPeriod)
       AND n.COD_CONC   = @codConc
       AND n.COD_PERIOD = @codPeriod
     ORDER BY
-      CASE WHEN n.ACT_ESTA='A' AND f.ACT_ESTA='A' THEN 0 ELSE 1 END,
+      CASE n.ACT_ESTA WHEN 'A' THEN 0 WHEN 'I' THEN 1 ELSE 2 END,
       n.COD_NOVED DESC
   `, { codEmpr, codFunci, codConc, codPeriod });
   return r.recordset && r.recordset[0] ? r.recordset[0] : null;
@@ -136,7 +143,8 @@ async function buscarAusentismoExistente(codEmpr, codFunci, codConc, codPeriod) 
   const r = await executeQuery(`
     SELECT TOP 1
       n.COD_NOVED, a.DIAS_TOTAL,
-      CAST(CASE WHEN n.ACT_ESTA='A' AND a.ACT_ESTA='A' THEN 1 ELSE 0 END AS BIT) AS ES_ACTIVA
+      CAST(CASE WHEN n.ACT_ESTA='A' AND a.ACT_ESTA='A' THEN 1 ELSE 0 END AS BIT) AS ES_ACTIVA,
+      CAST(CASE WHEN n.ACT_ESTA='E' OR  a.ACT_ESTA='E' THEN 1 ELSE 0 END AS BIT) AS ES_EXENTA
     FROM dbo.NO_NOVED n
     INNER JOIN dbo.NO_AUSEN a ON a.COD_EMPR = n.COD_EMPR AND a.COD_NOVED = n.COD_NOVED
     WHERE n.COD_EMPR   = @codEmpr
@@ -144,7 +152,7 @@ async function buscarAusentismoExistente(codEmpr, codFunci, codConc, codPeriod) 
       AND n.COD_CONC   = @codConc
       AND n.COD_PERIOD = @codPeriod
     ORDER BY
-      CASE WHEN n.ACT_ESTA='A' AND a.ACT_ESTA='A' THEN 0 ELSE 1 END,
+      CASE n.ACT_ESTA WHEN 'A' THEN 0 WHEN 'I' THEN 1 ELSE 2 END,
       n.COD_NOVED DESC
   `, { codEmpr, codFunci, codConc, codPeriod });
   return r.recordset && r.recordset[0] ? r.recordset[0] : null;
@@ -154,7 +162,8 @@ async function buscarCambioExistente(codEmpr, codFunci, codConc, codPeriod) {
   const r = await executeQuery(`
     SELECT TOP 1
       n.COD_NOVED, c.VALOR_NUEVO,
-      CAST(CASE WHEN n.ACT_ESTA='A' AND c.ACT_ESTA='A' THEN 1 ELSE 0 END AS BIT) AS ES_ACTIVA
+      CAST(CASE WHEN n.ACT_ESTA='A' AND c.ACT_ESTA='A' THEN 1 ELSE 0 END AS BIT) AS ES_ACTIVA,
+      CAST(CASE WHEN n.ACT_ESTA='E' OR  c.ACT_ESTA='E' THEN 1 ELSE 0 END AS BIT) AS ES_EXENTA
     FROM dbo.NO_NOVED n
     INNER JOIN dbo.NO_CAMBI c ON c.COD_EMPR = n.COD_EMPR AND c.COD_NOVED = n.COD_NOVED
     WHERE n.COD_EMPR   = @codEmpr
@@ -162,7 +171,7 @@ async function buscarCambioExistente(codEmpr, codFunci, codConc, codPeriod) {
       AND n.COD_CONC   = @codConc
       AND n.COD_PERIOD = @codPeriod
     ORDER BY
-      CASE WHEN n.ACT_ESTA='A' AND c.ACT_ESTA='A' THEN 0 ELSE 1 END,
+      CASE n.ACT_ESTA WHEN 'A' THEN 0 WHEN 'I' THEN 1 ELSE 2 END,
       n.COD_NOVED DESC
   `, { codEmpr, codFunci, codConc, codPeriod });
   return r.recordset && r.recordset[0] ? r.recordset[0] : null;
@@ -259,7 +268,7 @@ async function procesarEnBD({ agrupado, codEmpr, periodo, pool, usuario, nombreA
               estado: 'ACUMULADO',
               mensaje: `Valor acumulado (total: $${nuevoValor.toFixed(2)}) en NO_FIJAS #${existente.COD_NOVED}.`
             });
-          } else if (existente && !existente.ES_ACTIVA) {
+          } else if (existente && !existente.ES_ACTIVA && !existente.ES_EXENTA) {
             // Reactivar novedad fija previamente anulada con el valor nuevo del import
             const r = new sql.Request(transaction);
             r.input('codEmpr',  sql.SmallInt,      codEmpr);
@@ -381,7 +390,7 @@ async function procesarEnBD({ agrupado, codEmpr, periodo, pool, usuario, nombreA
               estado:  'ACUMULADO',
               mensaje: `Ausentismo actualizado (${nuevosDias} días) en NO_NOVED #${existente.COD_NOVED}.`
             });
-          } else if (existente && !existente.ES_ACTIVA) {
+          } else if (existente && !existente.ES_ACTIVA && !existente.ES_EXENTA) {
             // Reactivar ausentismo previamente anulado con los nuevos datos del import
             const r = new sql.Request(transaction);
             r.input('codEmpr',    sql.SmallInt,      codEmpr);
@@ -490,7 +499,7 @@ async function procesarEnBD({ agrupado, codEmpr, periodo, pool, usuario, nombreA
               estado:  'ACUMULADO',
               mensaje: `Cambio actualizado → "${valorNuevo}" en NO_NOVED #${existente.COD_NOVED}.`
             });
-          } else if (existente && !existente.ES_ACTIVA) {
+          } else if (existente && !existente.ES_ACTIVA && !existente.ES_EXENTA) {
             // Reactivar cambio previamente anulado con el nuevo valor del import
             const r = new sql.Request(transaction);
             r.input('codEmpr',    sql.SmallInt,      codEmpr);
@@ -598,7 +607,7 @@ async function procesarEnBD({ agrupado, codEmpr, periodo, pool, usuario, nombreA
                 ? `Valor acumulado ($${valor.toFixed(2)}) en NO_NOVED #${existente.COD_NOVED}.`
                 : `Cantidad acumulada (total: ${nuevaCant.toFixed(2)}) en NO_NOVED #${existente.COD_NOVED}.`
             });
-          } else if (existente && !existente.ES_ACTIVA) {
+          } else if (existente && !existente.ES_ACTIVA && !existente.ES_EXENTA) {
             // Reactivar novedad ocasional anulada con los valores del import.
             // Ambas actualizaciones van en un batch único para que el trigger
             // TR_NO_OCASI_VALIDA_CONCEPTO vea NO_NOVED.ACT_ESTA='A' al dispararse.

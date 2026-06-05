@@ -61,7 +61,12 @@
       "Bash(ping -n 5 127.0.0.1)",
       "Bash(findstr /c:\"registros\")",
       "PowerShell(Start-Sleep -Seconds 3; \\(Invoke-WebRequest -Uri \"http://localhost:3000/api/ausentismos\" -UseBasicParsing\\).Content.Substring\\(0, 300\\))",
-      "Bash(curl -s \"http://localhost:3000/api/graficos/centros\")"
+      "Bash(curl -s \"http://localhost:3000/api/graficos/centros\")",
+      "mcp__sqlserver__test_connection",
+      "mcp__sqlserver__list_tables",
+      "mcp__sqlserver__execute_query",
+      "Bash(python -c ' *)",
+      "Bash(python -c \"import sys; data=sys.stdin.buffer.read\\(\\); print\\(data.decode\\('utf-8','replace'\\)[-3000:]\\)\")"
     ]
   }
 }

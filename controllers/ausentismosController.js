@@ -85,8 +85,9 @@ async function ensureDbObjects(force = false) {
       ');
     `);
 
-    // Ajustar el trigger para permitir anulaciones lógicas (A→I) en períodos cerrados.
-    // Sólo bloquea ediciones de contenido e inserciones nuevas en períodos cerrados.
+    // Ajustar el trigger para permitir transiciones de estado A→I (archivar al cerrar
+    // período) y A→E (eximir/cancelar) incluso en períodos ya cerrados.
+    // Solo bloquea ediciones de contenido e inserciones nuevas en períodos cerrados.
     try {
       await executeQuery(`
         ALTER TRIGGER dbo.TR_NO_NOVED_PERIODO_CERRADO
@@ -95,8 +96,10 @@ async function ensureDbObjects(force = false) {
         AS
         BEGIN
           SET NOCOUNT ON;
+          -- Permitir A→I (archivar) y A→E (eximir) sin restricción de período.
+          -- Ninguna de estas transiciones modifica datos de negocio.
           IF EXISTS (SELECT 1 FROM inserted)
-            AND NOT EXISTS (SELECT 1 FROM inserted WHERE ACT_ESTA <> 'I')
+            AND NOT EXISTS (SELECT 1 FROM inserted WHERE ACT_ESTA NOT IN ('I','E'))
             AND NOT EXISTS (SELECT 1 FROM deleted  WHERE ACT_ESTA <> 'A')
             RETURN;
           IF EXISTS (
@@ -114,9 +117,37 @@ async function ensureDbObjects(force = false) {
           END
         END
       `);
-      console.log('[ausentismos] ✓ Trigger TR_NO_NOVED_PERIODO_CERRADO actualizado.');
+      console.log('[ausentismos] ✓ Trigger TR_NO_NOVED_PERIODO_CERRADO actualizado (A/I/E).');
     } catch (e) {
       console.warn('[ausentismos] ⚠ Trigger no pudo actualizarse (requiere ALTER TABLE):', e.message);
+    }
+
+    // Migrar CK_NO_NOVED_ESTA para aceptar el estado 'E' (exento/cancelado).
+    // Si la constraint ya tiene 'E' en su definición se omite silenciosamente.
+    try {
+      await executeQuery(`
+        IF EXISTS (
+          SELECT 1 FROM sys.check_constraints
+          WHERE name = 'CK_NO_NOVED_ESTA'
+            AND parent_object_id = OBJECT_ID('dbo.NO_NOVED')
+            AND definition NOT LIKE N'%''E''%'
+        )
+        BEGIN
+          ALTER TABLE dbo.NO_NOVED DROP CONSTRAINT CK_NO_NOVED_ESTA;
+          ALTER TABLE dbo.NO_NOVED ADD CONSTRAINT CK_NO_NOVED_ESTA
+            CHECK (ACT_ESTA IN ('A','I','E'));
+        END
+        ELSE IF NOT EXISTS (
+          SELECT 1 FROM sys.check_constraints WHERE name = 'CK_NO_NOVED_ESTA'
+        )
+        BEGIN
+          ALTER TABLE dbo.NO_NOVED ADD CONSTRAINT CK_NO_NOVED_ESTA
+            CHECK (ACT_ESTA IN ('A','I','E'));
+        END
+      `);
+      console.log('[ausentismos] ✓ CK_NO_NOVED_ESTA migrado a A/I/E.');
+    } catch (e) {
+      console.warn('[ausentismos] ⚠ No se pudo migrar CK_NO_NOVED_ESTA:', e.message);
     }
 
     bootstrapped = true;
@@ -461,7 +492,7 @@ async function anularAusentismo(req, res) {
     reqNov.input('actUsua',  sql.NVarChar(50), usuario);
     await reqNov.query(`
       UPDATE dbo.NO_NOVED
-      SET ACT_ESTA = 'I', ACT_USUA = @actUsua, ACT_HORA = GETDATE()
+      SET ACT_ESTA = 'E', ACT_USUA = @actUsua, ACT_HORA = GETDATE()
       WHERE COD_EMPR = @codEmpr AND COD_NOVED = @codNoved
     `);
 
@@ -471,7 +502,7 @@ async function anularAusentismo(req, res) {
     reqAu.input('actUsua',  sql.NVarChar(50), usuario);
     await reqAu.query(`
       UPDATE dbo.NO_AUSEN
-      SET ACT_ESTA = 'I', ACT_USUA = @actUsua, ACT_HORA = SYSDATETIME()
+      SET ACT_ESTA = 'E', ACT_USUA = @actUsua, ACT_HORA = SYSDATETIME()
       WHERE COD_EMPR = @codEmpr AND COD_NOVED = @codNoved
     `);
 
@@ -520,7 +551,7 @@ async function anularAusentismoBatch(req, res) {
 
     const rNov = await reqNov.query(`
       UPDATE dbo.NO_NOVED
-      SET ACT_ESTA = 'I', ACT_USUA = @actUsua, ACT_HORA = GETDATE()
+      SET ACT_ESTA = 'E', ACT_USUA = @actUsua, ACT_HORA = GETDATE()
       WHERE COD_EMPR = @codEmpr
         AND COD_NOVED IN (${paramNames})
         AND ACT_ESTA = 'A'
@@ -533,7 +564,7 @@ async function anularAusentismoBatch(req, res) {
 
     await reqAu.query(`
       UPDATE dbo.NO_AUSEN
-      SET ACT_ESTA = 'I', ACT_USUA = @actUsua, ACT_HORA = SYSDATETIME()
+      SET ACT_ESTA = 'E', ACT_USUA = @actUsua, ACT_HORA = SYSDATETIME()
       WHERE COD_EMPR = @codEmpr
         AND COD_NOVED IN (${paramNames})
         AND ACT_ESTA = 'A'
