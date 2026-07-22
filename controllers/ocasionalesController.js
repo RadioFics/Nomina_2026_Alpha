@@ -113,9 +113,8 @@ async function ensureDbObjects() {
 // ---------------------------------------------------------------------------
 
 /**
- * Devuelve el COD_PERIOD vigente para la fecha dada (hoy por defecto).
- * Asume: los períodos en NO_PERIOD no se traslapan. Si hubiera más de uno
- * elegible, tomamos el de PER_FINI mayor (el más reciente).
+ * Devuelve el período activo (PER_EST='A') que cubre la fecha actual.
+ * Se usa para mostrar el "período actual" en endpoints GET /periodo-actual.
  */
 async function resolverPeriodoActual(codEmpr = DEFAULT_COD_EMPR) {
   const q = `
@@ -128,6 +127,28 @@ async function resolverPeriodoActual(codEmpr = DEFAULT_COD_EMPR) {
     ORDER BY PER_FINI DESC
   `;
   const r = await executeQuery(q, { codEmpr });
+  return r.recordset && r.recordset[0] ? r.recordset[0] : null;
+}
+
+/**
+ * Resuelve el COD_PERIOD para CUALQUIER fecha (pasada, presente o futura),
+ * sin importar el estado del período (PER_EST). Permite registrar novedades
+ * retroactivas asignándolas al período correcto por rango de fechas.
+ * En caso de solapamiento de rangos, retorna el período de menor COD_PERIOD.
+ *
+ * @param {Date|string} fecha  - Fecha efectiva de la novedad
+ * @param {number}      codEmpr
+ */
+async function resolverPeriodoPorFecha(fecha, codEmpr = DEFAULT_COD_EMPR) {
+  const q = `
+    SELECT TOP 1 COD_PERIOD, PER_ANO, PER_MES, PER_QNA, PER_FINI, PER_FFIN, PER_EST
+    FROM dbo.NO_PERIOD
+    WHERE COD_EMPR = @codEmpr
+      AND ACT_ESTA  = 'A'
+      AND @fecha BETWEEN PER_FINI AND PER_FFIN
+    ORDER BY COD_PERIOD ASC
+  `;
+  const r = await executeQuery(q, { codEmpr, fecha });
   return r.recordset && r.recordset[0] ? r.recordset[0] : null;
 }
 
@@ -214,16 +235,22 @@ async function listarOcasionales(req, res) {
 // ===========================================================================
 // POST /api/ocasionales
 // Body esperado (JSON):
-//   { cedula, codConc, cantidad?, valor, observaciones?, codCcost?, usuario? }
+//   { cedula, codConc, cantidad?, valor, observaciones?, codCcost?, usuario?,
+//     fecRegi? }
+//
+//   fecRegi (opcional, ISO-8601 "YYYY-MM-DD"):
+//     Fecha efectiva de la novedad. Si se omite se usa la fecha de hoy.
+//     Determina tanto el COD_PERIOD asignado como el campo FEC_REGI en NO_NOVED.
+//     Permite registrar novedades retroactivas en períodos ya cerrados.
+//
 // Flujo transaccional:
-//   1. Resolver COD_PERIOD actual y COD_FUNCI desde cédula.
-//   2. NEXT VALUE FOR SEQ_NO_NOVED -> COD_NOVED.
-//   3. INSERT en NO_NOVED (cabecera).
-//   4. INSERT en NO_OCASI (cantidad, valor).
-//   5. COMMIT. Si algo falla -> ROLLBACK.
+//   1. Resolver COD_PERIOD por fecRegi (o hoy) y COD_FUNCI desde cédula.
+//   2. INSERT en NO_NOVED (cabecera).
+//   3. INSERT en NO_OCASI (cantidad, valor).
+//   4. COMMIT. Si algo falla -> ROLLBACK.
 // ===========================================================================
 async function crearOcasional(req, res) {
-  const { cedula, codConc, cantidad, valor, observaciones, codCcost } = req.body;
+  const { cedula, codConc, cantidad, valor, observaciones, codCcost, fecRegi } = req.body;
   const codEmpr = Number(req.body.codEmpr) || DEFAULT_COD_EMPR;
   const usuario = getActUsua(req);
 
@@ -238,12 +265,17 @@ async function crearOcasional(req, res) {
     return res.status(400).json({ error: 'Debes indicar Cantidad o Valor (al menos uno).' });
   }
 
+  // Fecha efectiva: fecRegi del body, o hoy si no se provee.
+  const fechaEfectiva = fecRegi ? new Date(fecRegi) : new Date();
+
   let transaction;
   try {
-    const periodo = await resolverPeriodoActual(codEmpr);
+    const periodo = await resolverPeriodoPorFecha(fechaEfectiva, codEmpr);
     if (!periodo) {
+      const fechaStr = fechaEfectiva.toISOString().slice(0, 10);
       return res.status(409).json({
-        error: 'No hay período activo (NO_PERIOD) que incluya la fecha de hoy.'
+        error: `No existe período configurado en NO_PERIOD que cubra la fecha ${fechaStr}.`,
+        hint: 'Verifique que exista un período con PER_FINI ≤ fecha ≤ PER_FFIN.'
       });
     }
     const codFunci = await resolverCodFunciPorCedula(cedula, codEmpr);
@@ -269,6 +301,7 @@ async function crearOcasional(req, res) {
     reqNov.input('obs',        sql.NVarChar(500), observaciones || null);
     reqNov.input('actUsua',    sql.NVarChar(50),  usuario);
     reqNov.input('codCcost',   sql.Int,           codCcost || null);
+    reqNov.input('fecRegi',    sql.Date,          fecRegi || null);
 
     const novResult = await reqNov.query(`
       INSERT INTO dbo.NO_NOVED
@@ -276,7 +309,7 @@ async function crearOcasional(req, res) {
          FEC_REGI, OBS_NOVED, IND_APLICADO, ACT_USUA, ACT_HORA, ACT_ESTA, COD_CCOST)
       VALUES
         (@codEmpr, @codFunci, @codConc, @codPeriod,
-         CONVERT(date, GETDATE()), @obs, 'N', @actUsua, GETDATE(), 'A', @codCcost);
+         COALESCE(@fecRegi, CONVERT(date, GETDATE())), @obs, 'N', @actUsua, GETDATE(), 'A', @codCcost);
       SELECT CAST(SCOPE_IDENTITY() AS INT) AS COD_NOVED;
     `);
 
@@ -407,7 +440,8 @@ async function actualizarOcasional(req, res) {
 async function anularOcasionalBatch(req, res) {
   const codEmpr  = Number(req.query.codEmpr) || DEFAULT_COD_EMPR;
   const usuario  = getActUsua(req);
-  const { codNoveds } = req.body || {};
+  const { codNoveds, mode } = req.body || {};
+  const estado = mode === 'eliminar' ? 'E' : 'I';
 
   if (!Array.isArray(codNoveds) || codNoveds.length === 0) {
     return res.status(400).json({ error: 'Se requiere un array codNoveds con al menos un elemento.' });
@@ -435,9 +469,10 @@ async function anularOcasionalBatch(req, res) {
     reqNov.input('codEmpr',  sql.SmallInt,     codEmpr);
     reqNov.input('actUsua',  sql.NVarChar(50), usuario);
     ids.forEach((id, i) => reqNov.input(`id${i}`, sql.Int, id));
+    reqNov.input('estado', sql.NVarChar(1), estado);
     const resNov = await reqNov.query(`
       UPDATE dbo.NO_NOVED
-      SET ACT_ESTA = 'E', ACT_USUA = @actUsua, ACT_HORA = GETDATE()
+      SET ACT_ESTA = @estado, ACT_USUA = @actUsua, ACT_HORA = GETDATE()
       WHERE COD_EMPR = @codEmpr
         AND COD_NOVED IN (${paramNames})
         AND ACT_ESTA  = 'A'
@@ -447,9 +482,10 @@ async function anularOcasionalBatch(req, res) {
     reqOc.input('codEmpr',  sql.SmallInt,     codEmpr);
     reqOc.input('actUsua',  sql.NVarChar(50), usuario);
     ids.forEach((id, i) => reqOc.input(`id${i}`, sql.Int, id));
+    reqOc.input('estado', sql.NVarChar(1), estado);
     await reqOc.query(`
       UPDATE dbo.NO_OCASI
-      SET ACT_ESTA = 'E', ACT_USUA = @actUsua, ACT_HORA = SYSDATETIME()
+      SET ACT_ESTA = @estado, ACT_USUA = @actUsua, ACT_HORA = SYSDATETIME()
       WHERE COD_EMPR = @codEmpr
         AND COD_NOVED IN (${paramNames})
         AND ACT_ESTA  = 'A'
@@ -479,6 +515,7 @@ async function anularOcasional(req, res) {
   const codEmpr = Number(req.query.codEmpr) || DEFAULT_COD_EMPR;
   const codNoved = Number(req.params.codNoved);
   const usuario = getActUsua(req);
+  const estado = req.query.mode === 'eliminar' ? 'E' : 'I';
 
   if (!codNoved) return res.status(400).json({ error: 'codNoved inválido.' });
 
@@ -492,9 +529,10 @@ async function anularOcasional(req, res) {
     reqNov.input('codEmpr',  sql.SmallInt,    codEmpr);
     reqNov.input('codNoved', sql.Int,         codNoved);
     reqNov.input('actUsua',  sql.NVarChar(50), usuario);
+    reqNov.input('estado',   sql.NVarChar(1),  estado);
     await reqNov.query(`
       UPDATE dbo.NO_NOVED
-      SET ACT_ESTA = 'E', ACT_USUA = @actUsua, ACT_HORA = GETDATE()
+      SET ACT_ESTA = @estado, ACT_USUA = @actUsua, ACT_HORA = GETDATE()
       WHERE COD_EMPR = @codEmpr AND COD_NOVED = @codNoved
     `);
 
@@ -502,9 +540,10 @@ async function anularOcasional(req, res) {
     reqOc.input('codEmpr',  sql.SmallInt,    codEmpr);
     reqOc.input('codNoved', sql.Int,         codNoved);
     reqOc.input('actUsua',  sql.NVarChar(50), usuario);
+    reqOc.input('estado',   sql.NVarChar(1),  estado);
     await reqOc.query(`
       UPDATE dbo.NO_OCASI
-      SET ACT_ESTA = 'E', ACT_USUA = @actUsua, ACT_HORA = SYSDATETIME()
+      SET ACT_ESTA = @estado, ACT_USUA = @actUsua, ACT_HORA = SYSDATETIME()
       WHERE COD_EMPR = @codEmpr AND COD_NOVED = @codNoved
     `);
 

@@ -7,18 +7,21 @@ const AuthUtil = {
   API_BASE: '/api',
 
   /**
-   * Obtener token JWT del almacenamiento local
+   * Obtener token JWT del almacenamiento local.
+   * Prioridad: localStorage (remember me activo) → sessionStorage (sesión temporal).
+   * Si ambos tienen token, localStorage gana (el usuario marcó "Recuérdame").
    */
   getToken() {
-    return localStorage.getItem('authToken');
+    return localStorage.getItem('authToken') || sessionStorage.getItem('authToken') || null;
   },
 
   /**
-   * Obtener datos del usuario almacenados
+   * Obtener datos del usuario almacenados.
+   * Espeja la lógica de getToken(): localStorage primero, sessionStorage como fallback.
    */
   getUsuario() {
-    const usuarioJson = localStorage.getItem('usuario');
-    return usuarioJson ? JSON.parse(usuarioJson) : null;
+    const usuarioJson = localStorage.getItem('usuario') || sessionStorage.getItem('usuario') || null;
+    try { return usuarioJson ? JSON.parse(usuarioJson) : null; } catch (_) { return null; }
   },
 
   /**
@@ -147,9 +150,11 @@ const AuthUtil = {
         // Ignorar errores al logout (servidor podría estar caído)
       });
     } finally {
-      // Limpiar almacenamiento local
+      // Limpiar ambos storages (cubre remember me y sesión temporal)
       localStorage.removeItem('authToken');
+      sessionStorage.removeItem('authToken');
       localStorage.removeItem('usuario');
+      sessionStorage.removeItem('usuario');
       window.location.href = '/login.html';
     }
   },

@@ -48,9 +48,9 @@ async function resumen(req, res) {
         SUM(CASE WHEN c.TIP_NATU='AUSENTISMO' THEN ISNULL(au.DIAS_TOTAL,0) ELSE 0 END) AS dias_ausencia
       FROM dbo.NO_NOVED n
       JOIN  dbo.NO_CONCE c  ON c.COD_CONC=n.COD_CONC  AND c.COD_EMPR=n.COD_EMPR
-      LEFT JOIN dbo.NO_OCASI oc ON oc.COD_NOVED=n.COD_NOVED AND oc.COD_EMPR=n.COD_EMPR AND oc.ACT_ESTA='A'
-      LEFT JOIN dbo.NO_AUSEN au ON au.COD_NOVED=n.COD_NOVED AND au.COD_EMPR=n.COD_EMPR AND au.ACT_ESTA='A'
-      WHERE n.COD_EMPR=@codEmpr AND n.ACT_ESTA='A' ${periodFilter}
+      LEFT JOIN dbo.NO_OCASI oc ON oc.COD_NOVED=n.COD_NOVED AND oc.COD_EMPR=n.COD_EMPR AND oc.ACT_ESTA IN ('A','I')
+      LEFT JOIN dbo.NO_AUSEN au ON au.COD_NOVED=n.COD_NOVED AND au.COD_EMPR=n.COD_EMPR AND au.ACT_ESTA IN ('A','I')
+      WHERE n.COD_EMPR=@codEmpr AND n.ACT_ESTA IN ('A','I') ${periodFilter}
     `;
 
     // Distribución novedades por tipo
@@ -59,8 +59,8 @@ async function resumen(req, res) {
              SUM(ISNULL(oc.VALOR,0)) AS valor_total
       FROM dbo.NO_NOVED n
       JOIN  dbo.NO_CONCE c  ON c.COD_CONC=n.COD_CONC  AND c.COD_EMPR=n.COD_EMPR
-      LEFT JOIN dbo.NO_OCASI oc ON oc.COD_NOVED=n.COD_NOVED AND oc.COD_EMPR=n.COD_EMPR AND oc.ACT_ESTA='A'
-      WHERE n.COD_EMPR=@codEmpr AND n.ACT_ESTA='A' ${periodFilter}
+      LEFT JOIN dbo.NO_OCASI oc ON oc.COD_NOVED=n.COD_NOVED AND oc.COD_EMPR=n.COD_EMPR AND oc.ACT_ESTA IN ('A','I')
+      WHERE n.COD_EMPR=@codEmpr AND n.ACT_ESTA IN ('A','I') ${periodFilter}
       GROUP BY c.TIP_NATU
       ORDER BY total DESC
     `;
@@ -76,8 +76,8 @@ async function resumen(req, res) {
       JOIN  dbo.GN_FUNCI f  ON f.COD_FUNCI=n.COD_FUNCI AND f.COD_EMPR=n.COD_EMPR
       JOIN  dbo.GN_TERCE t  ON t.COD_TERC=f.COD_TERC
       JOIN  dbo.NO_CONCE c  ON c.COD_CONC=n.COD_CONC   AND c.COD_EMPR=n.COD_EMPR
-      JOIN  dbo.NO_AUSEN au ON au.COD_NOVED=n.COD_NOVED AND au.COD_EMPR=n.COD_EMPR AND au.ACT_ESTA='A'
-      WHERE n.COD_EMPR=@codEmpr AND n.ACT_ESTA='A' AND c.TIP_NATU='AUSENTISMO' ${periodFilter}
+      JOIN  dbo.NO_AUSEN au ON au.COD_NOVED=n.COD_NOVED AND au.COD_EMPR=n.COD_EMPR AND au.ACT_ESTA IN ('A','I')
+      WHERE n.COD_EMPR=@codEmpr AND n.ACT_ESTA IN ('A','I') AND c.TIP_NATU='AUSENTISMO' ${periodFilter}
       GROUP BY t.NUM_IDEN, t.NOM_COMP
       ORDER BY dias DESC
     `;

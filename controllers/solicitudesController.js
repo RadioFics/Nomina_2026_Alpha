@@ -40,6 +40,7 @@
 const { executeQuery }        = require('../config/database');
 const { enviarEmail }         = require('../config/mailer');
 const { subirPDFaSharePoint } = require('../config/sharepoint');
+const { resolverEmailJefe }   = require('./jefesAreaController');
 const fs                      = require('fs');
 const {
   generarPermisoOficial,
@@ -92,36 +93,11 @@ exports.ensureDbObjects = async function ensureDbObjects() {
 };
 
 // ─── Resolver jefe del área ───────────────────────────────────────────────────
-
-function _resolverEmailJefe(codCcost) {
-  // ── OPCIÓN A (activa): variables de entorno ───────────────────────────────
-  // Prioridad: específico por CC → genérico → RRHH como último recurso.
-  const specificKey  = codCcost != null ? `JEFE_CCOST_${codCcost}` : null;
-  const emailJefe =
-    (specificKey && process.env[specificKey]) ||
-    process.env.JEFE_DEFAULT                  ||
-    process.env.MAIL_RRHH                     ||
-    '';
-  const nomJefe =
-    (specificKey && process.env[`${specificKey}_NOMBRE`]) ||
-    process.env.JEFE_DEFAULT_NOMBRE           ||
-    'Jefe de Área';
-  return { emailJefe, nomJefe };
-
-  // ── OPCIÓN B (futura, comentada): leer de MAE_CCOST ──────────────────────
-  // Descomentar este bloque y comentar el bloque "OPCIÓN A" de arriba una vez
-  // que MAE_CCOST tenga columnas EMAIL_JEFE y NOM_JEFE pobladas.
-  //
-  // if (!codCcost) return { emailJefe: process.env.MAIL_RRHH || '', nomJefe: 'Jefe de Área' };
-  // const r = await executeQuery(
-  //   `SELECT TOP 1 EMAIL_JEFE, NOM_JEFE FROM dbo.MAE_CCOST WHERE COD_CCOST = @cod`,
-  //   { cod: codCcost }
-  // );
-  // const row = r.recordset && r.recordset[0];
-  // return {
-  //   emailJefe: (row && row.EMAIL_JEFE) || process.env.MAIL_RRHH || '',
-  //   nomJefe:   (row && row.NOM_JEFE)   || 'Jefe de Área',
-  // };
+// Delegado a jefesAreaController.resolverEmailJefe (async, con BD + fallback env).
+// Se mantiene la firma _resolverEmailJefe(codCcost) para compatibilidad interna;
+// ahora es async y devuelve una Promise.
+async function _resolverEmailJefe(codCcost) {
+  return resolverEmailJefe(codCcost);
 }
 
 // ─── DB helpers ───────────────────────────────────────────────────────────────
@@ -447,11 +423,19 @@ function _btnStyle(color) {
           font-weight:700;font-size:13px;letter-spacing:.05em;text-transform:uppercase`;
 }
 
-function _emailJefeAprobacion(tipo, nombre, cedula, fechasLabel, urlAprobar, urlRechazar, nomJefe) {
+function _emailJefeAprobacion(tipo, nombre, cedula, fechasLabel, urlAprobar, urlRechazar, nomJefe, bypass = false) {
   const tipoLabel = tipo === 'permiso' ? 'Permiso' : 'Vacaciones';
   const baseUrl   = process.env.APP_URL || 'http://localhost:3000';
+  const bannerPrueba = bypass ? `
+    <div style="background:#f59e0b;padding:12px 20px;text-align:center;font-family:Arial,sans-serif">
+      <strong style="color:#1a202c;font-size:13px">
+        ⚠ MODO PRUEBA — Este correo fue redirigido por JEFE_BYPASS_EMAIL.
+        El jefe de área REAL no fue notificado.
+      </strong>
+    </div>` : '';
   return `
   <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#1E1E1E;padding:0">
+    ${bannerPrueba}
     <div style="background:#20A7C9;padding:20px 28px">
       <h1 style="font-size:18px;color:#fff;margin:0 0 4px;font-weight:700;text-transform:uppercase;letter-spacing:.06em">
         Collective Mining
@@ -772,7 +756,7 @@ exports.enviarSolicitudPermiso = async (req, res) => {
       cod_conc:      codConc,
     };
 
-    const { emailJefe, nomJefe } = _resolverEmailJefe(emp.COD_CCOST);
+    const { emailJefe, nomJefe, bypass } = await _resolverEmailJefe(emp.COD_CCOST);
     const fechasLabel = `${_isoADDMMYYYY(fecha_desde)} al ${_isoADDMMYYYY(fecha_hasta)}`;
 
     // Guardar pendiente
@@ -791,11 +775,12 @@ exports.enviarSolicitudPermiso = async (req, res) => {
     const urlRechazar = `${baseUrl}/api/solicitudes/rechazar/${token}`;
 
     if (emailJefe) {
+      const subjectPrefijo = bypass ? '[PRUEBA — NO ES EL JEFE REAL] ' : '';
       await enviarEmail({
         from: `"Collective Mining Nómina" <${process.env.MAIL_USER}>`,
         to: emailJefe,
-        subject: `Solicitud de Permiso pendiente — ${(emp.NOM_COMP||'').trim()} — ${fechasLabel}`,
-        html: _emailJefeAprobacion('permiso', (emp.NOM_COMP||'').trim(), String(cedula).trim(), fechasLabel, urlAprobar, urlRechazar, nomJefe),
+        subject: `${subjectPrefijo}Solicitud de Permiso pendiente — ${(emp.NOM_COMP||'').trim()} — ${fechasLabel}`,
+        html: _emailJefeAprobacion('permiso', (emp.NOM_COMP||'').trim(), String(cedula).trim(), fechasLabel, urlAprobar, urlRechazar, nomJefe, bypass),
       }).catch(e => console.error('[solicitudes] email jefe:', e.message));
     }
 
@@ -857,7 +842,7 @@ exports.enviarSolicitudVacaciones = async (req, res) => {
       observaciones:    observaciones || '',
     };
 
-    const { emailJefe, nomJefe } = _resolverEmailJefe(emp.COD_CCOST);
+    const { emailJefe, nomJefe, bypass } = await _resolverEmailJefe(emp.COD_CCOST);
     const fechasLabel = `${_isoADDMMYYYY(fecha_inicio)} al ${_isoADDMMYYYY(fecha_fin)}`;
 
     const token = await _guardarPendiente({
@@ -874,11 +859,12 @@ exports.enviarSolicitudVacaciones = async (req, res) => {
     const urlRechazar = `${baseUrl}/api/solicitudes/rechazar/${token}`;
 
     if (emailJefe) {
+      const subjectPrefijo = bypass ? '[PRUEBA — NO ES EL JEFE REAL] ' : '';
       await enviarEmail({
         from: `"Collective Mining Nómina" <${process.env.MAIL_USER}>`,
         to: emailJefe,
-        subject: `Solicitud de Vacaciones pendiente — ${(emp.NOM_COMP||'').trim()} — ${fechasLabel}`,
-        html: _emailJefeAprobacion('vacaciones', (emp.NOM_COMP||'').trim(), String(cedula).trim(), fechasLabel, urlAprobar, urlRechazar, nomJefe),
+        subject: `${subjectPrefijo}Solicitud de Vacaciones pendiente — ${(emp.NOM_COMP||'').trim()} — ${fechasLabel}`,
+        html: _emailJefeAprobacion('vacaciones', (emp.NOM_COMP||'').trim(), String(cedula).trim(), fechasLabel, urlAprobar, urlRechazar, nomJefe, bypass),
       }).catch(e => console.error('[solicitudes] email jefe:', e.message));
     }
 

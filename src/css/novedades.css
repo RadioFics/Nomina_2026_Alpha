@@ -835,3 +835,48 @@
 
   /* Sin datos */
   .cl-empty { color: var(--muted); font-size: 13px; font-style: italic; padding: 8px 0; }
+
+  /* ─── MODAL ANULAR CHOICE (individual) ─────────────────────────────────────── */
+  #modalAnularChoice {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65);
+    z-index: 1100; align-items: center; justify-content: center;
+  }
+  #modalAnularChoice.open { display: flex; }
+
+  /* ─── Dos opciones: Inhabilitar / Eliminar ───────────────────────────────── */
+  .anular-choice-row {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;
+  }
+  .btn-anular-inhabilitar,
+  .btn-anular-eliminar {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 18px 14px; border-radius: 10px; border: 2px solid transparent;
+    cursor: pointer; font-family: 'Barlow', sans-serif; transition: all 0.18s ease;
+    background: var(--surface2);
+  }
+  .btn-anular-inhabilitar { border-color: var(--cm-blue); color: var(--cm-blue-light); }
+  .btn-anular-inhabilitar:hover { background: rgba(52,152,219,0.12); }
+  .btn-anular-eliminar   { border-color: var(--danger); color: var(--danger); }
+  .btn-anular-eliminar:hover { background: rgba(224,85,85,0.12); }
+  .btn-anular-inhabilitar strong,
+  .btn-anular-eliminar   strong { font-size: 15px; font-weight: 700; }
+  .btn-anular-inhabilitar small,
+  .btn-anular-eliminar   small { font-size: 11px; color: var(--muted); text-align: center; line-height: 1.4; font-weight: 400; }
+  .anular-icon { font-size: 22px; }
+
+  /* ─── Confirmación de eliminación (paso 2) ─────────────────────────────── */
+  .eliminar-warning {
+    background: rgba(224,85,85,0.08); border: 1px solid rgba(224,85,85,0.3);
+    border-radius: 8px; padding: 12px 16px; color: var(--danger) !important;
+    margin-bottom: 16px;
+  }
+  .modal-confirm-input {
+    width: 100%; box-sizing: border-box; padding: 10px 14px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text); font-family: 'Barlow', sans-serif;
+    font-size: 14px; font-weight: 600; letter-spacing: 0.05em;
+    margin-bottom: 20px; outline: none; transition: border-color 0.15s;
+  }
+  .modal-confirm-input:focus { border-color: var(--danger); }
+  .btn-confirmar-eliminar { background: var(--danger) !important; }
+  .btn-confirmar-eliminar:hover:not(:disabled) { background: #c0392b !important; }

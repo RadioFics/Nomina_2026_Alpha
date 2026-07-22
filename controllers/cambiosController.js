@@ -93,6 +93,24 @@ async function resolverPeriodoActual(codEmpr = DEFAULT_COD_EMPR) {
   return r.recordset && r.recordset[0] ? r.recordset[0] : null;
 }
 
+/**
+ * Resuelve el COD_PERIOD para CUALQUIER fecha (pasada, presente o futura),
+ * sin filtrar por PER_EST. Permite asignar novedades retroactivas al período
+ * correcto. En caso de solapamiento retorna el de menor COD_PERIOD.
+ */
+async function resolverPeriodoPorFecha(fecha, codEmpr = DEFAULT_COD_EMPR) {
+  const q = `
+    SELECT TOP 1 COD_PERIOD, PER_ANO, PER_MES, PER_QNA, PER_FINI, PER_FFIN, PER_EST
+    FROM dbo.NO_PERIOD
+    WHERE COD_EMPR = @codEmpr
+      AND ACT_ESTA  = 'A'
+      AND @fecha BETWEEN PER_FINI AND PER_FFIN
+    ORDER BY COD_PERIOD ASC
+  `;
+  const r = await executeQuery(q, { codEmpr, fecha });
+  return r.recordset && r.recordset[0] ? r.recordset[0] : null;
+}
+
 async function resolverCodFunciPorCedula(cedula, codEmpr = DEFAULT_COD_EMPR) {
   const q = `
     SELECT TOP 1 f.COD_FUNCI
@@ -190,11 +208,17 @@ async function listarCambios(req, res) {
 
 // ===========================================================================
 // POST /api/cambios
-// Body: { cedula, codConc, fecIni, valorNuevo?, valorAnte?, observaciones?, usuario? }
+// Body: { cedula, codConc, fecIni, valorNuevo?, valorAnte?, observaciones?,
+//         usuario?, fecRegi? }
+//
+//   fecRegi (opcional, "YYYY-MM-DD"):
+//     Fecha efectiva de registro. Determina el COD_PERIOD asignado y el
+//     campo FEC_REGI en NO_NOVED. Si se omite se usa fecIni (fecha de inicio
+//     del cambio), lo que asigna la novedad al período que contiene ese día.
 // ===========================================================================
 async function crearCambio(req, res) {
   const {
-    cedula, codConc, fecIni, valorNuevo, valorAnte, observaciones
+    cedula, codConc, fecIni, valorNuevo, valorAnte, observaciones, fecRegi
   } = req.body;
   const usuario = getActUsua(req);
   const codEmpr = Number(req.body.codEmpr) || DEFAULT_COD_EMPR;
@@ -206,12 +230,17 @@ async function crearCambio(req, res) {
     return res.status(400).json({ error: 'fecIni es obligatoria para cambios.' });
   }
 
+  // Fecha efectiva: fecRegi explícita > fecIni (inicio del cambio) > hoy
+  const fechaEfectiva = fecRegi ? new Date(fecRegi) : new Date(fecIni);
+
   let transaction;
   try {
-    const periodo = await resolverPeriodoActual(codEmpr);
+    const periodo = await resolverPeriodoPorFecha(fechaEfectiva, codEmpr);
     if (!periodo) {
+      const fechaStr = fechaEfectiva.toISOString().slice(0, 10);
       return res.status(409).json({
-        error: 'No hay período activo (NO_PERIOD) que incluya la fecha de hoy.'
+        error: `No existe período configurado en NO_PERIOD que cubra la fecha ${fechaStr}.`,
+        hint: 'Verifique que exista un período con PER_FINI ≤ fecha ≤ PER_FFIN.'
       });
     }
     const codFunci = await resolverCodFunciPorCedula(cedula, codEmpr);
@@ -231,6 +260,7 @@ async function crearCambio(req, res) {
     reqNov.input('obs',       sql.NVarChar(500), observaciones || null);
     reqNov.input('actUsua',   sql.NVarChar(50),  usuario);
     reqNov.input('fecIni',    sql.Date,          fecIni);
+    reqNov.input('fecRegi',   sql.Date,          fecRegi || fecIni || null);
 
     const novResult = await reqNov.query(`
       INSERT INTO dbo.NO_NOVED
@@ -239,7 +269,7 @@ async function crearCambio(req, res) {
          FEC_INI)
       VALUES
         (@codEmpr, @codFunci, @codConc, @codPeriod,
-         CONVERT(date, GETDATE()), @obs, 'N', @actUsua, GETDATE(), 'A',
+         COALESCE(@fecRegi, CONVERT(date, GETDATE())), @obs, 'N', @actUsua, GETDATE(), 'A',
          @fecIni);
       SELECT CAST(SCOPE_IDENTITY() AS INT) AS COD_NOVED;
     `);
@@ -359,6 +389,7 @@ async function anularCambio(req, res) {
   const codEmpr = Number(req.query.codEmpr) || DEFAULT_COD_EMPR;
   const codNoved = Number(req.params.codNoved);
   const usuario = getActUsua(req);
+  const estado = req.query.mode === 'eliminar' ? 'E' : 'I';
 
   if (!codNoved) return res.status(400).json({ error: 'codNoved inválido.' });
 
@@ -372,9 +403,10 @@ async function anularCambio(req, res) {
     reqNov.input('codEmpr',  sql.SmallInt,    codEmpr);
     reqNov.input('codNoved', sql.Int,         codNoved);
     reqNov.input('actUsua',  sql.NVarChar(50), usuario);
+    reqNov.input('estado',   sql.NVarChar(1),  estado);
     await reqNov.query(`
       UPDATE dbo.NO_NOVED
-      SET ACT_ESTA = 'E', ACT_USUA = @actUsua, ACT_HORA = GETDATE()
+      SET ACT_ESTA = @estado, ACT_USUA = @actUsua, ACT_HORA = GETDATE()
       WHERE COD_EMPR = @codEmpr AND COD_NOVED = @codNoved
     `);
 
@@ -382,9 +414,10 @@ async function anularCambio(req, res) {
     reqCb.input('codEmpr',  sql.SmallInt,    codEmpr);
     reqCb.input('codNoved', sql.Int,         codNoved);
     reqCb.input('actUsua',  sql.NVarChar(50), usuario);
+    reqCb.input('estado',   sql.NVarChar(1),  estado);
     await reqCb.query(`
       UPDATE dbo.NO_CAMBI
-      SET ACT_ESTA = 'E', ACT_USUA = @actUsua, ACT_HORA = SYSDATETIME()
+      SET ACT_ESTA = @estado, ACT_USUA = @actUsua, ACT_HORA = SYSDATETIME()
       WHERE COD_EMPR = @codEmpr AND COD_NOVED = @codNoved
     `);
 
@@ -404,7 +437,8 @@ async function anularCambio(req, res) {
 async function anularCambioBatch(req, res) {
   const codEmpr = Number(req.query.codEmpr) || DEFAULT_COD_EMPR;
   const usuario = getActUsua(req);
-  const { codNoveds } = req.body || {};
+  const { codNoveds, mode } = req.body || {};
+  const estado = mode === 'eliminar' ? 'E' : 'I';
 
   if (!Array.isArray(codNoveds) || codNoveds.length === 0) {
     return res.status(400).json({ error: 'codNoveds debe ser un arreglo no vacío.' });
@@ -429,11 +463,12 @@ async function anularCambioBatch(req, res) {
     const reqNov = new sql.Request(transaction);
     reqNov.input('codEmpr', sql.SmallInt, codEmpr);
     reqNov.input('actUsua', sql.NVarChar(50), usuario);
+    reqNov.input('estado',  sql.NVarChar(1),  estado);
     ids.forEach((id, i) => reqNov.input(`id${i}`, sql.Int, id));
 
     const rNov = await reqNov.query(`
       UPDATE dbo.NO_NOVED
-      SET ACT_ESTA = 'E', ACT_USUA = @actUsua, ACT_HORA = GETDATE()
+      SET ACT_ESTA = @estado, ACT_USUA = @actUsua, ACT_HORA = GETDATE()
       WHERE COD_EMPR = @codEmpr
         AND COD_NOVED IN (${paramNames})
         AND ACT_ESTA = 'A'
@@ -442,11 +477,12 @@ async function anularCambioBatch(req, res) {
     const reqCb = new sql.Request(transaction);
     reqCb.input('codEmpr', sql.SmallInt, codEmpr);
     reqCb.input('actUsua', sql.NVarChar(50), usuario);
+    reqCb.input('estado',  sql.NVarChar(1),  estado);
     ids.forEach((id, i) => reqCb.input(`id${i}`, sql.Int, id));
 
     await reqCb.query(`
       UPDATE dbo.NO_CAMBI
-      SET ACT_ESTA = 'E', ACT_USUA = @actUsua, ACT_HORA = SYSDATETIME()
+      SET ACT_ESTA = @estado, ACT_USUA = @actUsua, ACT_HORA = SYSDATETIME()
       WHERE COD_EMPR = @codEmpr
         AND COD_NOVED IN (${paramNames})
         AND ACT_ESTA = 'A'

@@ -71,6 +71,9 @@
       <span class="nav-icon">◫</span> Maestro Original
       <span class="nav-badge" id="badgeMaestro">0</span>
     </div>
+    <div class="nav-item" data-page="jefesArea" onclick="navigate('jefesArea')">
+      <span class="nav-icon">◉</span> Jefes de Área
+    </div>
     <div class="nav-item" data-page="cambiosMaestro" onclick="navigate('cambiosMaestro')" style="display:none">
       <span class="nav-icon">◧</span> Cambios Maestro
       <span class="nav-badge" id="badgeCMaestro">0</span>
@@ -939,6 +942,92 @@
       </div>
     </div>
 
+    <!-- ===== JEFES DE ÁREA ===== -->
+    <div class="page" id="page-jefesArea">
+      <div class="page-title">Jefes <span>de Área</span></div>
+      <div class="page-desc">Líderes y coordinadores por centro de costos — enrutamiento de aprobaciones de permisos y vacaciones</div>
+      <div class="alert alert-success" id="alertJefesArea" style="display:none">✓ Registro guardado correctamente</div>
+      <div class="alert alert-error"   id="alertJefesAreaErr" style="display:none"></div>
+
+      <!-- Botón nuevo -->
+      <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+        <button class="btn btn-primary" onclick="ja_abrirModal()">+ Nuevo Jefe de Área</button>
+      </div>
+
+      <!-- Tabla de líderes -->
+      <div class="form-card" style="padding:0;overflow:auto">
+        <table class="data-table" style="width:100%">
+          <thead>
+            <tr>
+              <th>Área</th>
+              <th>Líder / Coordinador</th>
+              <th>Correo</th>
+              <th>CCOO / Abrev.</th>
+              <th>Principal</th>
+              <th>Estado</th>
+              <th style="width:100px">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tbJefesArea">
+            <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Modal crear / editar -->
+      <div id="modalJefeArea" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);align-items:center;justify-content:center">
+        <div style="background:var(--surface);border-radius:12px;padding:32px;width:100%;max-width:520px;box-shadow:0 8px 40px rgba(0,0,0,.4)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+            <h3 style="color:var(--accent);margin:0;font-size:16px;text-transform:uppercase;letter-spacing:.05em" id="jaModalTitulo">Nuevo Jefe de Área</h3>
+            <button onclick="ja_cerrarModal()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer">✕</button>
+          </div>
+          <input type="hidden" id="ja_id">
+          <div class="form-grid cols-2" style="gap:14px">
+            <div class="form-group" style="grid-column:1/-1">
+              <label>Área <span class="req">*</span></label>
+              <input type="text" id="ja_nom_area" placeholder="Ej: Talento Humano">
+            </div>
+            <div class="form-group">
+              <label>Nombre del Líder <span class="req">*</span></label>
+              <input type="text" id="ja_nom_jefe" placeholder="Ej: Juliana Santana">
+            </div>
+            <div class="form-group">
+              <label>Correo del Líder <span class="req">*</span></label>
+              <input type="email" id="ja_cor_jefe" placeholder="Ej: j.santana@collectivemining.com">
+            </div>
+            <div class="form-group">
+              <label>Centro de Costos</label>
+              <select id="ja_cod_ccost">
+                <option value="">— Sin asignar —</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Abreviatura CCOO</label>
+              <input type="text" id="ja_cod_abrev" placeholder="Ej: CM0603-LEG" oninput="this.value=this.value.toUpperCase()">
+            </div>
+            <div class="form-group" style="grid-column:1/-1;display:flex;align-items:center;gap:10px">
+              <input type="checkbox" id="ja_es_princip" style="width:16px;height:16px">
+              <label for="ja_es_princip" style="margin:0;cursor:pointer">
+                Líder principal para este centro de costos
+                <span style="color:var(--muted);font-size:11px;display:block">Cuando varios líderes comparten el mismo CCOO, el principal recibe los correos</span>
+              </label>
+            </div>
+            <div class="form-group" id="jaGrupoEstado" style="display:none">
+              <label>Estado</label>
+              <select id="ja_act_esta">
+                <option value="A">Activo</option>
+                <option value="I">Inactivo</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:20px">
+            <button class="btn btn-secondary" onclick="ja_cerrarModal()">Cancelar</button>
+            <button class="btn btn-primary" id="btnGuardarJefe" onclick="ja_guardar()">Guardar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ===== CAMBIOS MAESTRO ===== -->
     <div class="page" id="page-cambiosMaestro">
       <div class="page-title">Cambios <span>Maestro</span></div>
@@ -1075,93 +1164,81 @@
       <div class="page-title">Importar <span>Novedades Masivas</span></div>
       <div class="page-desc">Carga archivos Excel/ADECCO para novedades de nómina, o PDFs de solicitudes (Permisos CM-TH-FR-003, Vacaciones CM-TH-SV-001)</div>
 
-      <!-- ── PANELES DIVIDIDOS EXCEL / PDF ── -->
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:18px;">
-
-        <!-- PANEL EXCEL/ADECCO -->
-        <div class="form-card" style="padding:0; overflow:hidden;">
-          <div style="padding:14px 20px 12px; border-bottom:1px solid rgba(255,255,255,0.07); display:flex; align-items:center; gap:10px;">
-            <span style="font-size:22px;">📊</span>
-            <div>
-              <div style="font-weight:700; font-size:14px; color:var(--text);">Excel & ADECCO</div>
-              <div style="font-size:11px; color:var(--muted);">Horas extra · Pólizas · Tablas ADECCO (.xlsx)</div>
-            </div>
-          </div>
-          <div style="padding:16px 20px;">
-            <!-- Drop zone Excel -->
-            <div class="upload-zone" id="dropZoneExcel" onclick="document.getElementById('fileInputExcel').click()"
-                 style="padding:20px 12px; min-height:90px; cursor:pointer;" ondrop="onDropExcel(event)" ondragover="event.preventDefault()">
-              <div class="upload-icon" id="uploadIconExcel" style="font-size:28px; margin-bottom:6px;">📂</div>
-              <div class="upload-label" id="uploadLabelExcel" style="font-size:13px;">Arrastra archivos .xlsx aquí, o haz clic</div>
-              <div class="upload-sub" id="uploadSubExcel" style="font-size:11px;">Máx 50 MB · múltiples archivos</div>
-              <input type="file" id="fileInputExcel" accept=".xlsx,.xls,.csv" multiple
-                     onchange="seleccionarArchivoExcel(event)" style="display:none">
-            </div>
-            <!-- Lista Excel -->
-            <div id="importFileListExcel" style="margin-top:12px; display:none;"></div>
-            <!-- Modo ADECCO -->
-            <div id="adeccoModoPanel" style="display:none; margin-top:12px; padding:12px 14px; background:rgba(32,167,201,0.07); border:1px solid rgba(32,167,201,0.25); border-radius:var(--radius);">
-              <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.07em; color:var(--cm-blue-light); font-weight:700; margin-bottom:8px;">
-                📋 Archivo ADECCO detectado — ¿Qué importar?
-              </div>
-              <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:12px; padding:6px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.12); background:var(--surface2);">
-                  <input type="radio" name="adeccoModo" value="novedades" checked style="accent-color:var(--cm-blue);">
-                  <span>Solo <strong>Novedades</strong></span>
-                </label>
-                <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:12px; padding:6px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.12); background:var(--surface2);">
-                  <input type="radio" name="adeccoModo" value="empleados" style="accent-color:var(--cm-blue);">
-                  <span>Solo <strong>Empleados</strong></span>
-                </label>
-                <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:12px; padding:6px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.12); background:var(--surface2);">
-                  <input type="radio" name="adeccoModo" value="ambos" style="accent-color:var(--cm-blue);">
-                  <span><strong>Ambos</strong></span>
-                </label>
-              </div>
-            </div>
-            <!-- Botón Excel -->
-            <div id="importExcelActions" style="display:none; margin-top:12px; justify-content:flex-end; gap:8px;">
-              <button class="btn btn-secondary" onclick="cancelarImportExcel()" style="padding:7px 14px; font-size:12px;">✕</button>
-              <button class="btn btn-primary" id="btnImportarExcel" onclick="ejecutarImportExcel()" style="padding:7px 16px; font-size:12px;">
-                ⬆ Importar Excel
-              </button>
-            </div>
+      <!-- ── PANEL ÚNICO DE IMPORTACIÓN (Excel/ADECCO + PDF) ── -->
+      <div class="form-card" style="padding:0; overflow:hidden; margin-bottom:18px;">
+        <div style="padding:14px 20px 12px; border-bottom:1px solid rgba(255,255,255,0.07); display:flex; align-items:center; gap:10px;">
+          <span style="font-size:22px;">📥</span>
+          <div>
+            <div style="font-weight:700; font-size:14px; color:var(--text);">Excel / ADECCO / PDF</div>
+            <div style="font-size:11px; color:var(--muted);">Horas extra · Pólizas · Tablas ADECCO (.xlsx, .xls, .csv) · Permisos CM-TH-FR-003 y Vacaciones CM-TH-SV-001 (.pdf)</div>
           </div>
         </div>
+        <div style="padding:16px 20px;">
+          <!-- Drop zone única -->
+          <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()"
+               style="padding:24px 12px; min-height:100px; cursor:pointer;">
+            <div class="upload-icon" id="uploadIcon" style="font-size:30px; margin-bottom:6px;">📂</div>
+            <div class="upload-label" id="uploadLabel" style="font-size:13px;">Arrastra archivos .xlsx, .csv o .pdf aquí, o haz clic</div>
+            <div class="upload-sub" id="uploadSub" style="font-size:11px;">Máx 50 MB por archivo · múltiples archivos · detecta el tipo automáticamente</div>
+            <input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.pdf" multiple
+                   onchange="seleccionarArchivoImport(event)" style="display:none">
+          </div>
 
-        <!-- PANEL PDF -->
-        <div class="form-card" style="padding:0; overflow:hidden;">
-          <div style="padding:14px 20px 12px; border-bottom:1px solid rgba(255,255,255,0.07); display:flex; align-items:center; gap:10px;">
-            <span style="font-size:22px;">📄</span>
-            <div>
-              <div style="font-weight:700; font-size:14px; color:var(--text);">PDFs — Permisos & Vacaciones</div>
-              <div style="font-size:11px; color:var(--muted);">Formularios CM-TH-FR-003 · CM-TH-SV-001</div>
+          <!-- Lista de archivos seleccionados (mixta Excel + PDF) -->
+          <div id="importFileList" style="margin-top:12px;"></div>
+
+          <!-- Modo ADECCO (solo si hay un archivo ADECCO en el lote) -->
+          <div id="adeccoModoPanel" style="display:none; margin-top:12px; padding:12px 14px; background:rgba(32,167,201,0.07); border:1px solid rgba(32,167,201,0.25); border-radius:var(--radius);">
+            <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.07em; color:var(--cm-blue-light); font-weight:700; margin-bottom:8px;">
+              📋 Archivo ADECCO detectado — ¿Qué importar?
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:12px; padding:6px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.12); background:var(--surface2);">
+                <input type="radio" name="adeccoModo" value="novedades" checked style="accent-color:var(--cm-blue);">
+                <span>Solo <strong>Novedades</strong></span>
+              </label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:12px; padding:6px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.12); background:var(--surface2);">
+                <input type="radio" name="adeccoModo" value="empleados" style="accent-color:var(--cm-blue);">
+                <span>Solo <strong>Empleados</strong></span>
+              </label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:12px; padding:6px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.12); background:var(--surface2);">
+                <input type="radio" name="adeccoModo" value="ambos" style="accent-color:var(--cm-blue);">
+                <span><strong>Ambos</strong></span>
+              </label>
             </div>
           </div>
-          <div style="padding:16px 20px;">
-            <!-- Drop zone PDF -->
-            <div class="upload-zone" id="dropZonePDF" onclick="document.getElementById('fileInputPDF').click()"
-                 style="padding:20px 12px; min-height:90px; cursor:pointer;" ondrop="onDropPDF(event)" ondragover="event.preventDefault()">
-              <div class="upload-icon" id="uploadIconPDF" style="font-size:28px; margin-bottom:6px;">📑</div>
-              <div class="upload-label" id="uploadLabelPDF" style="font-size:13px;">Arrastra archivos .pdf aquí, o haz clic</div>
-              <div class="upload-sub" id="uploadSubPDF" style="font-size:11px;">OCR automático · Máx 50 MB · múltiples PDFs</div>
-              <input type="file" id="fileInputPDF" accept=".pdf" multiple
-                     onchange="seleccionarArchivoPDF(event)" style="display:none">
+
+          <!-- Modo importación: acumular / reemplazar (solo aplica a Excel/ADECCO) -->
+          <div id="modoImportacionPanel" style="display:none; margin-top:10px; padding:10px 14px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:var(--radius);">
+            <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.07em; color:var(--muted); font-weight:700; margin-bottom:8px;">
+              Modo de importación (Excel/ADECCO)
             </div>
-            <!-- Lista PDF -->
-            <div id="importFileListPDF" style="margin-top:12px; display:none;"></div>
-            <!-- Botón PDF -->
-            <div id="importPDFActions" style="display:none; margin-top:12px; justify-content:flex-end; gap:8px;">
-              <button class="btn btn-secondary" onclick="cancelarImportPDF()" style="padding:7px 14px; font-size:12px;">✕</button>
-              <button class="btn btn-primary" id="btnImportarPDF" onclick="ejecutarImportPDF()" style="padding:7px 16px; font-size:12px;">
-                ⬆ Importar PDFs
-              </button>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:12px; padding:6px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.12); background:var(--surface2);">
+                <input type="radio" name="modoImportacion" value="acumular" checked style="accent-color:var(--cm-blue);">
+                <span><strong>Acumular</strong> — suma sobre el registro existente</span>
+              </label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:12px; padding:6px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.12); background:var(--surface2);">
+                <input type="radio" name="modoImportacion" value="reemplazar" style="accent-color:var(--cm-blue);">
+                <span><strong>Reemplazar</strong> — sobrescribe el valor existente</span>
+              </label>
             </div>
+            <div style="font-size:11px; color:var(--muted); margin-top:8px;">
+              Los PDFs de permisos/vacaciones no usan este modo: se reactivan o acumulan automáticamente según su propia regla de negocio.
+            </div>
+          </div>
+
+          <!-- Botón único -->
+          <div id="importActions" style="display:none; margin-top:12px; justify-content:flex-end; gap:8px;">
+            <button class="btn btn-secondary" onclick="cancelarImport()" style="padding:7px 14px; font-size:12px;">✕ Cancelar</button>
+            <button class="btn btn-primary" id="btnImportar" onclick="manejarBtnImportar()" style="padding:7px 16px; font-size:12px;">
+              ⬆ Importar
+            </button>
           </div>
         </div>
       </div>
 
-      <!-- ── PANEL DE REVISIÓN PREVIA (PDFs) — mantenido para compatibilidad ── -->
+      <!-- ── PANEL DE REVISIÓN PREVIA (PDFs) — se muestra tras el análisis OCR, antes de guardar en BD ── -->
       <div id="importReview" style="display:none; margin-bottom:16px;">
         <div class="form-card" style="padding:20px;">
           <div class="form-card-title">🔍 Revisión previa — datos extraídos de los PDFs</div>
@@ -1238,9 +1315,9 @@
             <div class="stat-sub">nuevos registros</div>
           </div>
           <div class="stat-card" style="--accent:#5B9BD5;">
-            <div class="stat-label">Acumulados</div>
+            <div class="stat-label">Acumulados / Reemplazados</div>
             <div class="stat-value" id="istat_acumulados">0</div>
-            <div class="stat-sub">cantidades sumadas</div>
+            <div class="stat-sub" id="istat_acumulados_sub">cantidades sumadas</div>
           </div>
           <div class="stat-card" style="--accent:#E05555;">
             <div class="stat-label">Errores</div>
@@ -1264,6 +1341,7 @@
                 <option value="">Todos los estados</option>
                 <option value="INSERTADO">✓ Insertados</option>
                 <option value="ACUMULADO">⊕ Acumulados</option>
+                <option value="REEMPLAZADO">↻ Reemplazados</option>
                 <option value="ACTUALIZADO">↺ Actualizados</option>
                 <option value="REACTIVADO">↺ Reactivados</option>
                 <option value="INHABILITADO">⊘ Inhabilitados</option>
@@ -2279,21 +2357,115 @@
 <!-- ── Modal de confirmación de anulación masiva ── -->
 <div id="modalAnularBatch">
   <div class="modal-batch-box">
-    <div class="modal-batch-title">⚠ Confirmar anulación masiva</div>
-    <div class="modal-batch-desc">
-      Vas a anular <strong id="batchCountLabel"></strong>. Los registros quedarán
-      inactivos pero se conservarán para trazabilidad histórica.
-      Esta acción no se puede deshacer desde la interfaz.
-    </div>
+    <div class="modal-batch-title">⚠ Anulación masiva — <strong id="batchCountLabel"></strong></div>
     <div class="modal-batch-list">
       <table>
         <thead><tr><th>Cédula</th><th>Nombre</th><th>Concepto</th></tr></thead>
         <tbody id="batchListBody"></tbody>
       </table>
     </div>
-    <div class="modal-batch-actions">
-      <button class="btn-batch-cancel" onclick="cerrarModalAnularBatch()">Cancelar</button>
-      <button class="btn-batch-confirm" id="btnBatchConfirm" onclick="confirmarAnularBatch()">Sí, anular todo</button>
+
+    <!-- Paso 1: elegir acción -->
+    <div id="batchStep1">
+      <div class="modal-batch-desc">¿Qué deseas hacer con estos registros?</div>
+      <div class="anular-choice-row">
+        <button class="btn-anular-inhabilitar" onclick="batchElegirInhabilitar()">
+          <span class="anular-icon">🔒</span>
+          <strong>Inhabilitar</strong>
+          <small>Queda inactivo pero visible en trazabilidad</small>
+        </button>
+        <button class="btn-anular-eliminar" onclick="batchElegirEliminar()">
+          <span class="anular-icon">🗑</span>
+          <strong>Eliminar</strong>
+          <small>Se excluye de trazabilidad permanentemente</small>
+        </button>
+      </div>
+      <div class="modal-batch-actions">
+        <button class="btn-batch-cancel" onclick="cerrarModalAnularBatch()">Cancelar</button>
+      </div>
+    </div>
+
+    <!-- Paso 1b: confirmación inhabilitar masivo -->
+    <div id="batchStep1b" style="display:none">
+      <div class="modal-batch-desc">
+        Los registros listados quedarán <strong>inactivos</strong> pero seguirán visibles en la trazabilidad histórica.
+        Esta acción puede revertirse reactivando las novedades. ¿Confirmas?
+      </div>
+      <div class="modal-batch-actions">
+        <button class="btn-batch-cancel" onclick="batchVolverPaso1()">← Volver</button>
+        <button class="btn-batch-confirm" id="btnBatchInhabilitarConfirm"
+                onclick="batchConfirmarInhabilitar()">Sí, inhabilitar</button>
+      </div>
+    </div>
+
+    <!-- Paso 2: confirmación para eliminar -->
+    <div id="batchStep2" style="display:none">
+      <div class="modal-batch-desc eliminar-warning">
+        ⚠ Esta acción es permanente. Los registros desaparecerán de la trazabilidad.<br>
+        Para confirmar, escribe <strong>ELIMINAR</strong>:
+      </div>
+      <input type="text" id="batchEliminarInput" class="modal-confirm-input"
+             placeholder="Escribe ELIMINAR" oninput="validarInputEliminarBatch()">
+      <div class="modal-batch-actions">
+        <button class="btn-batch-cancel" onclick="batchVolverPaso1()">← Volver</button>
+        <button class="btn-batch-confirm btn-confirmar-eliminar" id="btnBatchConfirm"
+                onclick="confirmarAnularBatch()" disabled>Confirmar eliminación</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal de elección de acción (registro individual) ── -->
+<div id="modalAnularChoice">
+  <div class="modal-batch-box">
+    <div class="modal-batch-title">⚠ Anular novedad</div>
+
+    <!-- Paso 1: elegir acción -->
+    <div id="choiceStep1">
+      <div class="modal-batch-desc">¿Qué deseas hacer con este registro?</div>
+      <div class="anular-choice-row">
+        <button class="btn-anular-inhabilitar" onclick="_choiceInhabilitar()">
+          <span class="anular-icon">🔒</span>
+          <strong>Inhabilitar</strong>
+          <small>Queda inactivo pero visible en trazabilidad</small>
+        </button>
+        <button class="btn-anular-eliminar" onclick="_choiceEliminar()">
+          <span class="anular-icon">🗑</span>
+          <strong>Eliminar</strong>
+          <small>Se excluye de trazabilidad permanentemente</small>
+        </button>
+      </div>
+      <div class="modal-batch-actions">
+        <button class="btn-batch-cancel" onclick="cerrarModalAnularChoice()">Cancelar</button>
+      </div>
+    </div>
+
+    <!-- Paso 1b: confirmación inhabilitar individual -->
+    <div id="choiceStep1b" style="display:none">
+      <div class="modal-batch-desc">
+        El registro quedará <strong>inactivo</strong> pero seguirá visible en la trazabilidad histórica.
+        Esta acción puede revertirse reactivando la novedad. ¿Confirmas?
+      </div>
+      <div class="modal-batch-actions">
+        <button class="btn-batch-cancel" onclick="choiceVolverPaso1()">← Volver</button>
+        <button class="btn-batch-confirm" id="btnChoiceInhabilitarConfirm"
+                onclick="_choiceConfirmarInhabilitar()">Sí, inhabilitar</button>
+      </div>
+    </div>
+
+    <!-- Paso 2: confirmación para eliminar -->
+    <div id="choiceStep2" style="display:none">
+      <div class="modal-batch-desc eliminar-warning">
+        ⚠ Esta acción es permanente. El registro desaparecerá de la trazabilidad.<br>
+        Para confirmar, escribe <strong>ELIMINAR</strong>:
+      </div>
+      <input type="text" id="choiceEliminarInput" class="modal-confirm-input"
+             placeholder="Escribe ELIMINAR" oninput="validarInputEliminarChoice()">
+      <div class="modal-batch-actions">
+        <button class="btn-batch-cancel" onclick="choiceVolverPaso1()">← Volver</button>
+        <button class="btn-batch-confirm btn-confirmar-eliminar" id="btnChoiceConfirm"
+                onclick="_choiceConfirmarEliminar()" disabled>Confirmar eliminación</button>
+      </div>
     </div>
   </div>
 </div>

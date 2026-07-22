@@ -51,6 +51,8 @@ async function _runBootstrapsOnce() {
   try { await require('./controllers/cambiosController').ensureDbObjects();     } catch (_) {}
   try { await require('./controllers/formularioController').ensureDbObjects();   } catch (_) {}
   try { await require('./controllers/solicitudesController').ensureDbObjects();  } catch (_) {}
+  try { await require('./controllers/jefesAreaController').ensureDbObjects();    } catch (_) {}
+  try { await require('./controllers/importarPDFController').ensureDbObjects();  } catch (_) {}
   try { await verificarYCerrarPeriodosVencidos();                                } catch (_) {}
   try { await require('./controllers/mantenimientoController').ejecutarMantenimiento(); } catch (_) {}
 
@@ -128,6 +130,7 @@ const importarPDFRoutes      = require('./routes/importarPDF');
 const solicitudesRoutes      = require('./routes/solicitudesPublicas');
 const formulariosRoutes      = require('./routes/formularios');
 const graficosRoutes         = require('./routes/graficos');
+const jefesAreaRoutes        = require('./routes/jefesArea');
 
 // Rutas públicas de autoservicio (sin verifyToken) — antes que cualquier middleware de auth
 app.get('/solicitud/permiso',     (req, res) => res.sendFile(path.join(__dirname, 'public', 'solicitud-permiso.html')));
@@ -157,6 +160,7 @@ app.use('/api/changelog',      changelogRoutes);
 app.use('/api/novedades',      novedadesRoutes);
 app.use('/api/pdf',            importarPDFRoutes);
 app.use('/api/graficos',       graficosRoutes);
+app.use('/api/jefes-area',    jefesAreaRoutes);
 
 // Ruta de prueba
 app.get('/api/health', (req, res) => {

@@ -13,6 +13,7 @@
 // ============================================================================
 
 const { executeQuery } = require('../config/database');
+const { getActUsua }   = require('../config/userHelper');
 const { spawn }        = require('child_process');
 const crypto           = require('crypto');
 const fs               = require('fs');
@@ -35,6 +36,16 @@ function _decodificarNombre(nombre) {
     }
   } catch (_) {}
   return nombre;
+}
+
+/**
+ * Sanea el nombre original del archivo antes de usarlo en path.join() para el
+ * temporal en disco. Sin esto, un originalname con "../" o separadores de ruta
+ * (nombre controlado por el cliente) podría escribir fuera de tempDir.
+ */
+function _nombreSeguro(nombre) {
+  const base = path.basename(String(nombre || 'archivo.pdf'));
+  return base.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-150) || 'archivo.pdf';
 }
 
 // ─── Mensajes de error legibles para el usuario final ────────────────────────
@@ -70,8 +81,69 @@ function _mapearErrorOCR(msg) {
 
 // ─── Cache de previsualizaciones (token → datos extraídos, sin escritura en BD) ─
 // Evita re-ejecutar el OCR al confirmar; expira en 15 minutos.
-const _prevCache  = new Map();
+//
+// Persistido en dbo.GN_PREV_IMPO (no en memoria del proceso): en Azure App
+// Service el proceso puede reciclarse entre el "previsualizar" y el "confirmar"
+// (deploy, auto-scale, restart), lo que perdía el caché en memoria y mostraba
+// "la sesión expiró" sin haber pasado el tiempo real.
 const PREV_TTL_MS = 15 * 60 * 1000;
+
+async function ensureDbObjects() {
+  try {
+    await executeQuery(`
+      IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.TABLES
+        WHERE TABLE_SCHEMA='dbo' AND TABLE_NAME='GN_PREV_IMPO'
+      ) BEGIN
+        CREATE TABLE dbo.GN_PREV_IMPO (
+          TOKEN      UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+          COD_EMPR   SMALLINT         NOT NULL,
+          COD_USUA   NVARCHAR(50)     NOT NULL,
+          JSON_DATOS NVARCHAR(MAX)    NOT NULL,
+          FEC_CREA   DATETIME2        NOT NULL CONSTRAINT DF_GN_PREV_IMPO_CREA DEFAULT (SYSDATETIME()),
+          ACT_ESTA   CHAR(1)          NOT NULL CONSTRAINT DF_GN_PREV_IMPO_ESTA DEFAULT ('A')
+        );
+        PRINT '[importarPDF] GN_PREV_IMPO creada.';
+      END
+    `);
+  } catch (err) {
+    logger.error('importarPDF', 'ensureDbObjects falló: ' + err.message, err.stack);
+    throw err;
+  }
+}
+exports.ensureDbObjects = ensureDbObjects;
+
+/** Guarda el resultado del OCR (sin escribir en BD de negocio) y devuelve el token. */
+async function guardarPreview(codEmpr, usuario, payload) {
+  // Limpieza best-effort de previsualizaciones viejas (no bloquea el guardado)
+  executeQuery(`DELETE FROM dbo.GN_PREV_IMPO WHERE FEC_CREA < DATEADD(MINUTE, -30, SYSDATETIME())`)
+    .catch(() => {});
+
+  const token = crypto.randomUUID();
+  await executeQuery(`
+    INSERT INTO dbo.GN_PREV_IMPO (TOKEN, COD_EMPR, COD_USUA, JSON_DATOS)
+    VALUES (@token, @codEmpr, @usuario, @json)
+  `, { token, codEmpr, usuario, json: JSON.stringify(payload) });
+  return token;
+}
+
+/** Lee y valida el TTL de una previsualización. Devuelve null si no existe o expiró. */
+async function leerPreview(token) {
+  const r = await executeQuery(`
+    SELECT JSON_DATOS, FEC_CREA
+    FROM dbo.GN_PREV_IMPO
+    WHERE TOKEN = @token AND ACT_ESTA = 'A'
+  `, { token });
+  const row = r.recordset && r.recordset[0];
+  if (!row) return null;
+  if (Date.now() - new Date(row.FEC_CREA).getTime() > PREV_TTL_MS) return null;
+  return JSON.parse(row.JSON_DATOS);
+}
+
+/** Marca una previsualización como consumida (no se reutiliza para un segundo confirmar). */
+async function invalidarPreview(token) {
+  await executeQuery(`UPDATE dbo.GN_PREV_IMPO SET ACT_ESTA = 'I' WHERE TOKEN = @token`, { token });
+}
 
 // ─── Multer ──────────────────────────────────────────────────────────────────
 const upload = multer({
@@ -587,11 +659,19 @@ function construirObs(datos) {
 
 // ─── Invocar extractor Python ─────────────────────────────────────────────────
 
+const PYTHON_TIMEOUT_MS = 90_000; // evita que un OCR colgado deje la request pendiendo indefinidamente
+
 function procesarPDFconPython(rutaArchivo) {
   return new Promise((resolve, reject) => {
     const script = path.join(__dirname, '..', 'python', 'procesar_pdf.py');
     let stdout = '';
     let stderr = '';
+    let settled = false;
+    const finalize = (fn, arg) => {
+      if (settled) return;
+      settled = true;
+      fn(arg);
+    };
 
     // Cadena de candidatos con argumentos previos al script.
     // PYTHON_PATH: ejecutable Python (ej: C:\Windows\py.exe)
@@ -617,8 +697,20 @@ function procesarPDFconPython(rutaArchivo) {
     const trySpawn = ({ cmd, pre }) => {
       const py = spawn(cmd, [...pre, script, rutaArchivo], { windowsHide: true });
 
+      const killTimer = setTimeout(() => {
+        logger.error('importarPDF',
+          `Python excedió el timeout de ${PYTHON_TIMEOUT_MS / 1000}s, proceso cancelado`,
+          'Archivo: ' + path.basename(rutaArchivo)
+        );
+        py.kill('SIGKILL');
+        finalize(reject, new Error(
+          `El procesamiento del PDF superó el tiempo máximo (${PYTHON_TIMEOUT_MS / 1000}s). Intenta con un archivo más liviano o contacta al administrador.`
+        ));
+      }, PYTHON_TIMEOUT_MS);
+
       py.on('error', (err) => {
         if (err.code === 'ENOENT' && intentoIdx < candidatos.length - 1) {
+          clearTimeout(killTimer);
           intentoIdx++;
           const siguiente = candidatos[intentoIdx];
           logger.warn('importarPDF',
@@ -627,6 +719,7 @@ function procesarPDFconPython(rutaArchivo) {
           );
           return trySpawn(siguiente);
         }
+        clearTimeout(killTimer);
         const probados = candidatos.slice(0, intentoIdx + 1).map(c => c.cmd + ' ' + c.pre.join(' ')).join(', ');
         logger.error('importarPDF',
           'Python no encontrado tras ' + (intentoIdx + 1) + ' intento(s): ' + err.message,
@@ -634,7 +727,7 @@ function procesarPDFconPython(rutaArchivo) {
           '\nPYTHON_PATH=' + (envPy || 'no definido') +
           '\nPYTHON_ARGS=' + (envArgs.join(' ') || 'no definido')
         );
-        reject(new Error(
+        finalize(reject, new Error(
           'Python no encontrado. Probados: ' + probados +
           '. Configure PYTHON_PATH=C:\\Windows\\py.exe y PYTHON_ARGS=-3 en App Settings de Azure.'
         ));
@@ -644,21 +737,22 @@ function procesarPDFconPython(rutaArchivo) {
       py.stderr.on('data', d => { stderr += d.toString(); });
 
       py.on('close', code => {
+        clearTimeout(killTimer);
         if (code !== 0) {
           logger.error('importarPDF',
             'Python termino con codigo ' + code,
             'stderr: ' + stderr.slice(0, 1000) + '\nstdout: ' + stdout.slice(0, 500) + '\nArchivo: ' + path.basename(rutaArchivo)
           );
-          return reject(new Error('Python error (code ' + code + '): ' + stderr.slice(0, 300)));
+          return finalize(reject, new Error('Python error (code ' + code + '): ' + stderr.slice(0, 300)));
         }
         try {
-          resolve(JSON.parse(stdout.trim()));
+          finalize(resolve, JSON.parse(stdout.trim()));
         } catch (e) {
           logger.error('importarPDF',
             'Respuesta de Python no es JSON valido: ' + e.message,
             'stdout (primeros 500 chars): ' + stdout.slice(0, 500)
           );
-          reject(new Error('JSON parse error: ' + e.message + ' | stdout: ' + stdout.slice(0, 200)));
+          finalize(reject, new Error('JSON parse error: ' + e.message + ' | stdout: ' + stdout.slice(0, 200)));
         }
       });
     };
@@ -690,7 +784,7 @@ exports.importarPDFs = [
     if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
 
     for (const file of req.files) {
-      const tmpPath = path.join(tempDir, `${Date.now()}_${file.originalname}`);
+      const tmpPath = path.join(tempDir, `${Date.now()}_${_nombreSeguro(file.originalname)}`);
 
       try {
         // Guardar temporalmente
@@ -897,7 +991,7 @@ exports.previsualizar = [
     const periodo = await resolverPeriodo(codEmpr).catch(() => null);
 
     for (const file of req.files) {
-      const tmpPath = path.join(tempDir, `${Date.now()}_${file.originalname}`);
+      const tmpPath = path.join(tempDir, `${Date.now()}_${_nombreSeguro(file.originalname)}`);
       try {
         fs.writeFileSync(tmpPath, file.buffer);
         const rawResult  = await procesarPDFconPython(tmpPath);
@@ -957,13 +1051,14 @@ exports.previsualizar = [
       }
     }
 
-    // Limpiar entradas expiradas antes de insertar
-    for (const [k, v] of _prevCache.entries()) {
-      if (Date.now() - v.timestamp > PREV_TTL_MS) _prevCache.delete(k);
+    const usuario = getActUsua(req);
+    let token;
+    try {
+      token = await guardarPreview(codEmpr, usuario, { registros: cacheRegistros, periodo });
+    } catch (err) {
+      logger.error('previsualizar', 'Error guardando previsualización en BD: ' + err.message, err.stack);
+      return res.status(500).json({ success: false, error: 'No se pudo guardar la previsualización: ' + err.message });
     }
-
-    const token = crypto.randomUUID();
-    _prevCache.set(token, { registros: cacheRegistros, periodo, timestamp: Date.now() });
 
     let periodoResp = null;
     if (periodo) {
@@ -986,15 +1081,20 @@ exports.confirmar = async (req, res) => {
   if (!token)
     return res.status(400).json({ success: false, error: 'Token de revisión requerido.' });
 
-  const cached = _prevCache.get(token);
-  if (!cached || Date.now() - cached.timestamp > PREV_TTL_MS) {
-    _prevCache.delete(token);
+  let cached;
+  try {
+    cached = await leerPreview(token);
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Error leyendo la previsualización: ' + err.message });
+  }
+  if (!cached) {
+    invalidarPreview(token).catch(() => {});
     return res.status(410).json({
       success: false,
       error: _mapearErrorOCR('expiró')
     });
   }
-  _prevCache.delete(token);
+  await invalidarPreview(token).catch(() => {});
 
   const codEmpr          = DEFAULT_COD_EMPR;
   const { registros, periodo } = cached;

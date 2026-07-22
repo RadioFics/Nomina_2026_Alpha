@@ -178,7 +178,7 @@ async function buscarCambioExistente(codEmpr, codFunci, codConc, codPeriod) {
 }
 
 // ─── Procesar un archivo ya parseado: insertar/acumular en BD ─────────────────
-async function procesarEnBD({ agrupado, codEmpr, periodo, pool, usuario, nombreArchivo }) {
+async function procesarEnBD({ agrupado, codEmpr, periodo, pool, usuario, nombreArchivo, modo = 'acumular' }) {
   const resumen = {
     totalFilas:  0,
     procesados:  0,
@@ -212,7 +212,7 @@ async function procesarEnBD({ agrupado, codEmpr, periodo, pool, usuario, nombreA
     if (!codFunci) {
       const msg = 'Cédula no encontrada en la base de datos.';
       resumen.errores.push({ cedula, error: msg });
-      resumen.detalle.push({ cedula, nombre: emp.nombre, estado: 'ERROR', mensaje: msg });
+      resumen.detalle.push({ cedula, nombre: emp.nombre, estado: 'ERROR', tipo: 'CEDULA_NO_ENCONTRADA', mensaje: msg });
       continue;
     }
 
@@ -249,12 +249,14 @@ async function procesarEnBD({ agrupado, codEmpr, periodo, pool, usuario, nombreA
           const existente = await buscarNovedadFijaExistente(codEmpr, codFunci, codConc, periodo.COD_PERIOD);
 
           if (existente && existente.ES_ACTIVA) {
-            // Actualizar valor acumulado (registro activo existente)
-            const nuevoValor = (Number(existente.VALOR) || 0) + valor;
+            // Actualizar valor: acumular o reemplazar según modo
+            const valorFinal = modo === 'reemplazar'
+              ? valor
+              : (Number(existente.VALOR) || 0) + valor;
             const r = new sql.Request(transaction);
             r.input('codEmpr',  sql.SmallInt,      codEmpr);
             r.input('codNoved', sql.Int,           existente.COD_NOVED);
-            r.input('valor',    sql.Decimal(18,2), nuevoValor);
+            r.input('valor',    sql.Decimal(18,2), valorFinal);
             r.input('actUsua',  sql.NVarChar(50),  usuario);
             await r.query(`
               UPDATE dbo.NO_FIJAS
@@ -262,12 +264,21 @@ async function procesarEnBD({ agrupado, codEmpr, periodo, pool, usuario, nombreA
               WHERE COD_EMPR = @codEmpr AND COD_NOVED = @codNoved AND ACT_ESTA = 'A'
             `);
             await transaction.commit();
-            resumen.acumulados++;
-            resumen.detalle.push({
-              cedula, nombre: emp.nombre, codConc, valor, tipo,
-              estado: 'ACUMULADO',
-              mensaje: `Valor acumulado (total: $${nuevoValor.toFixed(2)}) en NO_FIJAS #${existente.COD_NOVED}.`
-            });
+            if (modo === 'reemplazar') {
+              resumen.acumulados++;
+              resumen.detalle.push({
+                cedula, nombre: emp.nombre, codConc, valor, tipo,
+                estado: 'REEMPLAZADO',
+                mensaje: `Valor reemplazado ($${valorFinal.toFixed(2)}) en NO_FIJAS #${existente.COD_NOVED}.`
+              });
+            } else {
+              resumen.acumulados++;
+              resumen.detalle.push({
+                cedula, nombre: emp.nombre, codConc, valor, tipo,
+                estado: 'ACUMULADO',
+                mensaje: `Valor acumulado (total: $${valorFinal.toFixed(2)}) en NO_FIJAS #${existente.COD_NOVED}.`
+              });
+            }
           } else if (existente && !existente.ES_ACTIVA && !existente.ES_EXENTA) {
             // Reactivar novedad fija previamente anulada con el valor nuevo del import
             const r = new sql.Request(transaction);
@@ -365,14 +376,16 @@ async function procesarEnBD({ agrupado, codEmpr, periodo, pool, usuario, nombreA
           const existente = await buscarAusentismoExistente(codEmpr, codFunci, codConc, periodo.COD_PERIOD);
 
           if (existente && existente.ES_ACTIVA) {
-            // Actualizar días acumulados (registro activo existente)
-            const nuevosDias = (Number(existente.DIAS_TOTAL) || 0) + diasTotal;
+            // Actualizar días: acumular o reemplazar según modo
+            const diasFinal = modo === 'reemplazar'
+              ? diasTotal
+              : (Number(existente.DIAS_TOTAL) || 0) + diasTotal;
             const r = new sql.Request(transaction);
             r.input('codEmpr',    sql.SmallInt,      codEmpr);
             r.input('codNoved',   sql.Int,           existente.COD_NOVED);
             r.input('fecIni',     sql.Date,          fecIni);
             r.input('fecFin',     sql.Date,          fecFin);
-            r.input('diasTotal',  sql.Decimal(10,2), nuevosDias);
+            r.input('diasTotal',  sql.Decimal(10,2), diasFinal);
             r.input('diagnostico',sql.NVarChar(200), diagnostico);
             r.input('fecProrroga',sql.Date,          fecProrroga);
             r.input('actUsua',    sql.NVarChar(50),  usuario);
@@ -387,8 +400,10 @@ async function procesarEnBD({ agrupado, codEmpr, periodo, pool, usuario, nombreA
             resumen.acumulados++;
             resumen.detalle.push({
               cedula, nombre: emp.nombre, codConc, tipo,
-              estado:  'ACUMULADO',
-              mensaje: `Ausentismo actualizado (${nuevosDias} días) en NO_NOVED #${existente.COD_NOVED}.`
+              estado:  modo === 'reemplazar' ? 'REEMPLAZADO' : 'ACUMULADO',
+              mensaje: modo === 'reemplazar'
+                ? `Ausentismo reemplazado (${diasFinal} días) en NO_NOVED #${existente.COD_NOVED}.`
+                : `Ausentismo actualizado (${diasFinal} días) en NO_NOVED #${existente.COD_NOVED}.`
             });
           } else if (existente && !existente.ES_ACTIVA && !existente.ES_EXENTA) {
             // Reactivar ausentismo previamente anulado con los nuevos datos del import
@@ -480,6 +495,8 @@ async function procesarEnBD({ agrupado, codEmpr, periodo, pool, usuario, nombreA
 
           if (existente && existente.ES_ACTIVA) {
             // Actualizar el valor nuevo del cambio (registro activo existente)
+            // CAMBIO siempre reemplaza (no hay semántica de acumular textos);
+            // en modo reemplazar se marca REEMPLAZADO para diferenciarlo en la UI.
             const r = new sql.Request(transaction);
             r.input('codEmpr',    sql.SmallInt,      codEmpr);
             r.input('codNoved',   sql.Int,           existente.COD_NOVED);
@@ -496,7 +513,7 @@ async function procesarEnBD({ agrupado, codEmpr, periodo, pool, usuario, nombreA
             resumen.acumulados++;
             resumen.detalle.push({
               cedula, nombre: emp.nombre, codConc, tipo,
-              estado:  'ACUMULADO',
+              estado:  modo === 'reemplazar' ? 'REEMPLAZADO' : 'ACUMULADO',
               mensaje: `Cambio actualizado → "${valorNuevo}" en NO_NOVED #${existente.COD_NOVED}.`
             });
           } else if (existente && !existente.ES_ACTIVA && !existente.ES_EXENTA) {
@@ -576,12 +593,14 @@ async function procesarEnBD({ agrupado, codEmpr, periodo, pool, usuario, nombreA
           const existente = await buscarNovedadExistente(codEmpr, codFunci, codConc, periodo.COD_PERIOD);
 
           if (existente && existente.ES_ACTIVA) {
-            // Acumular cantidad/valor sobre el registro activo existente
-            const nuevaCant = (Number(existente.CANTIDAD) || 0) + cantidad;
+            // Actualizar cantidad/valor: acumular o reemplazar según modo
+            const cantFinal = modo === 'reemplazar'
+              ? cantidad
+              : (Number(existente.CANTIDAD) || 0) + cantidad;
             const r = new sql.Request(transaction);
             r.input('codEmpr',  sql.SmallInt,       codEmpr);
             r.input('codNoved', sql.Int,            existente.COD_NOVED);
-            r.input('cantidad', sql.Decimal(18, 4), nuevaCant);
+            r.input('cantidad', sql.Decimal(18, 4), cantFinal);
             r.input('actUsua',  sql.NVarChar(50),   usuario);
             // Si el parser nuevo envía valor monetario, también actualizarlo
             if (valor > 0) {
@@ -600,13 +619,23 @@ async function procesarEnBD({ agrupado, codEmpr, periodo, pool, usuario, nombreA
             }
             await transaction.commit();
             resumen.acumulados++;
-            resumen.detalle.push({
-              cedula, nombre: emp.nombre, codConc, cantidad, valor, tipo,
-              estado: 'ACUMULADO',
-              mensaje: valor > 0
-                ? `Valor acumulado ($${valor.toFixed(2)}) en NO_NOVED #${existente.COD_NOVED}.`
-                : `Cantidad acumulada (total: ${nuevaCant.toFixed(2)}) en NO_NOVED #${existente.COD_NOVED}.`
-            });
+            if (modo === 'reemplazar') {
+              resumen.detalle.push({
+                cedula, nombre: emp.nombre, codConc, cantidad, valor, tipo,
+                estado: 'REEMPLAZADO',
+                mensaje: valor > 0
+                  ? `Valor reemplazado ($${valor.toFixed(2)}) en NO_NOVED #${existente.COD_NOVED}.`
+                  : `Cantidad reemplazada (${cantFinal.toFixed(2)}) en NO_NOVED #${existente.COD_NOVED}.`
+              });
+            } else {
+              resumen.detalle.push({
+                cedula, nombre: emp.nombre, codConc, cantidad, valor, tipo,
+                estado: 'ACUMULADO',
+                mensaje: valor > 0
+                  ? `Valor acumulado ($${valor.toFixed(2)}) en NO_NOVED #${existente.COD_NOVED}.`
+                  : `Cantidad acumulada (total: ${cantFinal.toFixed(2)}) en NO_NOVED #${existente.COD_NOVED}.`
+              });
+            }
           } else if (existente && !existente.ES_ACTIVA && !existente.ES_EXENTA) {
             // Reactivar novedad ocasional anulada con los valores del import.
             // Ambas actualizaciones van en un batch único para que el trigger
@@ -807,7 +836,24 @@ async function importarDesdeExcel(req, res) {
         continue;
       }
 
-      // 3. Insertar/acumular en BD
+      // 3a. Validar período del archivo vs período activo (solo parserAdecco)
+      if (parseResult.periodoArchivo) {
+        const pa = parseResult.periodoArchivo;
+        if (pa.ano !== periodo.PER_ANO || pa.mes !== periodo.PER_MES || pa.qna !== periodo.PER_QNA) {
+          const etqArchivo = `${pa.ano}-${String(pa.mes).padStart(2,'0')}-Q${pa.qna}`;
+          const etqActivo  = `${periodo.PER_ANO}-${String(periodo.PER_MES).padStart(2,'0')}-Q${periodo.PER_QNA}`;
+          parseResult.advertencias = parseResult.advertencias || [];
+          parseResult.advertencias.unshift(
+            `⚠ El nombre del archivo indica período ${etqArchivo}, pero el período activo en BD es ${etqActivo}. ` +
+            `Todas las novedades serán asignadas al período activo (${etqActivo}).`
+          );
+        }
+      }
+
+      // 3b. Insertar/acumular en BD
+      const modoImportacion = (req.body && req.body.modoImportacion)
+        ? String(req.body.modoImportacion).toLowerCase().trim()
+        : 'acumular';
       let resumen;
       try {
         resumen = await procesarEnBD({
@@ -817,6 +863,7 @@ async function importarDesdeExcel(req, res) {
           pool,
           usuario,
           nombreArchivo: file.originalname,
+          modo:          modoImportacion,
         });
       } catch (bdErr) {
         resultadoArchivo.error = `Error de base de datos: ${bdErr.message}`;
@@ -1366,6 +1413,10 @@ async function importarDesdeExcelConModo(req, res) {
     const modo = (req.body && req.body.modo) ? String(req.body.modo).toLowerCase().trim() : 'novedades';
     const procesarNovedades = modo === 'novedades' || modo === 'ambos';
     const procesarEmpleados = modo === 'empleados' || modo === 'ambos';
+    // Leer modoImportacion: 'acumular' | 'reemplazar' (comportamiento cuando el registro ya existe activo)
+    const modoImportacion = (req.body && req.body.modoImportacion)
+      ? String(req.body.modoImportacion).toLowerCase().trim()
+      : 'acumular';
 
     const codEmpr = DEFAULT_COD_EMPR;
     const usuario = getActUsua(req);
@@ -1483,6 +1534,18 @@ async function importarDesdeExcelConModo(req, res) {
       }
 
       // 4b. Importar novedades (si aplica)
+      if (procesarNovedades && parseResult.periodoArchivo) {
+        const pa = parseResult.periodoArchivo;
+        if (pa.ano !== periodo.PER_ANO || pa.mes !== periodo.PER_MES || pa.qna !== periodo.PER_QNA) {
+          const etqArchivo = `${pa.ano}-${String(pa.mes).padStart(2,'0')}-Q${pa.qna}`;
+          const etqActivo  = `${periodo.PER_ANO}-${String(periodo.PER_MES).padStart(2,'0')}-Q${periodo.PER_QNA}`;
+          parseResult.advertencias = parseResult.advertencias || [];
+          parseResult.advertencias.unshift(
+            `⚠ El nombre del archivo indica período ${etqArchivo}, pero el período activo en BD es ${etqActivo}. ` +
+            `Todas las novedades serán asignadas al período activo (${etqActivo}).`
+          );
+        }
+      }
       if (procesarNovedades) {
         try {
           const resNov = await procesarEnBD({
@@ -1492,6 +1555,7 @@ async function importarDesdeExcelConModo(req, res) {
             pool,
             usuario,
             nombreArchivo: file.originalname,
+            modo:          modoImportacion,
           });
           if (typeof parseResult.totalFilas === 'number') resNov.totalFilas = parseResult.totalFilas;
           if (parseResult.advertencias && parseResult.advertencias.length > 0) {
@@ -1638,12 +1702,60 @@ async function limpiarDuplicadosInactivos(req, res) {
         )
     `, { codEmpr });
 
+    // ── Paso 4: borrar ghost records 'E' en períodos cerrados ────────────────
+    // Un ghost record 'E' es seguro de eliminar físicamente cuando:
+    //   a) Su período ya está cerrado (PER_EST='I'), O
+    //   b) Existe un registro 'A' con la misma clave de negocio (lo reemplazó)
+    const rDelGhosts = await executeQuery(`
+      DELETE o
+      FROM dbo.NO_OCASI o
+      INNER JOIN dbo.NO_NOVED n ON n.COD_EMPR = o.COD_EMPR AND n.COD_NOVED = o.COD_NOVED
+      WHERE n.ACT_ESTA = 'E'
+        AND o.ACT_ESTA = 'E'
+        AND n.COD_EMPR = @codEmpr
+        AND (
+          -- Período ya cerrado
+          EXISTS (
+            SELECT 1 FROM dbo.NO_PERIOD p
+            WHERE p.COD_PERIOD = n.COD_PERIOD
+              AND p.COD_EMPR   = n.COD_EMPR
+              AND p.PER_EST    = 'I'
+          )
+          OR
+          -- Existe un registro activo con la misma clave que lo reemplazó
+          EXISTS (
+            SELECT 1 FROM dbo.NO_NOVED na
+            WHERE na.COD_EMPR   = n.COD_EMPR
+              AND na.COD_FUNCI  = n.COD_FUNCI
+              AND na.COD_CONC   = n.COD_CONC
+              AND na.COD_PERIOD = n.COD_PERIOD
+              AND na.ACT_ESTA   = 'A'
+              AND na.COD_NOVED <> n.COD_NOVED
+          )
+        )
+    `, { codEmpr });
+
+    const ghostsEliminados = rDelGhosts.rowsAffected ? rDelGhosts.rowsAffected[0] : 0;
+
+    // Borrar cabeceras huérfanas 'E' que ya no tienen sub-tabla
+    await executeQuery(`
+      DELETE FROM dbo.NO_NOVED
+      WHERE ACT_ESTA = 'E'
+        AND COD_EMPR = @codEmpr
+        AND NOT EXISTS (
+          SELECT 1 FROM dbo.NO_OCASI o
+          WHERE o.COD_EMPR  = dbo.NO_NOVED.COD_EMPR
+            AND o.COD_NOVED = dbo.NO_NOVED.COD_NOVED
+        )
+    `, { codEmpr });
+
     return res.json({
       success:    true,
       preview:    false,
-      mensaje:    `Limpieza completada: ${ocasiEliminadas} registros eliminados en ${totalGrupos} grupos duplicados inactivos (OCASIONAL).`,
+      mensaje:    `Limpieza completada: ${ocasiEliminadas} registros inactivos duplicados eliminados en ${totalGrupos} grupos (OCASIONAL). ${ghostsEliminados} ghost records 'E' limpiados.`,
       grupos:     totalGrupos,
       eliminados: ocasiEliminadas,
+      ghostsEliminados,
     });
 
   } catch (err) {

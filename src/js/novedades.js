@@ -38,6 +38,7 @@ function navigate(page) {
   if (page === 'cambios')         { cargarCambiosDelPeriodo(); }
   if (page === 'cambiosIngresos') { cargarCambiosDelPeriodo(); }
   if (page === 'maestroOriginal') { cargarEmpleadosBD(); }
+  if (page === 'jefesArea')       { ja_cargar(); }
   if (page === 'changelog')       { clCargar(); }
   if (page === 'formularios')     { initFormulariosPage(); }
   if (page === 'graficos')        { graficosInit(); }
@@ -2000,14 +2001,8 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-async function anularOcasional(codNoved) {
-  if (!confirm('¿Anular este registro? (queda inactivo pero se conserva para trazabilidad)')) return;
-  try {
-    const resp = await fetch(`/api/ocasionales/${codNoved}`, { method: 'DELETE' });
-    const data = await resp.json();
-    if (!resp.ok) { alert('No se pudo anular: ' + (data.error || resp.status)); return; }
-    await cargarOcasionalesDelPeriodo();
-  } catch (err) { alert('Error de red: ' + err.message); }
+function anularOcasional(codNoved) {
+  abrirModalAnularChoice(codNoved, 'ocas');
 }
 
 // ─── CARGAR CONCEPTOS OCASIONALES ─────────────────────────────────────────────
@@ -2388,14 +2383,8 @@ async function guardarEdicionFija() {
   } catch (err) { alert('Error de red: ' + err.message); }
 }
 
-async function anularFija(codNoved) {
-  if (!confirm('¿Anular esta novedad fija? (queda inactiva pero se conserva)')) return;
-  try {
-    const resp = await fetch(`/api/fijas/${codNoved}`, { method: 'DELETE' });
-    const data = await resp.json();
-    if (!resp.ok) { alert('No se pudo anular: ' + (data.error || resp.status)); return; }
-    await cargarFijasDelPeriodo();
-  } catch (err) { alert('Error de red: ' + err.message); }
+function anularFija(codNoved) {
+  abrirModalAnularChoice(codNoved, 'fija');
 }
 
 // ============================================================================
@@ -2602,14 +2591,8 @@ async function guardarEdicionAusentismo() {
   } catch (err) { alert('Error de red: ' + err.message); }
 }
 
-async function anularAusentismo(codNoved) {
-  if (!confirm('¿Anular este ausentismo? (queda inactivo pero se conserva)')) return;
-  try {
-    const resp = await fetch(`/api/ausentismos/${codNoved}`, { method: 'DELETE' });
-    const data = await resp.json();
-    if (!resp.ok) { alert('No se pudo anular: ' + (data.error || resp.status)); return; }
-    await cargarAusentismosDelPeriodo();
-  } catch (err) { alert('Error de red: ' + err.message); }
+function anularAusentismo(codNoved) {
+  abrirModalAnularChoice(codNoved, 'aus');
 }
 
 // ─── CAMBIOS MAESTRO ──────────────────────────────────────────────────────────
@@ -2824,14 +2807,8 @@ async function guardarEdicionCambio() {
   } catch (err) { alert('Error de red: ' + err.message); }
 }
 
-async function anularCambio(codNoved) {
-  if (!confirm('¿Anular este cambio? (queda inactivo pero se conserva)')) return;
-  try {
-    const resp = await fetch(`/api/cambios/${codNoved}`, { method: 'DELETE' });
-    const data = await resp.json();
-    if (!resp.ok) { alert('No se pudo anular: ' + (data.error || resp.status)); return; }
-    await cargarCambiosDelPeriodo();
-  } catch (err) { alert('Error de red: ' + err.message); }
+function anularCambio(codNoved) {
+  abrirModalAnularChoice(codNoved, 'camb');
 }
 
 function eliminar(coleccion, idx) {
@@ -2964,10 +2941,9 @@ function guardarConexion() {
   document.getElementById('connText').style.color = 'var(--success)';
 }
 
-// ─── IMPORTACIÓN MASIVA DESDE EXCEL ──────────────────────────────────────────
+// ─── IMPORTACIÓN MASIVA (EXCEL/ADECCO + PDF, UNIFICADA) ──────────────────────
 
-let _importFiles      = []; // EXCEL: archivos del panel izquierdo
-let _importFilesPDF   = []; // PDF: archivos del panel derecho
+let _importFiles = []; // lote único mixto: archivos Excel/ADECCO y PDF juntos
 
 // Mapeo codConc → nombre legible (para la tabla de detalle)
 const CONC_NOMBRES = {
@@ -3006,47 +2982,57 @@ function esArchivoAdecco(nombre) {
 
 function renderListaArchivos() {
   const container = document.getElementById('importFileList');
-  if (!container) return;
+  const acciones  = document.getElementById('importActions');
+  const modoPanel = document.getElementById('modoImportacionPanel');
+  const adeccoPanel = document.getElementById('adeccoModoPanel');
+
   if (_importFiles.length === 0) {
-    container.innerHTML = '';
+    if (container) container.innerHTML = '';
+    if (acciones)  acciones.style.display  = 'none';
+    if (modoPanel) modoPanel.style.display = 'none';
+    if (adeccoPanel) adeccoPanel.style.display = 'none';
     return;
   }
-  const html = _importFiles.map((f, i) => `
-    <div style="display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,0.05);">
-      <span style="font-size:20px;">${iconoPorArchivo(f.name)}</span>
-      <div style="flex:1;min-width:0;">
-        <div style="font-weight:600;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.name}</div>
-        <div style="font-size:11px;color:var(--muted);">${formatoLegible(f.size)} · ${f.type || 'desconocido'}${esArchivoAdecco(f.name) ? ' · <span style="color:var(--cm-blue-light)">ADECCO</span>' : ''}</div>
-      </div>
-      <button onclick="quitarArchivoImport(${i})" title="Quitar este archivo"
-        style="background:transparent;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:2px 6px;border-radius:4px;"
-        onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--muted)'">✕</button>
-    </div>
-  `).join('');
-  container.innerHTML = `
-    <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:8px;">
-      ${_importFiles.length} archivo${_importFiles.length !== 1 ? 's' : ''} seleccionado${_importFiles.length !== 1 ? 's' : ''}
-    </div>
-    ${html}
-  `;
 
-  // Mostrar u ocultar el panel de modo ADECCO según si hay archivos Excel ADECCO
+  if (container) {
+    const html = _importFiles.map((f, i) => `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,0.05);">
+        <span style="font-size:20px;">${iconoPorArchivo(f.name)}</span>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:600;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.name}</div>
+          <div style="font-size:11px;color:var(--muted);">${formatoLegible(f.size)}${esArchivoAdecco(f.name) ? ' · <span style="color:var(--cm-blue-light)">ADECCO</span>' : ''}</div>
+        </div>
+        <button onclick="quitarArchivoImport(${i})" title="Quitar este archivo"
+          style="background:transparent;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:2px 6px;border-radius:4px;"
+          onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--muted)'">✕</button>
+      </div>
+    `).join('');
+    container.innerHTML = `
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:8px;">
+        ${_importFiles.length} archivo${_importFiles.length !== 1 ? 's' : ''} seleccionado${_importFiles.length !== 1 ? 's' : ''}
+      </div>
+      ${html}
+    `;
+  }
+
+  if (acciones) acciones.style.display = 'flex';
+
+  // Modo importación (acumular/reemplazar) solo aplica a Excel/ADECCO
+  const tieneExcel = _importFiles.some(f => f.name.match(/\.(xlsx?|csv)$/i));
+  if (modoPanel) modoPanel.style.display = tieneExcel ? 'block' : 'none';
+
+  // Panel ADECCO solo si hay un archivo Excel detectado como ADECCO
   const tieneAdecco = _importFiles.some(f => f.name.match(/\.xlsx?$/i) && esArchivoAdecco(f.name));
-  const panel = document.getElementById('adeccoModoPanel');
-  if (panel) panel.style.display = tieneAdecco ? 'block' : 'none';
+  if (adeccoPanel) adeccoPanel.style.display = tieneAdecco ? 'block' : 'none';
 }
 
 function quitarArchivoImport(idx) {
   _importFiles.splice(idx, 1);
-  if (_importFiles.length === 0) {
-    cancelarImport();
-  } else {
-    renderListaArchivos();
-  }
+  renderListaArchivos();
 }
 
 function seleccionarArchivoImport(e) {
-  const nuevos = Array.from(e.target.files || []);
+  const nuevos = Array.from(e.target.files || []).filter(f => f.name.match(/\.(xlsx?|csv|pdf)$/i));
   if (nuevos.length === 0) return;
 
   // Acumular archivos (permite agregar más en sucesivas selecciones)
@@ -3063,13 +3049,10 @@ function seleccionarArchivoImport(e) {
       ? `${_importFiles.length} archivos listos`
       : 'Archivo listo';
   document.getElementById('uploadSub').textContent =
-    'Haz clic en "Importar a la BD" para proceder, o arrastra más archivos';
+    'Haz clic en "Importar" para proceder, o arrastra más archivos';
   _actualizarBtnImportar();
 
-  // Renderizar lista y mostrar panel (panel unificado legacy — solo si el elemento existe)
   renderListaArchivos();
-  const _fi = document.getElementById('importFileInfo');
-  if (_fi) _fi.style.display = 'block';
   const _ir = document.getElementById('importResult');
   if (_ir) _ir.style.display = 'none';
   const _ig = document.getElementById('importGuia');
@@ -3079,20 +3062,18 @@ function seleccionarArchivoImport(e) {
   e.target.value = '';
 }
 
+// Nota: el drag&drop de #dropZone (dragover/dragleave/drop) se registra en el
+// listener DOMContentLoaded más abajo, que llama a seleccionarArchivoImport().
+
 function cancelarImport() {
-  // Compatibilidad: limpia ambos paneles
-  _importFiles    = [];
-  _importFilesPDF = [];
-  const fiE = document.getElementById('fileInputExcel');
-  const fiP = document.getElementById('fileInputPDF');
-  if (fiE) fiE.value = '';
-  if (fiP) fiP.value = '';
+  _importFiles = [];
+  const fi = document.getElementById('fileInput');
+  if (fi) fi.value = '';
   const res = document.getElementById('importResult');
   const gui = document.getElementById('importGuia');
   if (res) res.style.display = 'none';
   if (gui) gui.style.display = 'block';
-  _resetPanelExcel();
-  _resetPanelPDF();
+  renderListaArchivos();
 }
 
 function resetearImport() {
@@ -3119,7 +3100,7 @@ function _fmtFecha(iso) {
 
 function _actualizarBtnImportar() {
   const btn = document.getElementById('btnImportar');
-  if (btn) btn.innerHTML = '⬆ Importar a la BD'; // panel legacy — puede ser null en el nuevo layout
+  if (btn) btn.innerHTML = '⬆ Importar';
 }
 
 // ── Decisor: PDF → previsualizar primero; solo Excel → importar directo ───────
@@ -3137,9 +3118,8 @@ let _prevToken = null;
 
 // ── Paso 1: Extracción OCR sin escritura en BD ────────────────────────────────
 async function previzualizarPDFs() {
-  const pdfFiles = _importFilesPDF.length ? _importFilesPDF
-                  : _importFiles.filter(f => f.name.match(/\.pdf$/i));
-  const btn = document.getElementById('btnImportarPDF') || document.getElementById('btnImportar');
+  const pdfFiles = _importFiles.filter(f => f.name.match(/\.pdf$/i));
+  const btn = document.getElementById('btnImportar');
   if (btn) btn.disabled = true;
   document.getElementById('importProgress').style.display  = 'block';
   document.getElementById('importProgressText').textContent = `Analizando ${pdfFiles.length} PDF${pdfFiles.length > 1 ? 's' : ''}… esto puede tardar hasta 1 minuto`;
@@ -3175,10 +3155,10 @@ async function previzualizarPDFs() {
     const data = await resp.json();
     if (!data.success) throw new Error(data.error || 'Error al previsualizar');
 
-    // Auto-importar: con el token en mano se confirma inmediatamente sin paso intermedio.
-    // Si hay PDFs no reconocidos o con errores, quedarán reportados en el resultado final.
+    // Mostrar la tabla de revisión con lo extraído por OCR; el usuario confirma
+    // manualmente (btnConfirmarReview → confirmarImportPDF) antes de escribir en BD.
     _prevToken = data.token;
-    await confirmarImportPDF();
+    _mostrarRevision(data.preview || []);
 
   } catch (err) {
     clearInterval(timer);
@@ -3186,7 +3166,7 @@ async function previzualizarPDFs() {
     mostrarResultadoImport(null, `No se pudo analizar los PDFs: ${err.message}`);
     document.getElementById('importResult').style.display = 'block';
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '⬆ Importar PDFs'; }
+    if (btn) { btn.disabled = false; btn.textContent = '⬆ Importar'; }
   }
 }
 
@@ -3298,17 +3278,22 @@ async function confirmarImportPDF() {
       for (const f of excelFiles) fdExcel.append('archivos[]', f);
       const modoRadio = document.querySelector('input[name="adeccoModo"]:checked');
       if (modoRadio && excelFiles.some(f => esArchivoAdecco(f.name))) fdExcel.append('modo', modoRadio.value);
+      const modoImportRadio = document.querySelector('input[name="modoImportacion"]:checked');
+      fdExcel.append('modoImportacion', modoImportRadio ? modoImportRadio.value : 'acumular');
+
       const rExcel = await fetch('/api/ocasionales/importar-excel', {
         method: 'POST', headers: { 'Authorization': `Bearer ${_getAuthToken()}` }, body: fdExcel
       });
-      if (rExcel.ok || rExcel.status === 207) {
-        const dExcel = await rExcel.json();
-        if (dExcel.archivos) resultadosFinales.archivos.push(...dExcel.archivos);
-        if (dExcel.periodo)  resultadosFinales.periodo = dExcel.periodo;
-        const rs = dExcel.globalResumen || dExcel.resumen || {};
-        resultadosFinales.resumen.insertados += rs.insertados || 0;
-        resultadosFinales.resumen.errores    += rs.conErrores || rs.errores || 0;
+      if (!rExcel.ok && rExcel.status !== 207) {
+        const errExcel = await rExcel.json().catch(() => ({}));
+        throw new Error(errExcel.error || `Error del servidor al importar Excel (${rExcel.status})`);
       }
+      const dExcel = await rExcel.json();
+      if (dExcel.archivos) resultadosFinales.archivos.push(...dExcel.archivos);
+      if (dExcel.periodo)  resultadosFinales.periodo = dExcel.periodo;
+      const rs = dExcel.globalResumen || dExcel.resumen || {};
+      resultadosFinales.resumen.insertados += rs.insertados || 0;
+      resultadosFinales.resumen.errores    += rs.conErrores || rs.errores || 0;
     }
 
     bar.style.width = '70%';
@@ -3344,6 +3329,11 @@ async function confirmarImportPDF() {
 
     _prevToken = null;
     mostrarResultadoImport(resultadosFinales, null);
+    // Lote confirmado: limpiar selección para evitar reenvíos accidentales
+    _importFiles = [];
+    const fi = document.getElementById('fileInput');
+    if (fi) fi.value = '';
+    renderListaArchivos();
     // Recargar todas las tablas que pueden recibir registros desde PDFs
     cargarOcasionalesDelPeriodo();
     cargarAusentismosDelPeriodo();
@@ -3375,12 +3365,11 @@ async function ejecutarImportMasiva() {
     if (u && u.nombre) usuario = u.nombre;
   } catch (_) {}
 
-  // Detectar tipos de archivos
+  // Esta función solo procesa Excel/ADECCO: manejarBtnImportar() enruta los
+  // lotes con PDF a previzualizarPDFs()/confirmarImportPDF() en su lugar.
   const excelFiles = _importFiles.filter(f => f.name.match(/\.(xlsx?|csv)$/i));
-  const pdfFiles = _importFiles.filter(f => f.name.match(/\.pdf$/i));
 
-  // Deshabilitar botón y mostrar progreso (panel split: usa btnImportarExcel)
-  const btn = document.getElementById('btnImportarExcel');
+  const btn = document.getElementById('btnImportar');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Procesando…'; }
   document.getElementById('importProgress').style.display = 'block';
   document.getElementById('importResult').style.display = 'none';
@@ -3412,6 +3401,9 @@ async function ejecutarImportMasiva() {
     // Leer modo seleccionado para archivos ADECCO
     const modoRadio = document.querySelector('input[name="adeccoModo"]:checked');
     const modoAdecco = modoRadio ? modoRadio.value : 'novedades';
+    // Leer modo de importación: acumular | reemplazar
+    const modoImportRadio = document.querySelector('input[name="modoImportacion"]:checked');
+    const modoImportacion = modoImportRadio ? modoImportRadio.value : 'acumular';
 
     // Procesar archivos Excel
     if (excelFiles.length > 0) {
@@ -3420,6 +3412,7 @@ async function ejecutarImportMasiva() {
         formDataExcel.append('archivos[]', f);
       }
       formDataExcel.append('usuario', usuario);
+      formDataExcel.append('modoImportacion', modoImportacion);
       // Enviar modo solo si hay al menos un archivo ADECCO en el lote
       const hayAdecco = excelFiles.some(f => esArchivoAdecco(f.name));
       if (hayAdecco) formDataExcel.append('modo', modoAdecco);
@@ -3430,56 +3423,35 @@ async function ejecutarImportMasiva() {
         body: formDataExcel,
       });
 
-      if (respExcel.ok || respExcel.status === 207) {
-        const dataExcel = await respExcel.json();
-        if (dataExcel.archivos) resultadosFinales.archivos.push(...dataExcel.archivos);
-        if (dataExcel.globalResumen) {
-          resultadosFinales.resumen.procesados  += dataExcel.globalResumen.procesados  || 0;
-          resultadosFinales.resumen.insertados  += dataExcel.globalResumen.insertados  || 0;
-          resultadosFinales.resumen.acumulados  += dataExcel.globalResumen.acumulados  || 0;
-          resultadosFinales.resumen.conErrores  += dataExcel.globalResumen.conErrores  || 0;
-          resultadosFinales.resumen.errores     += dataExcel.globalResumen.conErrores  || 0;
-        } else if (dataExcel.resumen) {
-          resultadosFinales.resumen.procesados += dataExcel.resumen.procesados || 0;
-          resultadosFinales.resumen.insertados += dataExcel.resumen.insertados || 0;
-          resultadosFinales.resumen.errores    += dataExcel.resumen.errores    || 0;
-        }
-        if (dataExcel.periodo) resultadosFinales.periodo = dataExcel.periodo;
-        // Pasar resumen de empleados si viene en la respuesta
-        if (dataExcel.archivos) {
-          for (const a of dataExcel.archivos) {
-            if (a.resumenEmpleados) {
-              resultadosFinales._resumenEmpleados = a.resumenEmpleados;
-            }
+      // Bug raíz del error genérico "No se procesaron archivos": antes solo se
+      // leía la respuesta en el camino feliz, así que cualquier error real del
+      // backend (período no encontrado, cédula no encontrada, etc.) se descartaba
+      // en silencio. Ahora se propaga el mensaje real del servidor.
+      if (!respExcel.ok && respExcel.status !== 207) {
+        const errExcel = await respExcel.json().catch(() => ({}));
+        throw new Error(errExcel.error || `Error del servidor (${respExcel.status})`);
+      }
+
+      const dataExcel = await respExcel.json();
+      if (dataExcel.archivos) resultadosFinales.archivos.push(...dataExcel.archivos);
+      if (dataExcel.globalResumen) {
+        resultadosFinales.resumen.procesados  += dataExcel.globalResumen.procesados  || 0;
+        resultadosFinales.resumen.insertados  += dataExcel.globalResumen.insertados  || 0;
+        resultadosFinales.resumen.acumulados  += dataExcel.globalResumen.acumulados  || 0;
+        resultadosFinales.resumen.conErrores  += dataExcel.globalResumen.conErrores  || 0;
+        resultadosFinales.resumen.errores     += dataExcel.globalResumen.conErrores  || 0;
+      } else if (dataExcel.resumen) {
+        resultadosFinales.resumen.procesados += dataExcel.resumen.procesados || 0;
+        resultadosFinales.resumen.insertados += dataExcel.resumen.insertados || 0;
+        resultadosFinales.resumen.errores    += dataExcel.resumen.errores    || 0;
+      }
+      if (dataExcel.periodo) resultadosFinales.periodo = dataExcel.periodo;
+      // Pasar resumen de empleados si viene en la respuesta
+      if (dataExcel.archivos) {
+        for (const a of dataExcel.archivos) {
+          if (a.resumenEmpleados) {
+            resultadosFinales._resumenEmpleados = a.resumenEmpleados;
           }
-        }
-      }
-    }
-
-    // Procesar archivos PDF (nueva funcionalidad)
-    if (pdfFiles.length > 0) {
-      const formDataPDF = new FormData();
-      for (const f of pdfFiles) {
-        formDataPDF.append('archivos[]', f);
-      }
-
-      const respPDF = await fetch('/api/pdf/importar', {
-        method: 'POST',
-        headers,
-        body: formDataPDF,
-      });
-
-      if (respPDF.ok) {
-        const dataPDF = await respPDF.json();
-        if (dataPDF.archivos) resultadosFinales.archivos.push(...dataPDF.archivos);
-        if (dataPDF.periodo) resultadosFinales.periodo = dataPDF.periodo;
-        if (dataPDF.resumen) {
-          resultadosFinales.resumen.procesados  += dataPDF.resumen.procesados  || 0;
-          resultadosFinales.resumen.insertados  += dataPDF.resumen.insertados  || 0;
-          resultadosFinales.resumen.acumulados  += dataPDF.resumen.acumulados  || 0;
-          resultadosFinales.resumen.reactivados += dataPDF.resumen.reactivados || 0;
-          resultadosFinales.resumen.conErrores  += dataPDF.resumen.conErrores  || dataPDF.resumen.errores || 0;
-          resultadosFinales.resumen.errores     += dataPDF.resumen.errores     || dataPDF.resumen.conErrores || 0;
         }
       }
     }
@@ -3490,22 +3462,24 @@ async function ejecutarImportMasiva() {
 
     document.getElementById('importProgress').style.display = 'none';
 
-    if (resultadosFinales.archivos.length === 0) {
-      mostrarResultadoImport(null, 'No se procesaron archivos');
-    } else {
-      mostrarResultadoImport(resultadosFinales, null);
-      cargarOcasionalesDelPeriodo();
-      cargarFijasDelPeriodo();
-      cargarAusentismosDelPeriodo();
-      cargarCambiosDelPeriodo();
-      cargarActividadReciente();
-    }
+    mostrarResultadoImport(resultadosFinales, null);
+    cargarOcasionalesDelPeriodo();
+    cargarFijasDelPeriodo();
+    cargarAusentismosDelPeriodo();
+    cargarCambiosDelPeriodo();
+    cargarActividadReciente();
+
+    // Lote procesado: limpiar selección para evitar reenvíos accidentales
+    _importFiles = [];
+    const fi = document.getElementById('fileInput');
+    if (fi) fi.value = '';
+    renderListaArchivos();
   } catch (err) {
     clearInterval(progTimer);
     document.getElementById('importProgress').style.display = 'none';
-    mostrarResultadoImport(null, `Error de red: ${err.message}`);
+    mostrarResultadoImport(null, err.message);
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '⬆ Importar Excel'; }
+    if (btn) { btn.disabled = false; btn.textContent = '⬆ Importar'; }
   }
 }
 
@@ -3532,6 +3506,23 @@ function mostrarResultadoImport(data, errorMsg) {
 
   document.getElementById('importStatsGrid').style.display = 'grid';
   document.getElementById('importPeriodoCard').style.display = 'block';
+
+  // Mostrar alerta si hay advertencia de período en el detalle
+  let periodAlertDiv = document.getElementById('importPeriodAlert');
+  const _archivosAlerta = data.archivos || [];
+  const periodoAviso = _archivosAlerta.flatMap(a => a.detalle || [])
+    .find(d => d.estado === 'AVISO' && d.mensaje && d.mensaje.includes('período activo en BD'));
+  if (periodoAviso) {
+    if (!periodAlertDiv) {
+      periodAlertDiv = document.createElement('div');
+      periodAlertDiv.id = 'importPeriodAlert';
+      document.getElementById('importResultBanner').after(periodAlertDiv);
+    }
+    periodAlertDiv.style.cssText = 'margin:0 0 12px; padding:10px 14px; background:rgba(255,152,0,0.12); border:1px solid rgba(255,152,0,0.4); border-radius:6px; font-size:12px; color:#FF9800; line-height:1.5;';
+    periodAlertDiv.textContent = periodoAviso.mensaje;
+  } else if (periodAlertDiv) {
+    periodAlertDiv.remove();
+  }
 
   // Usar globalResumen si existe (formato multi-archivo), sino caer al resumen legacy
   const gr = data.globalResumen || data.resumen || {};
@@ -3561,9 +3552,13 @@ function mostrarResultadoImport(data, errorMsg) {
     document.getElementById('importResultIcon').textContent = '⚠';
     document.getElementById('importResultTitle').textContent = 'Importación completada con advertencias';
   }
+  const modoProcesado = (document.querySelector('input[name="modoImportacion"]:checked') || {}).value || 'acumular';
+  const etiquetaAcum = modoProcesado === 'reemplazar' ? 'reemplazados' : 'acumulados';
   document.getElementById('importResultSub').textContent =
-    `${gr.insertados || 0} insertados · ${gr.acumulados || 0} acumulados · ` +
+    `${gr.insertados || 0} insertados · ${gr.acumulados || 0} ${etiquetaAcum} · ` +
     `${gr.conErrores || 0} errores · Período: ${data.periodo?.etiqueta || '—'}`;
+  const subAcum = document.getElementById('istat_acumulados_sub');
+  if (subAcum) subAcum.textContent = modoProcesado === 'reemplazar' ? 'valores reemplazados' : 'cantidades sumadas';
 
   // Stats
   document.getElementById('istat_archivos').textContent = totalArch;
@@ -3682,6 +3677,8 @@ function renderDetalleImport(rows) {
       estadoHtml = `<span class="badge badge-dev">✓ Insertado</span>`;
     } else if (d.estado === 'ACUMULADO') {
       estadoHtml = `<span class="badge badge-cam">⊕ Acumulado</span>`;
+    } else if (d.estado === 'REEMPLAZADO') {
+      estadoHtml = `<span class="badge" style="background:rgba(255,193,7,0.15);color:#FFC107;">↻ Reemplazado</span>`;
     } else if (d.estado === 'ACTUALIZADO') {
       estadoHtml = `<span class="badge" style="background:rgba(32,167,201,0.15);color:#20A7C9;">↺ Actualizado</span>`;
     } else if (d.estado === 'REACTIVADO') {
@@ -3692,8 +3689,10 @@ function renderDetalleImport(rows) {
       estadoHtml = `<span class="badge" style="background:rgba(224,85,85,0.12);color:#E05555;">⚠ Pendiente</span>`;
     } else if (d.estado === 'AVISO') {
       estadoHtml = `<span class="badge" style="background:rgba(32,167,201,0.15);color:#20A7C9;">ℹ Aviso</span>`;
+    } else if (d.estado === 'ERROR' && d.tipo === 'CEDULA_NO_ENCONTRADA') {
+      estadoHtml = `<span class="badge" style="background:rgba(255,152,0,0.15);color:#FF9800;">⚠ Cédula no encontrada</span>`;
     } else {
-      estadoHtml = `<span class="badge badge-ded">✕ Error</span>`;
+      estadoHtml = `<span class="badge badge-ded">✕ Error BD</span>`;
     }
     // Soportar tanto codConc (Excel) como tipoNovedad (PDF)
     const concNom = d.codConc
@@ -3729,8 +3728,8 @@ function filtrarDetalleImport() {
   renderDetalleImport(filtered);
 }
 
-// Drag & drop — registrado en DOMContentLoaded para evitar crash si el elemento
-// no existe aún (o fue renombrado a #dropZoneExcel / #dropZonePDF)
+// Drag & drop del panel único de importar — registrado en DOMContentLoaded
+// para evitar crash si el elemento aún no existe en el DOM.
 document.addEventListener('DOMContentLoaded', () => {
   const dropZone = document.getElementById('dropZone');
   if (!dropZone) return;
@@ -4128,7 +4127,122 @@ function _limpiarTodasSelecciones() {
   _limpiarSelCamb();
 }
 
+// ─── Modal Anular Choice (registro individual) ────────────────────────────────
+let _choiceCodNoved = null;
+let _choiceType     = null; // 'ocas' | 'fija' | 'aus' | 'camb'
+
+const _choiceEndpoints = {
+  ocas: { url: c => `/api/ocasionales/${c}`, reload: () => cargarOcasionalesDelPeriodo(), alertId: 'alertOcas' },
+  fija: { url: c => `/api/fijas/${c}`,       reload: () => cargarFijasDelPeriodo(),       alertId: 'alertFijas' },
+  aus:  { url: c => `/api/ausentismos/${c}`, reload: () => cargarAusentismosDelPeriodo(), alertId: 'alertAus'   },
+  camb: { url: c => `/api/cambios/${c}`,     reload: () => cargarCambiosDelPeriodo(),     alertId: 'alertCI'    },
+};
+
+function abrirModalAnularChoice(codNoved, type) {
+  _choiceCodNoved = codNoved;
+  _choiceType     = type;
+  // Reset to step 1
+  document.getElementById('choiceStep1').style.display = '';
+  document.getElementById('choiceStep1b').style.display = 'none';
+  document.getElementById('choiceStep2').style.display = 'none';
+  const inp = document.getElementById('choiceEliminarInput');
+  if (inp) inp.value = '';
+  const btn = document.getElementById('btnChoiceConfirm');
+  if (btn) btn.disabled = true;
+  document.getElementById('modalAnularChoice').classList.add('open');
+}
+
+function cerrarModalAnularChoice() {
+  document.getElementById('modalAnularChoice').classList.remove('open');
+  _choiceCodNoved = null;
+  _choiceType     = null;
+}
+
+function _choiceEliminar() {
+  document.getElementById('choiceStep1').style.display = 'none';
+  document.getElementById('choiceStep2').style.display = '';
+  const inp = document.getElementById('choiceEliminarInput');
+  if (inp) { inp.value = ''; inp.focus(); }
+  const btn = document.getElementById('btnChoiceConfirm');
+  if (btn) btn.disabled = true;
+}
+
+function choiceVolverPaso1() {
+  document.getElementById('choiceStep1').style.display = '';
+  document.getElementById('choiceStep1b').style.display = 'none';
+  document.getElementById('choiceStep2').style.display = 'none';
+}
+
+function validarInputEliminarChoice() {
+  const val = (document.getElementById('choiceEliminarInput').value || '').trim().toUpperCase();
+  document.getElementById('btnChoiceConfirm').disabled = val !== 'ELIMINAR';
+}
+
+function _choiceInhabilitar() {
+  document.getElementById('choiceStep1').style.display = 'none';
+  document.getElementById('choiceStep1b').style.display = '';
+}
+
+async function _choiceConfirmarInhabilitar() {
+  const btn = document.getElementById('btnChoiceInhabilitarConfirm');
+  if (btn) btn.disabled = true;
+  try { await _ejecutarAnulacionChoice('inhabilitar'); }
+  finally { if (btn) btn.disabled = false; }
+}
+
+async function _choiceConfirmarEliminar() {
+  await _ejecutarAnulacionChoice('eliminar');
+}
+
+async function _ejecutarAnulacionChoice(mode) {
+  if (!_choiceCodNoved || !_choiceType) return;
+  const cfg = _choiceEndpoints[_choiceType];
+  if (!cfg) return;
+
+  const btn = mode === 'eliminar'
+    ? document.getElementById('btnChoiceConfirm')
+    : document.querySelector('#choiceStep1 .btn-anular-inhabilitar');
+  if (btn) { btn.disabled = true; }
+
+  try {
+    const resp = await fetch(`${cfg.url(_choiceCodNoved)}?mode=${mode}`, { method: 'DELETE' });
+    const data = await resp.json();
+    if (!resp.ok) {
+      alert('No se pudo anular: ' + (data.error || resp.status));
+      return;
+    }
+    cerrarModalAnularChoice();
+    await cfg.reload();
+    const alertEl = document.getElementById(cfg.alertId);
+    if (alertEl) {
+      const label = mode === 'eliminar' ? 'eliminado' : 'inhabilitado';
+      alertEl.textContent = `✓ Registro ${label} correctamente.`;
+      alertEl.classList.remove('alert-error');
+      alertEl.classList.add('alert-success', 'show');
+      setTimeout(() => alertEl.classList.remove('show'), 3500);
+    }
+  } catch (err) {
+    alert('Error de red: ' + err.message);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// Cerrar choice modal con Escape o clic fuera
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    const m = document.getElementById('modalAnularChoice');
+    if (m && m.classList.contains('open')) cerrarModalAnularChoice();
+  }
+});
+document.addEventListener('click', e => {
+  const m = document.getElementById('modalAnularChoice');
+  if (m && m.classList.contains('open') && e.target === m) cerrarModalAnularChoice();
+});
+
 // ─── Abrir modal de confirmación de anulación masiva ────────────────────────
+let _batchMode = 'inhabilitar'; // 'inhabilitar' | 'eliminar'
+
 function abrirModalAnularBatch() {
   // Determinar cuál set tiene selecciones
   let selSet, stateArr, conceptoKey, tabLabel;
@@ -4160,11 +4274,55 @@ function abrirModalAnularBatch() {
   document.getElementById('batchCountLabel').textContent =
     `${filas.length} novedad${filas.length !== 1 ? 'es' : ''} (${tabLabel})`;
 
+  // Reset to step 1
+  _batchMode = 'inhabilitar';
+  document.getElementById('batchStep1').style.display = '';
+  document.getElementById('batchStep1b').style.display = 'none';
+  document.getElementById('batchStep2').style.display = 'none';
+  const inp = document.getElementById('batchEliminarInput');
+  if (inp) inp.value = '';
+  const btn = document.getElementById('btnBatchConfirm');
+  if (btn) btn.disabled = true;
+
   document.getElementById('modalAnularBatch').classList.add('open');
 }
 
 function cerrarModalAnularBatch() {
   document.getElementById('modalAnularBatch').classList.remove('open');
+}
+
+function batchElegirInhabilitar() {
+  _batchMode = 'inhabilitar';
+  document.getElementById('batchStep1').style.display = 'none';
+  document.getElementById('batchStep1b').style.display = '';
+}
+
+async function batchConfirmarInhabilitar() {
+  const btn = document.getElementById('btnBatchInhabilitarConfirm');
+  if (btn) btn.disabled = true;
+  try { await confirmarAnularBatch(); }
+  finally { if (btn) btn.disabled = false; }
+}
+
+function batchElegirEliminar() {
+  _batchMode = 'eliminar';
+  document.getElementById('batchStep1').style.display = 'none';
+  document.getElementById('batchStep2').style.display = '';
+  const inp = document.getElementById('batchEliminarInput');
+  if (inp) { inp.value = ''; inp.focus(); }
+  document.getElementById('btnBatchConfirm').disabled = true;
+}
+
+function batchVolverPaso1() {
+  _batchMode = 'inhabilitar';
+  document.getElementById('batchStep1').style.display = '';
+  document.getElementById('batchStep1b').style.display = 'none';
+  document.getElementById('batchStep2').style.display = 'none';
+}
+
+function validarInputEliminarBatch() {
+  const val = (document.getElementById('batchEliminarInput').value || '').trim().toUpperCase();
+  document.getElementById('btnBatchConfirm').disabled = val !== 'ELIMINAR';
 }
 
 // ─── Ejecutar anulación masiva ───────────────────────────────────────────────
@@ -4192,14 +4350,13 @@ async function confirmarAnularBatch() {
   const ids = [...selSet];
   if (ids.length === 0) return;
 
-  btnConfirm.disabled = true;
-  btnConfirm.textContent = 'Anulando…';
+  if (btnConfirm) { btnConfirm.disabled = true; }
 
   try {
     const resp = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ codNoveds: ids })
+      body: JSON.stringify({ codNoveds: ids, mode: _batchMode })
     });
     const data = await resp.json();
 
@@ -4212,7 +4369,9 @@ async function confirmarAnularBatch() {
     limpiar();
     await recargar();
 
-    const msg = `✓ ${data.anulados} novedad${data.anulados !== 1 ? 'es anuladas' : ' anulada'} correctamente.`;
+    const accion = _batchMode === 'eliminar' ? 'eliminada' : 'inhabilitada';
+    const accionP = _batchMode === 'eliminar' ? 'eliminadas' : 'inhabilitadas';
+    const msg = `✓ ${data.anulados} novedad${data.anulados !== 1 ? `es ${accionP}` : ` ${accion}`} correctamente.`;
     const alertEl = document.getElementById(alertId);
     if (alertEl) {
       alertEl.textContent = msg;
@@ -4223,8 +4382,7 @@ async function confirmarAnularBatch() {
   } catch (err) {
     alert('Error de red: ' + err.message);
   } finally {
-    btnConfirm.disabled = false;
-    btnConfirm.textContent = 'Sí, anular todo';
+    if (btnConfirm) btnConfirm.disabled = false;
   }
 }
 
@@ -4236,142 +4394,6 @@ document.addEventListener('keydown', e => {
     if (m && m.classList.contains('open')) cerrarModalAnularBatch();
   }
 });
-
-// ══════════════════════════════════════════════════════════════════════════════
-// PANELES SPLIT IMPORT — Excel y PDF por separado
-// ══════════════════════════════════════════════════════════════════════════════
-
-function _resetPanelExcel() {
-  _importFiles = [];
-  const icon = document.getElementById('uploadIconExcel');
-  const lbl  = document.getElementById('uploadLabelExcel');
-  const sub  = document.getElementById('uploadSubExcel');
-  const lst  = document.getElementById('importFileListExcel');
-  const act  = document.getElementById('importExcelActions');
-  if (icon) icon.textContent = '📂';
-  if (lbl)  lbl.textContent  = 'Arrastra archivos .xlsx aquí, o haz clic';
-  if (sub)  sub.textContent  = 'Máx 50 MB · múltiples archivos';
-  if (lst)  { lst.innerHTML = ''; lst.style.display = 'none'; }
-  if (act)  act.style.display = 'none';
-  const adecco = document.getElementById('adeccoModoPanel');
-  if (adecco) adecco.style.display = 'none';
-}
-
-function _resetPanelPDF() {
-  _importFilesPDF = [];
-  const icon = document.getElementById('uploadIconPDF');
-  const lbl  = document.getElementById('uploadLabelPDF');
-  const sub  = document.getElementById('uploadSubPDF');
-  const lst  = document.getElementById('importFileListPDF');
-  const act  = document.getElementById('importPDFActions');
-  if (icon) icon.textContent = '📑';
-  if (lbl)  lbl.textContent  = 'Arrastra archivos .pdf aquí, o haz clic';
-  if (sub)  sub.textContent  = 'OCR automático · Máx 50 MB · múltiples PDFs';
-  if (lst)  { lst.innerHTML = ''; lst.style.display = 'none'; }
-  if (act)  act.style.display = 'none';
-}
-
-function _renderListaExcel() {
-  const lst = document.getElementById('importFileListExcel');
-  const act = document.getElementById('importExcelActions');
-  if (!lst) return;
-  if (_importFiles.length === 0) { _resetPanelExcel(); return; }
-  lst.style.display = 'block';
-  lst.innerHTML = _importFiles.map((f, i) => `
-    <div style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid rgba(255,255,255,0.05);">
-      <span style="font-size:18px;">${iconoPorArchivo(f.name)}</span>
-      <div style="flex:1;min-width:0;font-size:12px;">
-        <div style="font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.name}</div>
-        <div style="color:var(--muted);font-size:11px;">${formatoLegible(f.size)}${esArchivoAdecco(f.name) ? ' · <span style="color:var(--cm-blue-light)">ADECCO</span>' : ''}</div>
-      </div>
-      <button onclick="_quitarExcel(${i})" style="background:transparent;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:2px 6px;"
-              onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--muted)'">✕</button>
-    </div>
-  `).join('');
-  // Mostrar panel ADECCO si hay archivos ADECCO
-  const adecco = document.getElementById('adeccoModoPanel');
-  if (adecco) adecco.style.display = _importFiles.some(f => esArchivoAdecco(f.name)) ? 'block' : 'none';
-  if (act) act.style.display = 'flex';
-}
-
-function _renderListaPDF() {
-  const lst = document.getElementById('importFileListPDF');
-  const act = document.getElementById('importPDFActions');
-  if (!lst) return;
-  if (_importFilesPDF.length === 0) { _resetPanelPDF(); return; }
-  lst.style.display = 'block';
-  lst.innerHTML = _importFilesPDF.map((f, i) => `
-    <div style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid rgba(255,255,255,0.05);">
-      <span style="font-size:18px;">📄</span>
-      <div style="flex:1;min-width:0;font-size:12px;">
-        <div style="font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.name}</div>
-        <div style="color:var(--muted);font-size:11px;">${formatoLegible(f.size)}</div>
-      </div>
-      <button onclick="_quitarPDF(${i})" style="background:transparent;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:2px 6px;"
-              onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--muted)'">✕</button>
-    </div>
-  `).join('');
-  if (act) act.style.display = 'flex';
-}
-
-function _quitarExcel(idx) { _importFiles.splice(idx, 1); _renderListaExcel(); }
-function _quitarPDF(idx)   { _importFilesPDF.splice(idx, 1); _renderListaPDF(); }
-
-function seleccionarArchivoExcel(e) {
-  const nuevos = Array.from(e.target.files || []).filter(f => f.name.match(/\.(xlsx?|csv)$/i));
-  if (!nuevos.length) return;
-  for (const f of nuevos) {
-    if (!_importFiles.some(x => x.name === f.name && x.size === f.size)) _importFiles.push(f);
-  }
-  document.getElementById('uploadIconExcel').textContent  = _importFiles.length > 1 ? '📦' : '✅';
-  document.getElementById('uploadLabelExcel').textContent = `${_importFiles.length} archivo${_importFiles.length > 1 ? 's' : ''} listo${_importFiles.length > 1 ? 's' : ''}`;
-  document.getElementById('uploadSubExcel').textContent   = 'Haz clic en "Importar Excel" para proceder';
-  _renderListaExcel();
-  const res = document.getElementById('importResult');
-  if (res) res.style.display = 'none';
-  e.target.value = '';
-}
-
-function seleccionarArchivoPDF(e) {
-  const nuevos = Array.from(e.target.files || []).filter(f => f.name.match(/\.pdf$/i));
-  if (!nuevos.length) return;
-  for (const f of nuevos) {
-    if (!_importFilesPDF.some(x => x.name === f.name && x.size === f.size)) _importFilesPDF.push(f);
-  }
-  document.getElementById('uploadIconPDF').textContent  = _importFilesPDF.length > 1 ? '📦' : '✅';
-  document.getElementById('uploadLabelPDF').textContent = `${_importFilesPDF.length} PDF${_importFilesPDF.length > 1 ? 's' : ''} listo${_importFilesPDF.length > 1 ? 's' : ''}`;
-  document.getElementById('uploadSubPDF').textContent   = 'Haz clic en "Importar PDFs" para proceder';
-  _renderListaPDF();
-  const res = document.getElementById('importResult');
-  if (res) res.style.display = 'none';
-  e.target.value = '';
-}
-
-function cancelarImportExcel() { _resetPanelExcel(); }
-function cancelarImportPDF()   { _resetPanelPDF(); }
-
-function onDropExcel(e) {
-  e.preventDefault();
-  const f = { target: { files: e.dataTransfer.files, value: '' } };
-  seleccionarArchivoExcel(f);
-}
-function onDropPDF(e) {
-  e.preventDefault();
-  const f = { target: { files: e.dataTransfer.files, value: '' } };
-  seleccionarArchivoPDF(f);
-}
-
-async function ejecutarImportExcel() {
-  if (!_importFiles.length) { alert('Selecciona al menos un archivo Excel.'); return; }
-  await ejecutarImportMasiva();
-  _resetPanelExcel();
-}
-
-async function ejecutarImportPDF() {
-  if (!_importFilesPDF.length) { alert('Selecciona al menos un PDF.'); return; }
-  await previzualizarPDFs();
-  _resetPanelPDF();
-}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // GRÁFICOS — Analytics dashboard (Chart.js)
@@ -5458,3 +5480,187 @@ function _grfRenderAusCentros(centros) {
     }
   });
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  JEFES DE ÁREA — Gestión de líderes por centro de costos
+//  API: /api/jefes-area
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let _jaJefes = [];
+let _jaCcosts = [];
+
+// ─── Cargar tabla ─────────────────────────────────────────────────────────────
+
+async function ja_cargar() {
+  const tb = document.getElementById('tbJefesArea');
+  if (!tb) return;
+  tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Cargando...</td></tr>';
+  try {
+    const r = await AuthUtil.fetchAuth('/api/jefes-area');
+    const data = await r.json();
+    if (!data.success) throw new Error(data.error || 'Error al cargar');
+    _jaJefes = data.jefes || [];
+    ja_renderTabla();
+  } catch (err) {
+    tb.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#ef4444;padding:24px">Error: ${err.message}</td></tr>`;
+  }
+}
+
+function ja_renderTabla() {
+  const tb = document.getElementById('tbJefesArea');
+  if (!tb) return;
+  if (!_jaJefes.length) {
+    tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>';
+    return;
+  }
+  tb.innerHTML = _jaJefes.map(j => {
+    const activo = j.ACT_ESTA === 'A';
+    const princip = j.ES_PRINCIP === 'S';
+    return `<tr style="${activo ? '' : 'opacity:.5'}">
+      <td><strong style="color:var(--text)">${j.NOM_AREA || ''}</strong></td>
+      <td>${j.NOM_JEFE || ''}</td>
+      <td><a href="mailto:${j.COR_JEFE}" style="color:var(--accent)">${j.COR_JEFE || ''}</a></td>
+      <td>
+        ${j.NOM_CCOST ? `<span style="font-size:11px;color:var(--muted)">${j.NOM_CCOST}</span><br>` : ''}
+        ${j.COD_ABREV ? `<code style="font-size:11px;color:#4DC4E0">${j.COD_ABREV}</code>` : '<span style="color:var(--muted);font-size:11px">—</span>'}
+      </td>
+      <td style="text-align:center">
+        ${princip ? '<span style="color:#10b981;font-size:13px" title="Líder principal para este CCOO">●</span>' : '<span style="color:var(--muted);font-size:11px">○</span>'}
+      </td>
+      <td>
+        <span style="font-size:11px;padding:2px 8px;border-radius:10px;background:${activo ? '#10b98120' : '#ef444420'};color:${activo ? '#10b981' : '#ef4444'}">
+          ${activo ? 'Activo' : 'Inactivo'}
+        </span>
+      </td>
+      <td style="white-space:nowrap">
+        <button class="btn-sm" onclick="ja_abrirModal(${j.COD_JEFE})" title="Editar">✎</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ─── Modal crear / editar ─────────────────────────────────────────────────────
+
+async function ja_abrirModal(id = null) {
+  // Cargar centros de costo si no están en caché
+  if (!_jaCcosts.length) {
+    try {
+      const r = await AuthUtil.fetchAuth('/api/jefes-area/ccosts');
+      const d = await r.json();
+      _jaCcosts = d.ccosts || [];
+    } catch (_) {}
+  }
+
+  // Poblar select de CCOO
+  const selCcost = document.getElementById('ja_cod_ccost');
+  if (selCcost && _jaCcosts.length) {
+    selCcost.innerHTML = '<option value="">— Sin asignar —</option>' +
+      _jaCcosts.map(c => `<option value="${c.COD_CCOST}">${c.NOM_CCOST}</option>`).join('');
+  }
+
+  // Limpiar formulario
+  document.getElementById('ja_id').value        = '';
+  document.getElementById('ja_nom_area').value  = '';
+  document.getElementById('ja_nom_jefe').value  = '';
+  document.getElementById('ja_cor_jefe').value  = '';
+  document.getElementById('ja_cod_abrev').value = '';
+  document.getElementById('ja_es_princip').checked = false;
+  if (selCcost) selCcost.value = '';
+  const grupoEstado = document.getElementById('jaGrupoEstado');
+  if (grupoEstado) grupoEstado.style.display = 'none';
+  document.getElementById('jaModalTitulo').textContent = 'Nuevo Jefe de Área';
+
+  if (id) {
+    // Edición: buscar en caché
+    const jefe = _jaJefes.find(j => j.COD_JEFE === id);
+    if (jefe) {
+      document.getElementById('ja_id').value        = jefe.COD_JEFE;
+      document.getElementById('ja_nom_area').value  = jefe.NOM_AREA || '';
+      document.getElementById('ja_nom_jefe').value  = jefe.NOM_JEFE || '';
+      document.getElementById('ja_cor_jefe').value  = jefe.COR_JEFE || '';
+      document.getElementById('ja_cod_abrev').value = jefe.COD_ABREV || '';
+      document.getElementById('ja_es_princip').checked = jefe.ES_PRINCIP === 'S';
+      if (selCcost) selCcost.value = jefe.COD_CCOST ?? '';
+      if (grupoEstado) {
+        grupoEstado.style.display = '';
+        document.getElementById('ja_act_esta').value = jefe.ACT_ESTA || 'A';
+      }
+      document.getElementById('jaModalTitulo').textContent = `Editar — ${jefe.NOM_AREA}`;
+    }
+  }
+
+  const modal = document.getElementById('modalJefeArea');
+  if (modal) modal.style.display = 'flex';
+}
+
+function ja_cerrarModal() {
+  const modal = document.getElementById('modalJefeArea');
+  if (modal) modal.style.display = 'none';
+}
+
+async function ja_guardar() {
+  const id       = document.getElementById('ja_id').value;
+  const nom_area = (document.getElementById('ja_nom_area').value || '').trim();
+  const nom_jefe = (document.getElementById('ja_nom_jefe').value || '').trim();
+  const cor_jefe = (document.getElementById('ja_cor_jefe').value || '').trim();
+  const cod_abrev= (document.getElementById('ja_cod_abrev').value || '').trim();
+  const ccostEl  = document.getElementById('ja_cod_ccost');
+  const cod_ccost= ccostEl && ccostEl.value ? parseInt(ccostEl.value, 10) : null;
+  const es_princip = document.getElementById('ja_es_princip').checked ? 'S' : 'N';
+  const act_estaEl = document.getElementById('ja_act_esta');
+  const act_esta = act_estaEl ? act_estaEl.value : 'A';
+
+  if (!nom_area || !nom_jefe || !cor_jefe) {
+    alert('Los campos Área, Nombre del Líder y Correo son obligatorios.');
+    return;
+  }
+
+  const btn = document.getElementById('btnGuardarJefe');
+  if (btn) btn.disabled = true;
+
+  try {
+    const body = { nom_area, cod_ccost, cod_abrev, nom_jefe, cor_jefe, es_princip, act_esta };
+    const url    = id ? `/api/jefes-area/${id}` : '/api/jefes-area';
+    const method = id ? 'PUT' : 'POST';
+    const r = await AuthUtil.fetchAuth(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await r.json();
+    if (!data.success) throw new Error(data.error || 'Error al guardar');
+
+    ja_cerrarModal();
+    await ja_cargar();
+
+    const alertEl = document.getElementById('alertJefesArea');
+    if (alertEl) {
+      alertEl.style.display = '';
+      alertEl.textContent = `✓ ${data.mensaje || 'Guardado correctamente'}`;
+      alertEl.classList.add('show');
+      setTimeout(() => { alertEl.classList.remove('show'); alertEl.style.display = 'none'; }, 3500);
+    }
+  } catch (err) {
+    const errEl = document.getElementById('alertJefesAreaErr');
+    if (errEl) {
+      errEl.style.display = '';
+      errEl.textContent = '✗ ' + err.message;
+      errEl.classList.add('show');
+      setTimeout(() => { errEl.classList.remove('show'); errEl.style.display = 'none'; }, 4000);
+    }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// Cerrar modal con Escape o clic fuera
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    const m = document.getElementById('modalJefeArea');
+    if (m && m.style.display === 'flex') ja_cerrarModal();
+  }
+});
+document.addEventListener('click', e => {
+  const m = document.getElementById('modalJefeArea');
+  if (m && m.style.display === 'flex' && e.target === m) ja_cerrarModal();
+});

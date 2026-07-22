@@ -176,6 +176,29 @@ function parseCedula(cell) {
   return s.length > 0 ? s : null;
 }
 
+// ─── Extraer período del nombre del archivo ───────────────────────────────────
+// Patrón esperado: FORMATO_NOVEDADES_CM_<N>Q_<MES>_<YYYY>.xlsx
+// Ejemplo: FORMATO_NOVEDADES_CM_1Q_MAYO_2026.xlsx
+// Retorna: { ano, mes, qna } o null si no se puede extraer.
+const MESES_ES = {
+  enero:1, febrero:2, marzo:3, abril:4, mayo:5, junio:6,
+  julio:7, agosto:8, septiembre:9, octubre:10, noviembre:11, diciembre:12,
+};
+
+function extractPeriodFromFilename(filename) {
+  if (!filename) return null;
+  // Normalizar: sin acentos, mayúsculas → minúsculas
+  const name = norm(filename);
+  // Buscar patrón _<n>q_<mes>_<año>  (año de 4 dígitos)
+  const m = name.match(/_(\d)q_([a-z]+)_(\d{4})/);
+  if (!m) return null;
+  const qna = parseInt(m[1], 10);
+  const mes = MESES_ES[m[2]];
+  const ano = parseInt(m[3], 10);
+  if (!mes || isNaN(qna) || isNaN(ano)) return null;
+  return { ano, mes, qna };
+}
+
 // ─── Registrar / acumular novedad en el Map agrupado ─────────────────────────
 function registrarNovedad(agrupado, cedula, nombre, codConc, novedad, advertencias) {
   if (!agrupado.has(cedula)) {
@@ -352,7 +375,10 @@ async function parse(file, context) {
   // ── 5. Maestro Original ─────────────────────────────────────────────────────
   const maestro = parseMaestro(wb, advertencias);
 
-  return { agrupado, advertencias, totalFilas, maestro };
+  // ── 6. Período inferido del nombre del archivo ───────────────────────────────
+  const periodoArchivo = extractPeriodFromFilename(file.originalname);
+
+  return { agrupado, advertencias, totalFilas, maestro, periodoArchivo };
 }
 
 // ─── Parser de la hoja Maestro Original ──────────────────────────────────────
